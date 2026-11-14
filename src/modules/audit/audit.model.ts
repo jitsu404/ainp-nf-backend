@@ -3,6 +3,8 @@ import { ROLE_IDS, type RoleId } from '../../config/constants.js';
 
 export interface AuditLog {
   userId: Types.ObjectId;
+  /** Snapshot of the name at the time, so the record stays readable after the person leaves. */
+  userName?: string;
   roleId: RoleId;
   action: string;
   module: string;
@@ -17,6 +19,7 @@ export interface AuditLog {
 const auditSchema = new Schema<AuditLog>(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    userName: { type: String },
     roleId: { type: String, enum: ROLE_IDS, required: true },
     action: { type: String, required: true },
     module: { type: String, required: true },

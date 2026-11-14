@@ -1,36 +1,34 @@
 import { describe, expect, it } from 'vitest';
 import { AuditLogModel } from '../src/modules/audit/audit.model.js';
+import { CentreModel } from '../src/modules/centres/centres.model.js';
 import { createCentre, signedInAgent } from './helpers.js';
 
 const newCentre = { code: 'mdp', name: 'Modipuram', host: 'ICAR-IIFSR', state: 'Uttar Pradesh' };
 
 describe('centres', () => {
-  it('lets the Super Administrator create a centre and records it in the audit log', async () => {
+  it('lets the Super Admin create a centre and records it in the audit log', async () => {
     const { agent, user } = await signedInAgent('superadmin');
     const res = await agent.post('/api/v1/centres').send(newCentre).expect(201);
 
     expect(res.body.data).toMatchObject({ code: 'MDP', type: 'Network Centre', isActive: true });
     const audit = await AuditLogModel.findOne({ entityId: res.body.data.id });
-    expect(audit).toMatchObject({ module: 'centres', roleId: 'superadmin' });
+    expect(audit).toMatchObject({ module: 'centres', roleId: 'superadmin', userName: user.name });
     expect(audit?.userId.toString()).toBe(user.id);
   });
 
-  it('lets the PCU (Project Coordinator) create and edit centres', async () => {
+  it('lets the PCU create and edit centres', async () => {
     const { agent } = await signedInAgent('pc');
     const res = await agent.post('/api/v1/centres').send(newCentre).expect(201);
     await agent.patch(`/api/v1/centres/${res.body.data.id}`).send({ name: 'Modipuram (IIFSR)' }).expect(200);
   });
 
-  it.each(['admin', 'adminOfficer', 'finance', 'reviewer', 'pi', 'dataEntry'] as const)(
-    'forbids %s from creating or editing centres',
-    async (role) => {
-      const centre = await createCentre();
-      const { agent } = await signedInAgent(role, role === 'pi' || role === 'dataEntry' ? centre.id : null);
-      const created = await agent.post('/api/v1/centres').send(newCentre).expect(403);
-      expect(created.body.error.code).toBe('FORBIDDEN');
-      await agent.patch(`/api/v1/centres/${centre.id}`).send({ name: 'Renamed' }).expect(403);
-    },
-  );
+  it('forbids a Centre PI from creating or editing centres', async () => {
+    const centre = await createCentre();
+    const { agent } = await signedInAgent('pi', centre.id);
+    const created = await agent.post('/api/v1/centres').send(newCentre).expect(403);
+    expect(created.body.error.code).toBe('FORBIDDEN');
+    await agent.patch(`/api/v1/centres/${centre.id}`).send({ name: 'Renamed' }).expect(403);
+  });
 
   it('returns 409 for a duplicate centre code', async () => {
     const { agent } = await signedInAgent('superadmin');
@@ -59,7 +57,7 @@ describe('centres', () => {
 
   it('shows national roles every centre, with pagination', async () => {
     await Promise.all([createCentre(), createCentre(), createCentre()]);
-    const { agent } = await signedInAgent('reviewer');
+    const { agent } = await signedInAgent('pc');
     const res = await agent.get('/api/v1/centres?limit=2&sort=-name').expect(200);
     expect(res.body.data).toHaveLength(2);
     expect(res.body.meta).toMatchObject({ page: 1, limit: 2, total: 3, pages: 2 });
@@ -75,6 +73,21 @@ describe('centres', () => {
 
     await agent.get(`/api/v1/centres/${own.id}`).expect(200);
     await agent.get(`/api/v1/centres/${other.id}`).expect(404);
+  });
+
+  it('searches host short name and state too', async () => {
+    await CentreModel.create({
+      code: 'CBE',
+      name: 'Coimbatore',
+      host: 'Tamil Nadu Agricultural University',
+      hostShort: 'TNAU',
+      state: 'Tamil Nadu',
+    });
+    const { agent } = await signedInAgent('pc');
+    for (const q of ['tnau', 'tamil nadu']) {
+      const res = await agent.get(`/api/v1/centres?search=${encodeURIComponent(q)}`).expect(200);
+      expect(res.body.data.map((x: { code: string }) => x.code)).toEqual(['CBE']);
+    }
   });
 
   it('treats search text literally, not as a regex or query operator', async () => {

@@ -6,6 +6,7 @@ export interface AuthUser {
   roleId: RoleId;
   centreId: string | null;
   name: string;
+  mustChangePassword: boolean;
 }
 
 declare global {

@@ -41,6 +41,12 @@ export const createApp = (): Express => {
       .json({ success: ready, data: { database: ready ? 'connected' : 'unavailable' } });
   });
 
+  // Authenticated data must not be stored in browser or proxy caches (shared office PCs).
+  app.set('etag', false);
+  app.use('/api', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
   app.use('/api', apiLimiter);
   app.use(API_PREFIX, routes);
 

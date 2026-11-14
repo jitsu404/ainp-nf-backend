@@ -25,7 +25,7 @@ export const listCentres = async (ctx: RequestContext, query: ListCentresQuery) 
   if (isActive !== undefined) where.isActive = isActive;
   if (search) {
     const pattern = new RegExp(escapeRegex(search), 'i');
-    where.$or = [{ name: pattern }, { code: pattern }, { host: pattern }];
+    where.$or = ['name', 'code', 'host', 'hostShort', 'city', 'state'].map((field) => ({ [field]: pattern }));
   }
   const filter = scoped(ctx, where);
 

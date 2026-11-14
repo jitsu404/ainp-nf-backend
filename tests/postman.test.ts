@@ -35,6 +35,13 @@ describe('Postman generator', () => {
         'GET /centres/:id',
         'POST /centres',
         'PATCH /centres/:id',
+        'GET /centres/:id/pis',
+        'POST /centres/:id/pi',
+        'POST /auth/change-password',
+        'PATCH /users/:id',
+        'POST /users/:id/deactivate',
+        'POST /users/:id/activate',
+        'POST /users/:id/reset-password',
       ]),
     );
     expect(requests).toHaveLength(routes.length + 2); // + the two System health checks
@@ -58,8 +65,10 @@ describe('Postman generator', () => {
     expect(withBodies.length).toBeGreaterThan(0);
 
     for (const route of withBodies) {
+      // Match on method + exact path, since a module has several POST routes.
+      const path = `${route.module.prefix}/${route.path}`.split('/').filter(Boolean).join('/');
       const request = requests.find(
-        (r) => r.request.method === route.method && r.request.url.raw.includes(route.module.prefix),
+        (r) => r.request.method === route.method && r.request.url.path.join('/') === path,
       );
       const raw = request?.request.body?.raw;
       expect(raw, `${route.method} ${route.module.prefix}${route.path} has a body`).toBeDefined();
@@ -90,7 +99,8 @@ describe('Postman generator', () => {
     expect(find('Centres', 'Create centre').request.description).toContain('`centres.manage`');
     expect(find('Centres', 'Create centre').request.description).toContain('| `code` | string | yes |');
     expect(find('Auth', 'Sign in').request.description).toContain('public');
-    expect(find('Auth', 'Current user').request.description).toContain('any signed-in user');
+    expect(find('Auth', 'Current session').request.description).toContain('any signed-in user');
+    expect(find('Centres', 'Assign centre PI').request.description).toContain('`users.manage`');
   });
 
   it('declares the collection variables the requests use', () => {

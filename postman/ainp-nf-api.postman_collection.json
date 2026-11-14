@@ -91,7 +91,7 @@
                 "login"
               ]
             },
-            "description": "Checks the email and password and sets the httpOnly session cookie. Limited to 10 failed attempts per 15 minutes per IP.\n\n**Access:** public (no sign-in needed)\n\n**Endpoint:** `POST /api/v1/auth/login`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `password` | string | yes | 1–128 chars |  |\n\nUnknown fields are rejected."
+            "description": "Checks the email and password and sets the httpOnly session cookie. Returns the session: user, role, capabilities and `mustChangePassword`. Limited to 10 failed attempts per 15 minutes per IP.\n\n**Access:** public (no sign-in needed)\n\n**Endpoint:** `POST /api/v1/auth/login`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `password` | string | yes | 1–128 chars |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -113,7 +113,7 @@
           }
         },
         {
-          "name": "Current user",
+          "name": "Current session",
           "request": {
             "method": "GET",
             "header": [],
@@ -127,7 +127,39 @@
                 "me"
               ]
             },
-            "description": "Returns the signed-in user.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/auth/me`"
+            "description": "Returns the signed-in user with their role, capabilities and the roles they can manage.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/auth/me`"
+          }
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{loginPassword}}\",\n  \"newPassword\": \"NewPassword2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/change-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "change-password"
+              ]
+            },
+            "description": "Changes your own password. Required after first sign-in with a temporary password: until then every other endpoint returns 403 `PASSWORD_CHANGE_REQUIRED`. Ends all other sessions.\n\n**Access:** any signed-in user\n\n**Endpoint:** `POST /api/v1/auth/change-password`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `currentPassword` | string | yes | 1–128 chars |  |\n| `newPassword` | string | yes | 10–128 chars | At least 10 characters with a letter and a digit |\n\nUnknown fields are rejected."
           }
         }
       ]
@@ -171,7 +203,7 @@
                 {
                   "key": "roleId",
                   "value": "",
-                  "description": "string · one of `superadmin`, `pc`, `finance`, `adminOfficer`, `reviewer`, `pi`, `dataEntry`, `admin`",
+                  "description": "string · one of `superadmin`, `pc`, `pi`",
                   "disabled": true
                 },
                 {
@@ -185,10 +217,16 @@
                   "value": "",
                   "description": "string · true or false",
                   "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "string · 0–100 chars · Matches name, email or designation",
+                  "disabled": true
                 }
               ]
             },
-            "description": "**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `GET /api/v1/users`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `page` | integer | no | min 1; default `1` |  |\n| `limit` | integer | no | min 1; max 100; default `20` |  |\n| `sort` | string | no | — | Sort by one of: name, email, roleId, createdAt (prefix with - for descending) |\n| `roleId` | string | no | one of `superadmin`, `pc`, `finance`, `adminOfficer`, `reviewer`, `pi`, `dataEntry`, `admin` |  |\n| `centreId` | string | no | ObjectId |  |\n| `isActive` | string | no | — | true or false |"
+            "description": "**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `GET /api/v1/users`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `page` | integer | no | min 1; default `1` |  |\n| `limit` | integer | no | min 1; max 100; default `20` |  |\n| `sort` | string | no | — | Sort by one of: name, email, roleId, createdAt (prefix with - for descending) |\n| `roleId` | string | no | one of `superadmin`, `pc`, `pi` |  |\n| `centreId` | string | no | ObjectId |  |\n| `isActive` | string | no | — | true or false |\n| `search` | string | no | 0–100 chars | Matches name, email or designation |"
           }
         },
         {
@@ -242,7 +280,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Dr. A. Sharma\",\n  \"email\": \"pi.kanpur@example.com\",\n  \"password\": \"ChangeMe12345\",\n  \"roleId\": \"pi\",\n  \"centreId\": \"{{centreId}}\",\n  \"designation\": \"Principal Investigator\"\n}",
+              "raw": "{\n  \"name\": \"Dr. A. Sharma\",\n  \"email\": \"agronomist.knp@example.com\",\n  \"designation\": \"Chief Agronomist\",\n  \"phone\": \"+91 98765 43210\",\n  \"temporaryPassword\": \"ChangeMe12345\",\n  \"roleId\": \"pc\",\n  \"centreId\": \"{{centreId}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -258,7 +296,152 @@
                 "users"
               ]
             },
-            "description": "**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `POST /api/v1/users`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `name` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `password` | string | yes | 10–128 chars | At least 10 characters with a letter and a digit |\n| `roleId` | string | yes | one of `superadmin`, `pc`, `finance`, `adminOfficer`, `reviewer`, `pi`, `dataEntry`, `admin` |  |\n| `centreId` | string | no | ObjectId; default `null`; nullable | Required for pi and dataEntry; ignored for national roles |\n| `designation` | string | no | 0–120 chars |  |\n\nUnknown fields are rejected."
+            "description": "Creates an account with a temporary password the person must change at first sign-in. For a Centre PI, prefer **Centres → Assign Centre PI**, which also handles replacing the current PI.\n\n**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `POST /api/v1/users`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `name` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `designation` | string | no | 0–120 chars |  |\n| `phone` | string | no | pattern `^\\+?[\\d\\s-]{7,20}$` |  |\n| `temporaryPassword` | string | yes | 10–128 chars | Temporary password you share with the person. They must change it at first sign-in. At least 10 characters with a letter and a digit. |\n| `roleId` | string | yes | one of `superadmin`, `pc`, `pi` |  |\n| `centreId` | string | no | ObjectId; default `null`; nullable | Required for Centre PI; ignored for national roles |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Update user",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dr. A. Sharma\",\n  \"email\": \"agronomist.knp@example.com\",\n  \"designation\": \"Chief Agronomist\",\n  \"phone\": \"+91 98765 43210\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `PATCH /api/v1/users/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `name` | string | no | 2–120 chars |  |\n| `email` | string | no | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `designation` | string | no | 0–120 chars |  |\n| `phone` | string | no | pattern `^\\+?[\\d\\s-]{7,20}$` |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Deactivate user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Transferred to another institute\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/:id/deactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":id",
+                "deactivate"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Blocks sign-in immediately. The account and everything it recorded are kept. You cannot deactivate yourself.\n\n**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `POST /api/v1/users/:id/deactivate`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `reason` | string | yes | 3–300 chars |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Reactivate user",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/:id/activate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":id",
+                "activate"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Fails for a Centre PI if their centre already has another active PI.\n\n**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `POST /api/v1/users/:id/activate`"
+          }
+        },
+        {
+          "name": "Reset password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"temporaryPassword\": \"ChangeMe12345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/:id/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":id",
+                "reset-password"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Sets a new temporary password; the person must change it at their next sign-in. Returns 204.\n\n**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `POST /api/v1/users/:id/reset-password`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `temporaryPassword` | string | yes | 10–128 chars | Temporary password you share with the person. They must change it at first sign-in. At least 10 characters with a letter and a digit. |\n\nUnknown fields are rejected."
           }
         }
       ]
@@ -302,7 +485,7 @@
                 {
                   "key": "search",
                   "value": "",
-                  "description": "string · 0–100 chars · Matches name, code or host",
+                  "description": "string · 0–100 chars · Matches name, code, host, host short name, city or state",
                   "disabled": true
                 },
                 {
@@ -325,7 +508,7 @@
                 }
               ]
             },
-            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/centres`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `page` | integer | no | min 1; default `1` |  |\n| `limit` | integer | no | min 1; max 100; default `20` |  |\n| `sort` | string | no | — | Sort by one of: code, name, state, createdAt (prefix with - for descending) |\n| `search` | string | no | 0–100 chars | Matches name, code or host |\n| `state` | string | no | 0–60 chars |  |\n| `type` | string | no | one of `Network Centre`, `Voluntary Centre` |  |\n| `isActive` | string | no | — | true or false |"
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/centres`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `page` | integer | no | min 1; default `1` |  |\n| `limit` | integer | no | min 1; max 100; default `20` |  |\n| `sort` | string | no | — | Sort by one of: code, name, state, createdAt (prefix with - for descending) |\n| `search` | string | no | 0–100 chars | Matches name, code, host, host short name, city or state |\n| `state` | string | no | 0–60 chars |  |\n| `type` | string | no | one of `Network Centre`, `Voluntary Centre` |  |\n| `isActive` | string | no | — | true or false |"
           }
         },
         {
@@ -379,7 +562,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"KNP\",\n  \"name\": \"Kanpur\",\n  \"host\": \"CSA University of Agriculture & Technology\",\n  \"state\": \"Uttar Pradesh\",\n  \"type\": \"Network Centre\"\n}",
+              "raw": "{\n  \"code\": \"KNP\",\n  \"name\": \"Kanpur\",\n  \"host\": \"CSA University of Agriculture & Technology\",\n  \"hostShort\": \"CSAUAT\",\n  \"hostType\": \"SAU\",\n  \"city\": \"Kanpur\",\n  \"pincode\": \"208002\",\n  \"state\": \"Uttar Pradesh\",\n  \"zone\": \"Upper Gangetic Plains\",\n  \"type\": \"Network Centre\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -395,7 +578,7 @@
                 "centres"
               ]
             },
-            "description": "**Access:** signed in, and the role needs `centres.manage`\n\n**Endpoint:** `POST /api/v1/centres`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Za-z]{2,10}$` | Short unique code; stored in upper case |\n| `name` | string | yes | 2–120 chars |  |\n| `host` | string | yes | 2–200 chars | Host institution |\n| `state` | string | yes | 2–60 chars |  |\n| `type` | string | no | one of `Network Centre`, `Voluntary Centre`; default `\"Network Centre\"` |  |\n\nUnknown fields are rejected."
+            "description": "**Access:** signed in, and the role needs `centres.manage`\n\n**Endpoint:** `POST /api/v1/centres`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Za-z]{2,10}$` | Short unique code; stored in upper case |\n| `name` | string | yes | 2–120 chars |  |\n| `host` | string | yes | 2–200 chars | Host institution |\n| `hostShort` | string | no | 0–40 chars | Host short name |\n| `hostType` | string | no | 0–40 chars | SAU, ICAR, Deemed University, CAU … |\n| `city` | string | no | 0–80 chars |  |\n| `pincode` | string | no | pattern `^\\d{6}$` |  |\n| `state` | string | yes | 2–60 chars |  |\n| `zone` | string | no | 0–80 chars | Agro-climatic zone |\n| `type` | string | no | one of `Network Centre`, `Voluntary Centre`; default `\"Network Centre\"` |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -410,7 +593,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"KNP\",\n  \"name\": \"Kanpur\",\n  \"host\": \"CSA University of Agriculture & Technology\",\n  \"state\": \"Uttar Pradesh\",\n  \"type\": \"Network Centre\",\n  \"isActive\": true\n}",
+              "raw": "{\n  \"code\": \"KNP\",\n  \"name\": \"Kanpur\",\n  \"host\": \"CSA University of Agriculture & Technology\",\n  \"hostShort\": \"CSAUAT\",\n  \"hostType\": \"SAU\",\n  \"city\": \"Kanpur\",\n  \"pincode\": \"208002\",\n  \"state\": \"Uttar Pradesh\",\n  \"zone\": \"Upper Gangetic Plains\",\n  \"type\": \"Network Centre\",\n  \"isActive\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -434,7 +617,73 @@
                 }
               ]
             },
-            "description": "**Access:** signed in, and the role needs `centres.manage`\n\n**Endpoint:** `PATCH /api/v1/centres/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Za-z]{2,10}$` | Short unique code; stored in upper case |\n| `name` | string | no | 2–120 chars |  |\n| `host` | string | no | 2–200 chars | Host institution |\n| `state` | string | no | 2–60 chars |  |\n| `type` | string | no | one of `Network Centre`, `Voluntary Centre`; default `\"Network Centre\"` |  |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
+            "description": "**Access:** signed in, and the role needs `centres.manage`\n\n**Endpoint:** `PATCH /api/v1/centres/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Za-z]{2,10}$` | Short unique code; stored in upper case |\n| `name` | string | no | 2–120 chars |  |\n| `host` | string | no | 2–200 chars | Host institution |\n| `hostShort` | string | no | 0–40 chars | Host short name |\n| `hostType` | string | no | 0–40 chars | SAU, ICAR, Deemed University, CAU … |\n| `city` | string | no | 0–80 chars |  |\n| `pincode` | string | no | pattern `^\\d{6}$` |  |\n| `state` | string | no | 2–60 chars |  |\n| `zone` | string | no | 0–80 chars | Agro-climatic zone |\n| `type` | string | no | one of `Network Centre`, `Voluntary Centre`; default `\"Network Centre\"` |  |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "List centre PIs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/centres/:id/pis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "centres",
+                ":id",
+                "pis"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{centreId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "The current Centre PI first, then past PIs, newest first.\n\n**Access:** signed in, and the role needs `centres.manage`\n\n**Endpoint:** `GET /api/v1/centres/:id/pis`"
+          }
+        },
+        {
+          "name": "Assign centre PI",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dr. A. Sharma\",\n  \"email\": \"agronomist.knp@example.com\",\n  \"designation\": \"Chief Agronomist\",\n  \"phone\": \"+91 98765 43210\",\n  \"temporaryPassword\": \"ChangeMe12345\",\n  \"reason\": \"Sample reason\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/centres/:id/pi",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "centres",
+                ":id",
+                "pi"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{centreId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Creates the agronomist's account as this centre's PI, with a temporary password they must change at first sign-in. If the centre already has a PI, they are deactivated in the same step (send `reason`), so the centre always has exactly one.\n\n**Access:** signed in, and the role needs `centres.manage` and `users.manage`\n\n**Endpoint:** `POST /api/v1/centres/:id/pi`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `name` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `designation` | string | no | 0–120 chars |  |\n| `phone` | string | no | pattern `^\\+?[\\d\\s-]{7,20}$` |  |\n| `temporaryPassword` | string | yes | 10–128 chars | Temporary password you share with the person. They must change it at first sign-in. At least 10 characters with a letter and a digit. |\n| `reason` | string | no | 3–300 chars | Why the current PI is being replaced (required when there is one) |\n\nUnknown fields are rejected."
           }
         }
       ]

@@ -24,6 +24,7 @@ export const recordAudit = async (
       {
         ...entry,
         userId: ctx.user.id,
+        userName: ctx.user.name,
         roleId: ctx.user.roleId,
         requestId: ctx.requestId,
         ip: ctx.ip,

@@ -33,16 +33,7 @@ export const CAPABILITIES = [
 
 export type Capability = (typeof CAPABILITIES)[number];
 
-export const ROLE_IDS = [
-  'superadmin',
-  'pc',
-  'finance',
-  'adminOfficer',
-  'reviewer',
-  'pi',
-  'dataEntry',
-  'admin',
-] as const;
+export const ROLE_IDS = ['superadmin', 'pc', 'pi'] as const;
 export type RoleId = (typeof ROLE_IDS)[number];
 
 /** national = sees every centre; centre = limited to the user's own centre. */
@@ -54,15 +45,20 @@ export interface RoleDefinition {
   capabilities: readonly Capability[];
 }
 
+// Hierarchy for this phase (agreed with the PCU, 2026-11-14):
+//   Super Admin  ═╗ same level for daily work: both manage centres and assign Centre PIs.
+//   PCU          ═╝ (Super Admin is the system owner; only it manages PCU accounts.)
+//     └─ Centre PI: the agronomist in charge of one centre. One active PI per centre.
+// Finance, data entry and the PCU theme PIs (PI-1…PI-4) are added with their modules.
 export const ROLES: Readonly<Record<RoleId, RoleDefinition>> = {
-  // Every capability, every centre. Keep to one or two accounts; all actions are audited like anyone else's.
+  // Every capability, including ones added later. All actions are audited like anyone else's.
   superadmin: {
-    label: 'Super Administrator',
+    label: 'Super Admin',
     scope: 'national',
     capabilities: CAPABILITIES,
   },
   pc: {
-    label: 'Project Coordinator',
+    label: 'PCU',
     scope: 'national',
     capabilities: [
       'centres.manage',
@@ -79,23 +75,8 @@ export const ROLES: Readonly<Record<RoleId, RoleDefinition>> = {
       'docs.upload',
     ],
   },
-  finance: {
-    label: 'Finance Officer',
-    scope: 'national',
-    capabilities: ['finance.manage', 'aucsoe.review', 'docs.upload'],
-  },
-  adminOfficer: {
-    label: 'Administrative Officer',
-    scope: 'national',
-    capabilities: ['comm.issue', 'staff.manage', 'meetings.manage', 'admin.manage', 'docs.upload'],
-  },
-  reviewer: {
-    label: 'Reviewer',
-    scope: 'national',
-    capabilities: ['research.review', 'aucsoe.review'],
-  },
   pi: {
-    label: 'Nodal Officer / PI',
+    label: 'Centre PI',
     scope: 'centre',
     capabilities: [
       'research.enter',
@@ -112,47 +93,20 @@ export const ROLES: Readonly<Record<RoleId, RoleDefinition>> = {
       'docs.upload',
     ],
   },
-  dataEntry: {
-    label: 'Data Entry Staff',
-    scope: 'centre',
-    capabilities: ['research.enter', 'finance.expenditure', 'aucsoe.enter', 'docs.upload'],
-  },
-  admin: {
-    label: 'Administrator',
-    scope: 'national',
-    capabilities: [
-      'masters.edit',
-      'users.manage',
-      'system.manage',
-      'docs.upload',
-      'comm.issue',
-      'meetings.manage',
-      'staff.manage',
-      'admin.manage',
-      'finance.manage',
-      'research.config',
-    ],
-  },
 };
 
 export const hasCapability = (roleId: RoleId, capability: Capability): boolean =>
   ROLES[roleId].capabilities.includes(capability);
 
 /**
- * Which roles each role may give to a new or existing account (on top of needing `users.manage`).
- * - Only the PCU (Project Coordinator) and the Super Administrator can create centre staff (PI, data entry).
- * - Privileged roles (Project Coordinator, Administrator, Super Administrator) can only be given by a
- *   Super Administrator, so nobody can create an account more powerful than their own.
+ * Which roles each role may give to an account, and therefore also edit, deactivate or
+ * reset (on top of needing `users.manage`). Only Super Admin manages PCU and Super Admin
+ * accounts, so PCU users can't grant themselves or each other access.
  */
 export const ASSIGNABLE_ROLES: Readonly<Record<RoleId, readonly RoleId[]>> = {
-  superadmin: ROLE_IDS,
-  pc: ['pi', 'dataEntry', 'reviewer', 'finance', 'adminOfficer'],
-  admin: ['reviewer', 'finance', 'adminOfficer'],
-  finance: [],
-  adminOfficer: [],
-  reviewer: [],
+  superadmin: ['superadmin', 'pc', 'pi'],
+  pc: ['pi'],
   pi: [],
-  dataEntry: [],
 };
 
 export const canAssignRole = (actor: RoleId, target: RoleId): boolean =>

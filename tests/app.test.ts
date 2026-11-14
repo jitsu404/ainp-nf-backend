@@ -32,6 +32,12 @@ describe('app plumbing', () => {
     expect(res.body.error.code).toBe('MALFORMED_JSON');
   });
 
+  it('stops browsers and proxies caching API responses', async () => {
+    const res = await request(app).get('/api/v1/auth/me');
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.headers.etag).toBeUndefined();
+  });
+
   it('sets security headers and hides the framework', async () => {
     const res = await request(app).get('/health');
     expect(res.headers['x-powered-by']).toBeUndefined();

@@ -20,7 +20,7 @@ The spec is the SOW PDF (Annexure I–III, Natural Farming section). Build Natur
 
 ```bash
 docker compose up -d   # local MongoDB 8 as a single-node replica set (needed for transactions)
-npm run seed           # first Super Administrator (SEED_SUPERADMIN_* in .env) + the SAMPLE centre list; safe to re-run
+npm run seed           # first Super Admin (SEED_SUPERADMIN_* in .env) + the 20 AINP-NF centres; safe to re-run
 npm run postman        # regenerate postman/ainp-nf-api.postman_collection.json from the routes and DTOs
 npm run dev            # cross-env NODE_ENV=development tsx watch src/server.ts
 npm run build          # tsc -p tsconfig.build.json → dist/
@@ -190,18 +190,23 @@ export type CreateCentreDto = z.output<typeof centreBody>;
 
 ## Authentication and RBAC
 
-- `POST /api/v1/auth/login` sets the JWT (HS256) in the `nf_session` cookie: **httpOnly, SameSite=Strict, Secure in production**, never in the response body or localStorage. `POST /auth/logout` clears it; `GET /auth/me` returns the current user.
+- `POST /api/v1/auth/login` sets the JWT (HS256) in the `nf_session` cookie: **httpOnly, SameSite=Strict, Secure in production**, never in the response body or localStorage. `POST /auth/logout` clears it. Login and `GET /auth/me` return the **session**: `{ user, role: { id, label, scope }, capabilities, assignableRoles, mustChangePassword }`. The client takes roles and permissions from this, never from a hardcoded copy.
+- **Temporary passwords:** accounts created by someone else (and password resets) get `mustChangePassword: true`. Until the user calls `POST /auth/change-password`, `authenticate` answers every request with 403 `PASSWORD_CHANGE_REQUIRED`. Only `/auth/me`, `/auth/change-password` and `/auth/logout` use `authenticateAllowingPasswordChange`.
+- **Password changes end sessions:** tokens issued before `passwordChangedAt` get 401 `SESSION_EXPIRED`. `change-password` issues a fresh cookie for the caller.
 - SameSite=Strict means the client and API must be served from the **same site** (same registrable domain, e.g. `nf.example.in` and `api.nf.example.in`). A client on a different domain (such as a `*.vercel.app` URL) will not send the cookie.
 - Passwords: bcryptjs, cost 12; at least 10 characters with a letter and a digit. Login compares against a dummy hash when the email is unknown, and returns the same `INVALID_CREDENTIALS` error either way, so accounts can't be discovered by timing or message.
-- `authenticate` re-reads the user on every request: deactivating an account or changing its role takes effect immediately. It sets `req.user = { id, roleId, centreId, name }`.
-- Roles and capabilities **mirror `../client/src/roles.js`** and must stay in sync. Server source of truth: `config/constants.ts`.
+- `authenticate` re-reads the user on every request: deactivating an account or changing its role takes effect immediately. It sets `req.user = { id, roleId, centreId, name, mustChangePassword }`.
+- Server source of truth for roles and capabilities: `config/constants.ts`. The client reads them from the session (`/auth/me`).
 - `authorize(...capabilities)` → 403 `FORBIDDEN` unless the role has **at least one** of them. Always check capabilities, never role ids, so a role can change without code changes.
-- **Super Administrator** (`superadmin`) has every capability, including any added later (`capabilities: CAPABILITIES`). It's the account `npm run seed` creates. Keep it to one or two accounts; its actions are audited like anyone else's.
-- **Who manages what:**
-  - Only the **PCU (Project Coordinator) and Super Administrator** create or edit centres (`centres.manage`) and create PI / data-entry accounts. The Administrator (`admin`) keeps `masters.edit` for other masters but cannot manage centres or create centre staff.
-  - `users.manage` lets a role use the user endpoints; **which roles it may create is decided by `ASSIGNABLE_ROLES`** (checked in `users.service`, 403 `ROLE_NOT_ASSIGNABLE`): Super Administrator → any role; Project Coordinator → pi, dataEntry, reviewer, finance, adminOfficer; Administrator → reviewer, finance, adminOfficer. Only a Super Administrator can create Project Coordinator, Administrator or Super Administrator accounts.
+- **Roles (this phase): `superadmin`, `pc`, `pi`.** Finance, data entry and the PCU theme PIs (PI-1…PI-4) are added together with their modules, not before.
+  - **Super Admin** (`superadmin`): the system owner. Every capability, including any added later. Created by `npm run seed`. Keep to one or two accounts; audited like everyone else.
+  - **PCU** (`pc`): the top of the client's own hierarchy. For daily work it is the **same level as Super Admin**: both create and edit centres (`centres.manage`) and assign Centre PIs.
+  - **Centre PI** (`pi`): the agronomist in charge of one centre. Centre-scoped. **Exactly one active PI per centre**, enforced in the service (409 `CENTRE_HAS_PI`) and by the unique partial index `one_active_pi_per_centre`.
+- **Who manages which accounts** is `ASSIGNABLE_ROLES` (checked in `users.service`, 403 `ROLE_NOT_ASSIGNABLE`): Super Admin → superadmin, pc, pi; PCU → pi only. A role can see, edit, deactivate and reset **exactly** the roles it can create (others get 404). So only Super Admin manages PCU accounts, and PCU users can't grant themselves access. Nobody can deactivate or reset their own account.
+- **Assigning or replacing a Centre PI** is one call: `POST /centres/:id/pi`. If the centre has a PI, they are deactivated in the same transaction (a `reason` is required) and the new PI is created. History is kept: `GET /centres/:id/pis` lists current then past PIs. Centre responses include `currentPi`.
+- **People are never deleted**, only deactivated (`deactivatedAt`, `deactivatedBy`, `deactivationReason`). Data belongs to the centre, not the person, so a new PI sees the centre's history.
   - Any future endpoint that changes a user's role (edit, transfer, assignment) must apply the same `canAssignRole()` check.
-- **Centre scoping** (roles with `scope: 'centre'`: `pi`, `dataEntry`) is enforced in services, never only in routes. Wrap every find/count/update filter with **`withScope(ctx.user, filter)`** (or `withScope(ctx.user, filter, '_id')` for the centres collection itself). It joins the filters with `$and`. **Never spread a scope filter into another filter** (`{ _id: id, ...scope }`): a shared key silently overwrites the other, and that bug once let a PI's request for another centre return their own.
+- **Centre scoping** (roles with `scope: 'centre'`, currently `pi`) is enforced in services, never only in routes. Wrap every find/count/update filter with **`withScope(ctx.user, filter)`** (or `withScope(ctx.user, filter, '_id')` for the centres collection itself). It joins the filters with `$and`. **Never spread a scope filter into another filter** (`{ _id: id, ...scope }`): a shared key silently overwrites the other, and that bug once let a PI's request for another centre return their own.
 - A centre user asking for another centre's record gets **404, not 403**, so ids of other centres aren't confirmed.
 - **Workflow transitions** (Draft → Submitted → Scrutinised → Approved, plus Returned/Resubmitted) are checked in services with a conditional update such as `findOneAndUpdate({ _id, status: expected }, …)` so concurrent actions can't both succeed. Approved records are locked against edits.
 
@@ -212,6 +217,8 @@ export type CreateCentreDto = z.output<typeof centreBody>;
 - **Money is `Decimal128`**, never `Number`. Convert at the service boundary.
 - Research parameters not yet approved by the Project Coordination Unit go in one `parameters` field (`Schema.Types.Mixed`); everything else stays strictly typed.
 - Global Mongoose settings in `config/db.ts`: `strictQuery: true`, `sanitizeFilter: true` (blocks `$`-operator injection; `express-mongo-sanitize` doesn't work with Express 5), and a `toJSON` transform that removes `_id` / `__v`.
+- **Because of `sanitizeFilter`, wrap every nested operator the server builds itself in `trusted()`** (`import { trusted } from 'mongoose'`): `{ roleId: trusted({ $in: roles }) }`. Without it Mongoose neutralises the operator and the query fails with a 400 cast error. Top-level `$and` / `$or` are fine. Never wrap anything that came from user input.
+- Audit rows also store `userName`, a snapshot taken at the time, so records stay readable after people leave.
 - User-supplied search text goes through `escapeRegex` before it becomes a `RegExp`.
 - Use `findOneAndUpdate(..., { returnDocument: 'after', runValidators: true })`. The `new: true` option is deprecated in Mongoose 9.
 - Multi-document writes run in **`withTransaction(async (session) => …)`** from `config/db.ts`, passing `session` to every query, e.g. a record plus its audit row, or a fund release plus its balance update. This needs a replica set: `docker compose up -d` locally, Atlas or an equivalent in production.
