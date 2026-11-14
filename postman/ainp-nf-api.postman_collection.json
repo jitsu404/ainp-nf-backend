@@ -1,0 +1,496 @@
+{
+  "info": {
+    "name": "AINP-NF API",
+    "description": "REST API for the AINP-Natural Farming Project Management System (ICAR-IIFSR).\n\n**Generated file: do not edit by hand.** Run `npm run postman` in icar-nf-backend after changing routes or DTOs.\n\n### Getting started\n1. Set the `loginEmail` and `loginPassword` collection variables (for example, the seeded Super Administrator from `.env`).\n2. Run **Auth → Sign in**. The API returns an httpOnly `nf_session` cookie; Postman stores it and sends it with every later request automatically.\n3. **Create** requests save the new record's id in a variable (e.g. `centreId`), which **Get** and **Update** requests then use.\n\n### Conventions\n- Success: `{ \"success\": true, \"data\": …, \"meta\"? }`. Failure: `{ \"success\": false, \"error\": { \"code\", \"message\", \"details\"?, \"requestId\" } }`.\n- Every response has an `X-Request-Id` header; quote it when reporting a problem so it can be found in the server logs.\n- Each request's description lists who may call it and every field with its validation rules.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "System",
+      "description": "Health checks for load balancers and uptime monitors. Not under /api/v1.",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{host}}/health",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Returns 200 while the process is running.\n\n**Access:** public"
+          }
+        },
+        {
+          "name": "Readiness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{host}}/ready",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "ready"
+              ]
+            },
+            "description": "Returns 200 when the database is connected, otherwise 503.\n\n**Access:** public"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "Sign in and out. The session is an httpOnly cookie that Postman stores and resends.",
+      "item": [
+        {
+          "name": "Sign in",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Session cookie is set', () => {",
+                  "  pm.expect(pm.cookies.has('nf_session')).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"password\": \"{{loginPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Checks the email and password and sets the httpOnly session cookie. Limited to 10 failed attempts per 15 minutes per IP.\n\n**Access:** public (no sign-in needed)\n\n**Endpoint:** `POST /api/v1/auth/login`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `password` | string | yes | 1–128 chars |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Sign out",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Clears the session cookie. Returns 204.\n\n**Access:** public (no sign-in needed)\n\n**Endpoint:** `POST /api/v1/auth/logout`"
+          }
+        },
+        {
+          "name": "Current user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Returns the signed-in user.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/auth/me`"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "User accounts. Needs `users.manage`; each role can only create the roles it is allowed to (only the PCU and Super Administrator create PI and data-entry accounts).",
+      "item": [
+        {
+          "name": "List users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "integer · min 1; default `1`",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "integer · min 1; max 100; default `20`",
+                  "disabled": false
+                },
+                {
+                  "key": "sort",
+                  "value": "",
+                  "description": "string · Sort by one of: name, email, roleId, createdAt (prefix with - for descending)",
+                  "disabled": true
+                },
+                {
+                  "key": "roleId",
+                  "value": "",
+                  "description": "string · one of `superadmin`, `pc`, `finance`, `adminOfficer`, `reviewer`, `pi`, `dataEntry`, `admin`",
+                  "disabled": true
+                },
+                {
+                  "key": "centreId",
+                  "value": "",
+                  "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "isActive",
+                  "value": "",
+                  "description": "string · true or false",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `GET /api/v1/users`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `page` | integer | no | min 1; default `1` |  |\n| `limit` | integer | no | min 1; max 100; default `20` |  |\n| `sort` | string | no | — | Sort by one of: name, email, roleId, createdAt (prefix with - for descending) |\n| `roleId` | string | no | one of `superadmin`, `pc`, `finance`, `adminOfficer`, `reviewer`, `pi`, `dataEntry`, `admin` |  |\n| `centreId` | string | no | ObjectId |  |\n| `isActive` | string | no | — | true or false |"
+          }
+        },
+        {
+          "name": "Get user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `GET /api/v1/users/:id`"
+          }
+        },
+        {
+          "name": "Create user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the new user so \"Get\", \"Update\" and other requests can use it.",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('userId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dr. A. Sharma\",\n  \"email\": \"pi.kanpur@example.com\",\n  \"password\": \"ChangeMe12345\",\n  \"roleId\": \"pi\",\n  \"centreId\": \"{{centreId}}\",\n  \"designation\": \"Principal Investigator\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users"
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `POST /api/v1/users`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `name` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `password` | string | yes | 10–128 chars | At least 10 characters with a letter and a digit |\n| `roleId` | string | yes | one of `superadmin`, `pc`, `finance`, `adminOfficer`, `reviewer`, `pi`, `dataEntry`, `admin` |  |\n| `centreId` | string | no | ObjectId; default `null`; nullable | Required for pi and dataEntry; ignored for national roles |\n| `designation` | string | no | 0–120 chars |  |\n\nUnknown fields are rejected."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Centres",
+      "description": "Network and voluntary centres. Only the PCU and Super Administrator create or edit them (`centres.manage`). Everyone signed in can read them; PI and data-entry users see only their own centre.",
+      "item": [
+        {
+          "name": "List centres",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/centres?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "centres"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "integer · min 1; default `1`",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "integer · min 1; max 100; default `20`",
+                  "disabled": false
+                },
+                {
+                  "key": "sort",
+                  "value": "",
+                  "description": "string · Sort by one of: code, name, state, createdAt (prefix with - for descending)",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "string · 0–100 chars · Matches name, code or host",
+                  "disabled": true
+                },
+                {
+                  "key": "state",
+                  "value": "",
+                  "description": "string · 0–60 chars",
+                  "disabled": true
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "description": "string · one of `Network Centre`, `Voluntary Centre`",
+                  "disabled": true
+                },
+                {
+                  "key": "isActive",
+                  "value": "",
+                  "description": "string · true or false",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/centres`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `page` | integer | no | min 1; default `1` |  |\n| `limit` | integer | no | min 1; max 100; default `20` |  |\n| `sort` | string | no | — | Sort by one of: code, name, state, createdAt (prefix with - for descending) |\n| `search` | string | no | 0–100 chars | Matches name, code or host |\n| `state` | string | no | 0–60 chars |  |\n| `type` | string | no | one of `Network Centre`, `Voluntary Centre` |  |\n| `isActive` | string | no | — | true or false |"
+          }
+        },
+        {
+          "name": "Get centre",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/centres/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "centres",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{centreId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/centres/:id`"
+          }
+        },
+        {
+          "name": "Create centre",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the new centre so \"Get\", \"Update\" and other requests can use it.",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('centreId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"KNP\",\n  \"name\": \"Kanpur\",\n  \"host\": \"CSA University of Agriculture & Technology\",\n  \"state\": \"Uttar Pradesh\",\n  \"type\": \"Network Centre\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/centres",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "centres"
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs `centres.manage`\n\n**Endpoint:** `POST /api/v1/centres`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Za-z]{2,10}$` | Short unique code; stored in upper case |\n| `name` | string | yes | 2–120 chars |  |\n| `host` | string | yes | 2–200 chars | Host institution |\n| `state` | string | yes | 2–60 chars |  |\n| `type` | string | no | one of `Network Centre`, `Voluntary Centre`; default `\"Network Centre\"` |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Update centre",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"KNP\",\n  \"name\": \"Kanpur\",\n  \"host\": \"CSA University of Agriculture & Technology\",\n  \"state\": \"Uttar Pradesh\",\n  \"type\": \"Network Centre\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/centres/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "centres",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{centreId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs `centres.manage`\n\n**Endpoint:** `PATCH /api/v1/centres/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Za-z]{2,10}$` | Short unique code; stored in upper case |\n| `name` | string | no | 2–120 chars |  |\n| `host` | string | no | 2–200 chars | Host institution |\n| `state` | string | no | 2–60 chars |  |\n| `type` | string | no | one of `Network Centre`, `Voluntary Centre`; default `\"Network Centre\"` |  |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "host",
+      "value": "http://localhost:5000",
+      "type": "string",
+      "description": "Server origin"
+    },
+    {
+      "key": "baseUrl",
+      "value": "{{host}}/api/v1",
+      "type": "string",
+      "description": "API root"
+    },
+    {
+      "key": "loginEmail",
+      "value": "",
+      "type": "string",
+      "description": "Used by Auth → Sign in"
+    },
+    {
+      "key": "loginPassword",
+      "value": "",
+      "type": "string",
+      "description": "Used by Auth → Sign in"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by \"Create user\""
+    },
+    {
+      "key": "centreId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by \"Create centre\""
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('Response follows the API envelope', () => {",
+          "  if (pm.response.code === 204) return;",
+          "  const body = pm.response.json();",
+          "  pm.expect(body.success).to.equal(pm.response.code < 400);",
+          "});"
+        ]
+      }
+    }
+  ]
+}
