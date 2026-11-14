@@ -253,11 +253,15 @@ const seedSuperAdmin = async (): Promise<void> => {
     return;
   }
   await UserModel.create({
+    // A system account, so no title; the name is built from the parts.
     name: 'Super Admin',
+    firstName: 'Super',
+    surname: 'Admin',
     email,
     passwordHash: await hashPassword(password),
     roleId: 'superadmin',
     designation: 'Super Admin',
+    organization: 'ICAR-Indian Institute of Farming Systems Research, Modipuram',
     // Chosen by whoever runs the seed, so no forced change. Rotate it after go-live.
     mustChangePassword: false,
   });

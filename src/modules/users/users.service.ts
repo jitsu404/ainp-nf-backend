@@ -101,7 +101,9 @@ export const listUsers = async (ctx: RequestContext, query: ListUsersQuery) => {
   if (isActive !== undefined) filter.isActive = isActive;
   if (search) {
     const pattern = new RegExp(escapeRegex(search), 'i');
-    filter.$or = [{ name: pattern }, { email: pattern }, { designation: pattern }];
+    filter.$or = ['name', 'email', 'designation', 'mobile', 'organization'].map((field) => ({
+      [field]: pattern,
+    }));
   }
 
   const [items, total] = await Promise.all([
@@ -188,12 +190,11 @@ export const createUser = async (ctx: RequestContext, dto: CreateUserDto) => {
 export const updateUser = async (ctx: RequestContext, id: string, dto: UpdateUserDto) => {
   const existing = await findManageableUser(ctx, id);
   return withTransaction(async (session) => {
-    const user = await UserModel.findOneAndUpdate(
-      { _id: existing.id },
-      { ...dto, updatedBy: ctx.user.id },
-      { returnDocument: 'after', runValidators: true, session },
-    );
+    // Load-and-save (not findOneAndUpdate) so the model rebuilds `name` from the name parts.
+    const user = await UserModel.findById(existing.id).session(session);
     if (!user) throw AppError.notFound('USER_NOT_FOUND', 'User not found');
+    user.set({ ...dto, updatedBy: ctx.user.id });
+    await user.save({ session });
     await recordAudit(
       ctx,
       {

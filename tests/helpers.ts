@@ -10,6 +10,10 @@ export const app = createApp();
 export const TEST_PASSWORD = 'TestPassword123';
 let counter = 0;
 
+/** 1 → 'A', 27 → 'AA': unique name suffixes made of letters (name fields reject digits). */
+export const letters = (n: number): string =>
+  (n > 26 ? letters(Math.floor((n - 1) / 26)) : '') + String.fromCharCode(65 + ((n - 1) % 26));
+
 export const createCentre = (overrides: Partial<{ code: string; name: string; state: string }> = {}) => {
   counter += 1;
   return CentreModel.create({
@@ -29,7 +33,11 @@ export const createUser = async (
 ) => {
   counter += 1;
   return UserModel.create({
-    name: `User ${counter}`,
+    title: 'Dr',
+    firstName: 'User',
+    surname: `Test${letters(counter)}`,
+    designation: 'Scientist',
+    organization: 'Test University',
     email: `user${counter}@test.local`,
     passwordHash: await hashPassword(TEST_PASSWORD),
     roleId,
@@ -57,9 +65,13 @@ let personCounter = 0;
 export const newPerson = (extra: Record<string, unknown> = {}) => {
   personCounter += 1;
   return {
-    name: `Dr. Person ${personCounter}`,
-    email: `person${personCounter}@test.local`,
+    title: 'Dr',
+    firstName: 'Person',
+    surname: `Test${letters(personCounter)}`,
     designation: 'Agronomist',
+    email: `person${personCounter}@test.local`,
+    mobile: '+91 98765 43210',
+    organization: 'Test University',
     temporaryPassword: 'Temporary12345',
     ...extra,
   };

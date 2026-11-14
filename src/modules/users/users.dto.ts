@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ROLE_IDS } from '../../config/constants.js';
 import type { RequestSchemas } from '../../middlewares/validate.js';
 import { idParams, listQuery, objectId } from '../../utils/validators.js';
+import { TITLES } from './users.names.js';
 
 /** At least 10 characters with a letter and a digit. */
 export const passwordSchema = z
@@ -16,17 +17,43 @@ const temporaryPassword = passwordSchema.meta({
     'Temporary password you share with the person. They must change it at first sign-in. At least 10 characters with a letter and a digit.',
 });
 
-/** The person's own details, shared by "create user" and "assign Centre PI". */
-export const personFields = {
-  name: z.string().trim().min(2).max(120).meta({ example: 'Dr. A. Sharma' }),
-  email: z.email().trim().toLowerCase().meta({ example: 'agronomist.knp@example.com' }),
-  designation: z.string().trim().max(120).optional().meta({ example: 'Chief Agronomist' }),
-  phone: z
+const namePart = (label: string) =>
+  z
     .string()
     .trim()
-    .regex(/^\+?[\d\s-]{7,20}$/, 'Enter a valid phone number')
+    .min(1, `${label} is required`)
+    .max(60)
+    .regex(
+      /^[\p{L}][\p{L}\p{M}.' -]*$/u,
+      `${label} can contain letters, spaces, dots, apostrophes and hyphens`,
+    );
+
+/** Indian mobile number: 10 digits starting 6–9, optionally prefixed +91 / 0, spaces or hyphens allowed. */
+const mobile = z
+  .string()
+  .trim()
+  .regex(/^(?:\+91[\s-]?|0)?[6-9]\d{4}[\s-]?\d{5}$/, 'Enter a 10-digit mobile number')
+  .meta({ example: '+91 98765 43210' });
+
+/**
+ * The person's details, as in the PCU master table ("Users" sheet):
+ * Title | First Name | Middle Name | Surname | Designation | Email | Mobile | Organization Name.
+ * Shared by "create user" and "assign Centre PI". The display name is built from the parts.
+ */
+export const personFields = {
+  title: z.enum(TITLES).meta({ example: 'Dr' }),
+  firstName: namePart('First name').meta({ example: 'Sujit' }),
+  middleName: namePart('Middle name').optional().meta({ example: 'Kumar' }),
+  surname: namePart('Surname')
     .optional()
-    .meta({ example: '+91 98765 43210' }),
+    .meta({ example: 'Singh', description: 'Leave empty if the person has no surname' }),
+  designation: z.string().trim().min(2).max(120).meta({ example: 'Chief Agronomist' }),
+  email: z.email().trim().toLowerCase().meta({ example: 'agronomist.knp@example.com' }),
+  mobile,
+  organization: z.string().trim().min(2).max(200).meta({
+    example: 'CSK Himachal Pradesh Krishi Vishwavidyalaya, Palampur',
+    description: 'Organization name',
+  }),
 };
 
 const createUserBody = z
@@ -44,6 +71,11 @@ const createUserBody = z
 const updateUserBody = z
   .object(personFields)
   .partial()
+  // Send null to remove a middle name or surname.
+  .extend({
+    middleName: personFields.middleName.unwrap().nullable().optional(),
+    surname: personFields.surname.unwrap().nullable().optional(),
+  })
   .strict()
   .refine((body) => Object.keys(body).length > 0, { message: 'Provide at least one field to update' });
 
@@ -59,7 +91,12 @@ const listUsersQuery = listQuery(['name', 'email', 'roleId', 'createdAt']).exten
   roleId: z.enum(ROLE_IDS).optional(),
   centreId: objectId.optional(),
   isActive: z.stringbool().optional().meta({ description: 'true or false' }),
-  search: z.string().trim().max(100).optional().meta({ description: 'Matches name, email or designation' }),
+  search: z
+    .string()
+    .trim()
+    .max(100)
+    .optional()
+    .meta({ description: 'Matches name, email, designation, mobile or organization' }),
 });
 
 /** Assign the Centre PI, replacing the current one if there is one. */

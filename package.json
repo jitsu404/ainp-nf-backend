@@ -18,7 +18,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "seed": "tsx src/scripts/seed.ts",
-    "postman": "tsx src/scripts/generate-postman.ts"
+    "postman": "tsx src/scripts/generate-postman.ts",
+    "migrate:user-fields": "tsx src/scripts/migrate-user-fields.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

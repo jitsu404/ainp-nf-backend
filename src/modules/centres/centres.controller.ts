@@ -16,10 +16,26 @@ import * as centresService from './centres.service.js';
 // Centre responses include `currentPi` (or null), composed here from the users service so the
 // two modules don't import each other's models.
 
-type PiSummary = { id: string; name: string; designation?: string; email: string; phone?: string };
+type PiSummary = {
+  id: string;
+  name: string;
+  designation?: string;
+  email: string;
+  mobile?: string;
+  organization?: string;
+};
 
 const summarise = (pi: PiSummary | undefined | null) =>
-  pi ? { id: pi.id, name: pi.name, designation: pi.designation, email: pi.email, phone: pi.phone } : null;
+  pi
+    ? {
+        id: pi.id,
+        name: pi.name,
+        designation: pi.designation,
+        email: pi.email,
+        mobile: pi.mobile,
+        organization: pi.organization,
+      }
+    : null;
 
 export const list = async (req: Request, res: Response) => {
   const { query } = getValidated<typeof listCentresSchemas>(req);

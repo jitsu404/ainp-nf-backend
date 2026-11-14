@@ -221,12 +221,12 @@
                 {
                   "key": "search",
                   "value": "",
-                  "description": "string · 0–100 chars · Matches name, email or designation",
+                  "description": "string · 0–100 chars · Matches name, email, designation, mobile or organization",
                   "disabled": true
                 }
               ]
             },
-            "description": "**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `GET /api/v1/users`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `page` | integer | no | min 1; default `1` |  |\n| `limit` | integer | no | min 1; max 100; default `20` |  |\n| `sort` | string | no | — | Sort by one of: name, email, roleId, createdAt (prefix with - for descending) |\n| `roleId` | string | no | one of `superadmin`, `pc`, `pi` |  |\n| `centreId` | string | no | ObjectId |  |\n| `isActive` | string | no | — | true or false |\n| `search` | string | no | 0–100 chars | Matches name, email or designation |"
+            "description": "**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `GET /api/v1/users`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `page` | integer | no | min 1; default `1` |  |\n| `limit` | integer | no | min 1; max 100; default `20` |  |\n| `sort` | string | no | — | Sort by one of: name, email, roleId, createdAt (prefix with - for descending) |\n| `roleId` | string | no | one of `superadmin`, `pc`, `pi` |  |\n| `centreId` | string | no | ObjectId |  |\n| `isActive` | string | no | — | true or false |\n| `search` | string | no | 0–100 chars | Matches name, email, designation, mobile or organization |"
           }
         },
         {
@@ -280,7 +280,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Dr. A. Sharma\",\n  \"email\": \"agronomist.knp@example.com\",\n  \"designation\": \"Chief Agronomist\",\n  \"phone\": \"+91 98765 43210\",\n  \"temporaryPassword\": \"ChangeMe12345\",\n  \"roleId\": \"pc\",\n  \"centreId\": \"{{centreId}}\"\n}",
+              "raw": "{\n  \"title\": \"Dr\",\n  \"firstName\": \"Sujit\",\n  \"middleName\": \"Kumar\",\n  \"surname\": \"Singh\",\n  \"designation\": \"Chief Agronomist\",\n  \"email\": \"agronomist.knp@example.com\",\n  \"mobile\": \"+91 98765 43210\",\n  \"organization\": \"CSK Himachal Pradesh Krishi Vishwavidyalaya, Palampur\",\n  \"temporaryPassword\": \"ChangeMe12345\",\n  \"roleId\": \"pc\",\n  \"centreId\": \"{{centreId}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -296,7 +296,7 @@
                 "users"
               ]
             },
-            "description": "Creates an account with a temporary password the person must change at first sign-in. For a Centre PI, prefer **Centres → Assign Centre PI**, which also handles replacing the current PI.\n\n**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `POST /api/v1/users`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `name` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `designation` | string | no | 0–120 chars |  |\n| `phone` | string | no | pattern `^\\+?[\\d\\s-]{7,20}$` |  |\n| `temporaryPassword` | string | yes | 10–128 chars | Temporary password you share with the person. They must change it at first sign-in. At least 10 characters with a letter and a digit. |\n| `roleId` | string | yes | one of `superadmin`, `pc`, `pi` |  |\n| `centreId` | string | no | ObjectId; default `null`; nullable | Required for Centre PI; ignored for national roles |\n\nUnknown fields are rejected."
+            "description": "Creates an account with a temporary password the person must change at first sign-in. For a Centre PI, prefer **Centres → Assign Centre PI**, which also handles replacing the current PI.\n\n**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `POST /api/v1/users`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | one of `Dr`, `Prof`, `Mr`, `Mrs`, `Ms` |  |\n| `firstName` | string | yes | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `middleName` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `surname` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` | Leave empty if the person has no surname |\n| `designation` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `mobile` | string | yes | pattern `^(?:\\+91[\\s-]?|0)?[6-9]\\d{4}[\\s-]?\\d{5}$` |  |\n| `organization` | string | yes | 2–200 chars | Organization name |\n| `temporaryPassword` | string | yes | 10–128 chars | Temporary password you share with the person. They must change it at first sign-in. At least 10 characters with a letter and a digit. |\n| `roleId` | string | yes | one of `superadmin`, `pc`, `pi` |  |\n| `centreId` | string | no | ObjectId; default `null`; nullable | Required for Centre PI; ignored for national roles |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -311,7 +311,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Dr. A. Sharma\",\n  \"email\": \"agronomist.knp@example.com\",\n  \"designation\": \"Chief Agronomist\",\n  \"phone\": \"+91 98765 43210\"\n}",
+              "raw": "{\n  \"title\": \"Dr\",\n  \"firstName\": \"Sujit\",\n  \"middleName\": \"Sample middleName\",\n  \"surname\": \"Sample surname\",\n  \"designation\": \"Chief Agronomist\",\n  \"email\": \"agronomist.knp@example.com\",\n  \"mobile\": \"+91 98765 43210\",\n  \"organization\": \"CSK Himachal Pradesh Krishi Vishwavidyalaya, Palampur\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -335,7 +335,7 @@
                 }
               ]
             },
-            "description": "**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `PATCH /api/v1/users/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `name` | string | no | 2–120 chars |  |\n| `email` | string | no | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `designation` | string | no | 0–120 chars |  |\n| `phone` | string | no | pattern `^\\+?[\\d\\s-]{7,20}$` |  |\n\nUnknown fields are rejected."
+            "description": "**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `PATCH /api/v1/users/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | no | one of `Dr`, `Prof`, `Mr`, `Mrs`, `Ms` |  |\n| `firstName` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `middleName` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$`; nullable |  |\n| `surname` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$`; nullable |  |\n| `designation` | string | no | 2–120 chars |  |\n| `email` | string | no | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `mobile` | string | no | pattern `^(?:\\+91[\\s-]?|0)?[6-9]\\d{4}[\\s-]?\\d{5}$` |  |\n| `organization` | string | no | 2–200 chars | Organization name |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -658,7 +658,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Dr. A. Sharma\",\n  \"email\": \"agronomist.knp@example.com\",\n  \"designation\": \"Chief Agronomist\",\n  \"phone\": \"+91 98765 43210\",\n  \"temporaryPassword\": \"ChangeMe12345\",\n  \"reason\": \"Sample reason\"\n}",
+              "raw": "{\n  \"title\": \"Dr\",\n  \"firstName\": \"Sujit\",\n  \"middleName\": \"Kumar\",\n  \"surname\": \"Singh\",\n  \"designation\": \"Chief Agronomist\",\n  \"email\": \"agronomist.knp@example.com\",\n  \"mobile\": \"+91 98765 43210\",\n  \"organization\": \"CSK Himachal Pradesh Krishi Vishwavidyalaya, Palampur\",\n  \"temporaryPassword\": \"ChangeMe12345\",\n  \"reason\": \"Sample reason\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -683,7 +683,7 @@
                 }
               ]
             },
-            "description": "Creates the agronomist's account as this centre's PI, with a temporary password they must change at first sign-in. If the centre already has a PI, they are deactivated in the same step (send `reason`), so the centre always has exactly one.\n\n**Access:** signed in, and the role needs `centres.manage` and `users.manage`\n\n**Endpoint:** `POST /api/v1/centres/:id/pi`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `name` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `designation` | string | no | 0–120 chars |  |\n| `phone` | string | no | pattern `^\\+?[\\d\\s-]{7,20}$` |  |\n| `temporaryPassword` | string | yes | 10–128 chars | Temporary password you share with the person. They must change it at first sign-in. At least 10 characters with a letter and a digit. |\n| `reason` | string | no | 3–300 chars | Why the current PI is being replaced (required when there is one) |\n\nUnknown fields are rejected."
+            "description": "Creates the agronomist's account as this centre's PI, with a temporary password they must change at first sign-in. If the centre already has a PI, they are deactivated in the same step (send `reason`), so the centre always has exactly one.\n\n**Access:** signed in, and the role needs `centres.manage` and `users.manage`\n\n**Endpoint:** `POST /api/v1/centres/:id/pi`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | one of `Dr`, `Prof`, `Mr`, `Mrs`, `Ms` |  |\n| `firstName` | string | yes | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `middleName` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `surname` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` | Leave empty if the person has no surname |\n| `designation` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `mobile` | string | yes | pattern `^(?:\\+91[\\s-]?|0)?[6-9]\\d{4}[\\s-]?\\d{5}$` |  |\n| `organization` | string | yes | 2–200 chars | Organization name |\n| `temporaryPassword` | string | yes | 10–128 chars | Temporary password you share with the person. They must change it at first sign-in. At least 10 characters with a letter and a digit. |\n| `reason` | string | no | 3–300 chars | Why the current PI is being replaced (required when there is one) |\n\nUnknown fields are rejected."
           }
         }
       ]

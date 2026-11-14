@@ -85,11 +85,8 @@ describe('user accounts', () => {
     const pi = await createUser('pi', centre.id);
     const { agent } = await signedInAgent('pc');
 
-    const updated = await agent
-      .patch(`/api/v1/users/${pi.id}`)
-      .send({ phone: '+91 98765 43210' })
-      .expect(200);
-    expect(updated.body.data.phone).toBe('+91 98765 43210');
+    const updated = await agent.patch(`/api/v1/users/${pi.id}`).send({ mobile: '+91-98765-43210' }).expect(200);
+    expect(updated.body.data.mobile).toBe('+91-98765-43210');
 
     const off = await agent
       .post(`/api/v1/users/${pi.id}/deactivate`)
@@ -123,7 +120,12 @@ describe('Centre PI assignment', () => {
     expect(res.body.data).toMatchObject({ roleId: 'pi', centreId: centre.id, email: person.email });
 
     const detail = await agent.get(`/api/v1/centres/${centre.id}`).expect(200);
-    expect(detail.body.data.currentPi).toMatchObject({ id: res.body.data.id, name: person.name });
+    expect(detail.body.data.currentPi).toMatchObject({
+      id: res.body.data.id,
+      name: `Dr. Person ${person.surname}`,
+      mobile: person.mobile,
+      organization: person.organization,
+    });
     const list = await agent.get('/api/v1/centres').expect(200);
     expect(list.body.data.find((c: { id: string }) => c.id === centre.id).currentPi.email).toBe(person.email);
   });
