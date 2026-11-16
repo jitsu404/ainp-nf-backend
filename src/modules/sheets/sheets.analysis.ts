@@ -1,4 +1,4 @@
-import { jStat } from 'jstat';
+import jStat from 'jstat';
 
 // Statistics for one parameter of one sheet. Pure functions: no database access.
 //

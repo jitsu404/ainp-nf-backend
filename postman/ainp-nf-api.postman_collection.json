@@ -578,7 +578,7 @@
                 "centres"
               ]
             },
-            "description": "**Access:** signed in, and the role needs `centres.manage`\n\n**Endpoint:** `POST /api/v1/centres`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Za-z]{2,10}$` | Short unique code; stored in upper case |\n| `name` | string | yes | 2–120 chars |  |\n| `host` | string | yes | 2–200 chars | Host institution |\n| `hostShort` | string | no | 0–40 chars | Host short name |\n| `hostType` | string | no | 0–40 chars | SAU, ICAR, Deemed University, CAU … |\n| `city` | string | no | 0–80 chars |  |\n| `pincode` | string | no | pattern `^\\d{6}$` |  |\n| `state` | string | yes | 2–60 chars |  |\n| `zone` | string | no | 0–80 chars | Agro-climatic zone |\n| `type` | string | no | one of `Network Centre`, `Voluntary Centre`; default `\"Network Centre\"` |  |\n\nUnknown fields are rejected."
+            "description": "**Access:** signed in, and the role needs `centres.manage`\n\n**Endpoint:** `POST /api/v1/centres`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Za-z]{2,10}$` | Short unique code; stored in upper case |\n| `name` | string | yes | 2–120 chars |  |\n| `host` | string | yes | 2–200 chars | Host institution |\n| `hostShort` | string | no | 0–40 chars | Host short name |\n| `hostType` | string | no | 0–40 chars | SAU, ICAR, Deemed University, CAU … |\n| `city` | string | no | 0–80 chars |  |\n| `pincode` | string | no | pattern `^\\d{6}$` |  |\n| `state` | string | yes | 2–60 chars |  |\n| `zone` | string | no | 0–80 chars | Agro-climatic zone |\n| `type` | string | no | one of `Network Centre`, `Voluntary Centre` | Default: Network Centre |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -617,7 +617,7 @@
                 }
               ]
             },
-            "description": "**Access:** signed in, and the role needs `centres.manage`\n\n**Endpoint:** `PATCH /api/v1/centres/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Za-z]{2,10}$` | Short unique code; stored in upper case |\n| `name` | string | no | 2–120 chars |  |\n| `host` | string | no | 2–200 chars | Host institution |\n| `hostShort` | string | no | 0–40 chars | Host short name |\n| `hostType` | string | no | 0–40 chars | SAU, ICAR, Deemed University, CAU … |\n| `city` | string | no | 0–80 chars |  |\n| `pincode` | string | no | pattern `^\\d{6}$` |  |\n| `state` | string | no | 2–60 chars |  |\n| `zone` | string | no | 0–80 chars | Agro-climatic zone |\n| `type` | string | no | one of `Network Centre`, `Voluntary Centre`; default `\"Network Centre\"` |  |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
+            "description": "**Access:** signed in, and the role needs `centres.manage`\n\n**Endpoint:** `PATCH /api/v1/centres/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Za-z]{2,10}$` | Short unique code; stored in upper case |\n| `name` | string | no | 2–120 chars |  |\n| `host` | string | no | 2–200 chars | Host institution |\n| `hostShort` | string | no | 0–40 chars | Host short name |\n| `hostType` | string | no | 0–40 chars | SAU, ICAR, Deemed University, CAU … |\n| `city` | string | no | 0–80 chars |  |\n| `pincode` | string | no | pattern `^\\d{6}$` |  |\n| `state` | string | no | 2–60 chars |  |\n| `zone` | string | no | 0–80 chars | Agro-climatic zone |\n| `type` | string | no | one of `Network Centre`, `Voluntary Centre` | Default: Network Centre |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -1105,7 +1105,7 @@
                 "parameters"
               ]
             },
-            "description": "**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/parameters`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Z0-9][A-Z0-9_]{0,39}$` |  |\n| `name` | string | yes | 2–200 chars |  |\n| `unitCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable | Code of a unit master item |\n| `category` | string | yes | one of `Growth`, `Yield`, `Quality`, `Soil chemical`, `Soil physical`, `Soil biological`, `Plant nutrient`, `Pest & disease`, `Weed`, `Water`, `Economics`, `Input use`, `Weather`, `Other` |  |\n| `dataType` | string | no | one of `number`, `text`, `date`, `choice`; default `\"number\"` |  |\n| `decimals` | integer | no | min 0; max 6 |  |\n| `min` | number | null | no | — |  |\n| `max` | number | null | no | — |  |\n| `choices` | string[] | no | — |  |\n| `method` | string | no | 0–1000 chars; nullable |  |\n\nUnknown fields are rejected."
+            "description": "**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/parameters`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Z0-9][A-Z0-9_]{0,39}$` |  |\n| `name` | string | yes | 2–200 chars |  |\n| `unitCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable | Code of a unit master item |\n| `category` | string | yes | one of `Growth`, `Yield`, `Quality`, `Soil chemical`, `Soil physical`, `Soil biological`, `Plant nutrient`, `Pest & disease`, `Weed`, `Water`, `Economics`, `Input use`, `Weather`, `Other` |  |\n| `dataType` | string | no | one of `number`, `text`, `date`, `choice` | Default: number |\n| `decimals` | integer | no | min 0; max 6 |  |\n| `min` | number | null | no | — |  |\n| `max` | number | null | no | — |  |\n| `choices` | string[] | no | — |  |\n| `method` | string | no | 0–1000 chars; nullable |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -1144,7 +1144,7 @@
                 }
               ]
             },
-            "description": "Deactivate with `isActive: false`; parameters are never deleted.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `PATCH /api/v1/parameters/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_]{0,39}$` |  |\n| `name` | string | no | 2–200 chars |  |\n| `unitCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable | Code of a unit master item |\n| `category` | string | no | one of `Growth`, `Yield`, `Quality`, `Soil chemical`, `Soil physical`, `Soil biological`, `Plant nutrient`, `Pest & disease`, `Weed`, `Water`, `Economics`, `Input use`, `Weather`, `Other` |  |\n| `dataType` | string | no | one of `number`, `text`, `date`, `choice`; default `\"number\"` |  |\n| `decimals` | integer | no | min 0; max 6 |  |\n| `min` | number | null | no | — |  |\n| `max` | number | null | no | — |  |\n| `choices` | string[] | no | — |  |\n| `method` | string | no | 0–1000 chars; nullable |  |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
+            "description": "Deactivate with `isActive: false`; parameters are never deleted.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `PATCH /api/v1/parameters/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_]{0,39}$` |  |\n| `name` | string | no | 2–200 chars |  |\n| `unitCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable | Code of a unit master item |\n| `category` | string | no | one of `Growth`, `Yield`, `Quality`, `Soil chemical`, `Soil physical`, `Soil biological`, `Plant nutrient`, `Pest & disease`, `Weed`, `Water`, `Economics`, `Input use`, `Weather`, `Other` |  |\n| `dataType` | string | no | one of `number`, `text`, `date`, `choice` | Default: number |\n| `decimals` | integer | no | min 0; max 6 |  |\n| `min` | number | null | no | — |  |\n| `max` | number | null | no | — |  |\n| `choices` | string[] | no | — |  |\n| `method` | string | no | 0–1000 chars; nullable |  |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -1189,6 +1189,692 @@
               ]
             },
             "description": "Multipart upload: send the .xlsx in the form field **file** (max 5 MB).\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/parameters/import`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `dryRun` | string | no | — | true (default) = validate and preview only; false = save |"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Experiments",
+      "description": "PCU experiment protocols: programme, design, replications, common treatments, parameters to record and seasons, assigned to centres. Centre users see the experiments assigned to them.",
+      "item": [
+        {
+          "name": "List experiments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/experiments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiments"
+              ],
+              "query": [
+                {
+                  "key": "programmeCode",
+                  "value": "",
+                  "description": "string · pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "string · one of `Draft`, `Active`, `Closed`",
+                  "disabled": true
+                },
+                {
+                  "key": "centreId",
+                  "value": "",
+                  "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "string · 0–100 chars",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/experiments`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n| `centreId` | string | no | ObjectId |  |\n| `search` | string | no | 0–100 chars |  |"
+          }
+        },
+        {
+          "name": "Get experiment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/experiments/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiments",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{experimentId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Includes each parameter with its library details.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/experiments/:id`"
+          }
+        },
+        {
+          "name": "Create experiment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the new experiment so \"Get\", \"Update\" and other requests can use it.",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('experimentId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"NF-LTE\",\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RCBD\",\n  \"replications\": 3,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\"\n    }\n  ],\n  \"parameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": [\n    \"KHARIF\",\n    \"RABI\"\n  ],\n  \"startYear\": \"2026-27\",\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/experiments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiments"
+              ]
+            },
+            "description": "The PCU protocol: design, replications, common treatments, the parameters to record (plot- or treatment-level) and seasons. Assigning centres creates their trials.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `POST /api/v1/experiments`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `title` | string | yes | 5–300 chars |  |\n| `programmeCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | yes | one of `RCBD`, `Factorial RBD`, `Split plot`, `Non-replicated`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `treatments` | object[] | no | — |  |\n| `parameters` | object[] | no | — |  |\n| `seasons` | string[] | no | — |  |\n| `startYear` | string | yes | pattern `^\\d{4}-\\d{2}$` |  |\n| `centreIds` | string[] | no | — |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Update experiment",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"NF-LTE\",\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RCBD\",\n  \"replications\": 3,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\"\n    }\n  ],\n  \"parameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": [\n    \"KHARIF\",\n    \"RABI\"\n  ],\n  \"startYear\": \"2026-27\",\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"status\": \"Draft\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/experiments/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiments",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{experimentId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `title` | string | no | 5–300 chars |  |\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | no | one of `RCBD`, `Factorial RBD`, `Split plot`, `Non-replicated`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `treatments` | object[] | no | — |  |\n| `parameters` | object[] | no | — |  |\n| `seasons` | string[] | no | — |  |\n| `startYear` | string | no | pattern `^\\d{4}-\\d{2}$` |  |\n| `centreIds` | string[] | no | — |  |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n\nUnknown fields are rejected."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Trials",
+      "description": "An experiment as run at one centre: its cropping systems, crops and varieties per season, practice details per treatment and in-charge. Created when the experiment is assigned.",
+      "item": [
+        {
+          "name": "List trials",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/trials",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "trials"
+              ],
+              "query": [
+                {
+                  "key": "experimentId",
+                  "value": "",
+                  "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "centreId",
+                  "value": "",
+                  "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "string · one of `Setup`, `Running`, `Completed`",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/trials`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | no | ObjectId |  |\n| `centreId` | string | no | ObjectId |  |\n| `status` | string | no | one of `Setup`, `Running`, `Completed` |  |"
+          }
+        },
+        {
+          "name": "Get trial",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/trials/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "trials",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{trialId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "The centre setup together with the experiment protocol.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/trials/:id`"
+          }
+        },
+        {
+          "name": "Update trial setup",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"croppingSystems\": [\n    {\n      \"code\": \"CS1\",\n      \"name\": \"Rice – Wheat\",\n      \"seasons\": []\n    }\n  ],\n  \"practices\": [\n    {\n      \"treatmentCode\": \"T2\",\n      \"seedDetails\": \"Sample seedDetails\",\n      \"nutrientDetails\": \"Sample nutrientDetails\",\n      \"protectionDetails\": \"Sample protectionDetails\",\n      \"otherDetails\": \"Sample otherDetails\"\n    }\n  ],\n  \"inChargeUserId\": \"{{inChargeUserId}}\",\n  \"layoutNotes\": \"Sample layoutNotes\",\n  \"status\": \"Setup\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/trials/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "trials",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{trialId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "The centre sets its cropping systems (crops and varieties per season), the practice details of each treatment, the in-charge, layout notes and status. Seasons, crops and treatments are checked against the masters and the protocol.\n\n**Access:** signed in, and the role needs one of `research.enter`, `research.config`\n\n**Endpoint:** `PATCH /api/v1/trials/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `croppingSystems` | object[] | no | — |  |\n| `practices` | object[] | no | — |  |\n| `inChargeUserId` | string | no | ObjectId; nullable |  |\n| `layoutNotes` | string | no | 0–4000 chars; nullable |  |\n| `status` | string | no | one of `Setup`, `Running`, `Completed` |  |\n\nUnknown fields are rejected."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Observation sheets",
+      "description": "Data recording per trial × year × season: cell entry or Excel import, Draft → Submitted → Returned/Approved workflow, analysis (means, RCBD ANOVA) and cross-centre summary.",
+      "item": [
+        {
+          "name": "List sheets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sheets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets"
+              ],
+              "query": [
+                {
+                  "key": "trialId",
+                  "value": "",
+                  "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "experimentId",
+                  "value": "",
+                  "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "centreId",
+                  "value": "",
+                  "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "fyCode",
+                  "value": "",
+                  "description": "string · pattern `^\\d{4}-\\d{2}$`",
+                  "disabled": true
+                },
+                {
+                  "key": "seasonCode",
+                  "value": "",
+                  "description": "string · pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "string · one of `Draft`, `Submitted`, `Returned`, `Approved`",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `trialId` | string | no | ObjectId |  |\n| `experimentId` | string | no | ObjectId |  |\n| `centreId` | string | no | ObjectId |  |\n| `fyCode` | string | no | pattern `^\\d{4}-\\d{2}$` |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `status` | string | no | one of `Draft`, `Submitted`, `Returned`, `Approved` |  |"
+          }
+        },
+        {
+          "name": "Experiment summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sheets/summary?experimentId={{experimentId}}&fyCode=2026-27",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "experimentId",
+                  "value": "{{experimentId}}",
+                  "description": "string · ObjectId",
+                  "disabled": false
+                },
+                {
+                  "key": "fyCode",
+                  "value": "2026-27",
+                  "description": "string · pattern `^\\d{4}-\\d{2}$`",
+                  "disabled": false
+                },
+                {
+                  "key": "seasonCode",
+                  "value": "",
+                  "description": "string · pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`",
+                  "disabled": true
+                },
+                {
+                  "key": "includeUnapproved",
+                  "value": "",
+                  "description": "string · Include sheets not yet approved",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Treatment means per centre and parameter for one experiment and year, from approved sheets.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/summary`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | yes | ObjectId |  |\n| `fyCode` | string | yes | pattern `^\\d{4}-\\d{2}$` |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `includeUnapproved` | string | no | — | Include sheets not yet approved |"
+          }
+        },
+        {
+          "name": "Get sheet",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sheets/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{sheetId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "The sheet, its experiment protocol and all recorded values.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/:id`"
+          }
+        },
+        {
+          "name": "Open sheet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the new sheet so \"Get\", \"Update\" and other requests can use it.",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('sheetId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trialId\": \"{{trialId}}\",\n  \"fyCode\": \"2026-27\",\n  \"seasonCode\": \"KHARIF\",\n  \"croppingSystemCode\": \"CS1\",\n  \"cropCode\": \"RICE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sheets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets"
+              ]
+            },
+            "description": "One sheet per trial × financial year × season (× cropping system or crop). The year must be open.\n\n**Access:** signed in, and the role needs `research.enter`\n\n**Endpoint:** `POST /api/v1/sheets`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `trialId` | string | yes | ObjectId |  |\n| `fyCode` | string | yes | pattern `^\\d{4}-\\d{2}$` |  |\n| `seasonCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `croppingSystemCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable |  |\n| `cropCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Save values",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"values\": [\n    {\n      \"treatmentCode\": \"T1\",\n      \"replication\": 1,\n      \"parameterId\": \"{{parameterId}}\",\n      \"value\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sheets/:id/values",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets",
+                ":id",
+                "values"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{sheetId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Upserts cells (treatment × replication × parameter); `value: null` clears a cell. Every cell is checked against the protocol and the parameter library; any error rejects the whole batch. Only Draft or Returned sheets in an open year.\n\n**Access:** signed in, and the role needs `research.enter`\n\n**Endpoint:** `PUT /api/v1/sheets/:id/values`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `values` | object[] | yes | — |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Submit sheet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"remark\": \"Sample remark\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sheets/:id/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets",
+                ":id",
+                "submit"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{sheetId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Fails with INCOMPLETE_SHEET listing missing required values.\n\n**Access:** signed in, and the role needs `research.submit`\n\n**Endpoint:** `POST /api/v1/sheets/:id/submit`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `remark` | string | no | 0–2000 chars |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Return sheet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"remark\": \"Recheck yield of T3 R2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sheets/:id/return",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets",
+                ":id",
+                "return"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{sheetId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Sends a submitted sheet back to the centre with a remark.\n\n**Access:** signed in, and the role needs one of `research.review`, `research.approve`\n\n**Endpoint:** `POST /api/v1/sheets/:id/return`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `remark` | string | yes | 3–2000 chars |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Approve sheet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"remark\": \"Sample remark\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sheets/:id/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets",
+                ":id",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{sheetId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Approves and locks a submitted sheet.\n\n**Access:** signed in, and the role needs `research.approve`\n\n**Endpoint:** `POST /api/v1/sheets/:id/approve`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `remark` | string | no | 0–2000 chars |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Download sheet template",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sheets/:id/template",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets",
+                ":id",
+                "template"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{sheetId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Excel with the current values: \"Plot data\" (treatment × replication) and \"Treatment data\" tabs.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/:id/template`"
+          }
+        },
+        {
+          "name": "Import sheet values",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sheets/:id/import",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets",
+                ":id",
+                "import"
+              ],
+              "query": [
+                {
+                  "key": "dryRun",
+                  "value": "",
+                  "description": "string · true (default) = validate and preview only; false = save",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{sheetId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Multipart upload: send the .xlsx in the form field **file** (max 5 MB).\n\n**Access:** signed in, and the role needs `research.enter`\n\n**Endpoint:** `POST /api/v1/sheets/:id/import`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `dryRun` | string | no | — | true (default) = validate and preview only; false = save |"
+          }
+        },
+        {
+          "name": "Analyse sheet",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sheets/:id/analysis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets",
+                ":id",
+                "analysis"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{sheetId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Per numeric parameter: treatment means, grand mean and, for complete replicated data, RCBD ANOVA with CV, SEm, SEd and CD (5 %).\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/:id/analysis`"
           }
         }
       ]
@@ -1248,6 +1934,18 @@
       "value": "",
       "type": "string",
       "description": "Set automatically by \"Create parameter\""
+    },
+    {
+      "key": "experimentId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by \"Create experiment\""
+    },
+    {
+      "key": "sheetId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by \"Create sheet\""
     }
   ],
   "event": [
