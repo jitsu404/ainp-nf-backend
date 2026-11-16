@@ -23,3 +23,12 @@ export const ok = <T>(res: Response, data: T, meta?: PageMeta | Record<string, u
 export const created = <T>(res: Response, data: T): Response => res.status(201).json({ success: true, data });
 
 export const noContent = (res: Response): Response => res.status(204).end();
+
+/** Sends a generated file (e.g. an Excel template) as a download. */
+export const sendFile = (res: Response, buffer: Buffer, filename: string, contentType: string): Response => {
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/"/g, '')}"`);
+  return res.status(200).send(buffer);
+};
+
+export const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';

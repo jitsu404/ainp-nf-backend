@@ -61,6 +61,7 @@ export const ROLES: Readonly<Record<RoleId, RoleDefinition>> = {
     label: 'PCU',
     scope: 'national',
     capabilities: [
+      'masters.edit',
       'centres.manage',
       'users.manage',
       'research.approve',

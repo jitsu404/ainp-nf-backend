@@ -25,3 +25,14 @@ export const listQuery = (sortFields: readonly string[]) => {
 };
 
 export const skipFor = (page: number, limit: number): number => (page - 1) * limit;
+
+/** Escapes user text for use inside a RegExp (search boxes). */
+export const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** ?dryRun=true (default) previews an import without saving. */
+export const importQuery = z.object({
+  dryRun: z
+    .stringbool()
+    .default(true)
+    .meta({ description: 'true (default) = validate and preview only; false = save' }),
+});

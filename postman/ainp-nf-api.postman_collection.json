@@ -687,6 +687,511 @@
           }
         }
       ]
+    },
+    {
+      "name": "Masters",
+      "description": "Lookup lists (seasons, units, crops, NF inputs, programmes, budget heads, fund categories, staff posts). Everyone signed in reads them; `masters.edit` (PCU, Super Admin) changes them. Each list supports Excel import.",
+      "item": [
+        {
+          "name": "List master types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/masters/types",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "masters",
+                "types"
+              ]
+            },
+            "description": "The lookup lists available, with their allowed groups.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/masters/types`"
+          }
+        },
+        {
+          "name": "List master items",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/masters/:type",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "masters",
+                ":type"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "string · 0–100 chars",
+                  "disabled": true
+                },
+                {
+                  "key": "group",
+                  "value": "",
+                  "description": "string · 0–60 chars",
+                  "disabled": true
+                },
+                {
+                  "key": "isActive",
+                  "value": "",
+                  "description": "string",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "type",
+                  "value": "{{type}}",
+                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`"
+                }
+              ]
+            },
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/masters/:type`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `search` | string | no | 0–100 chars |  |\n| `group` | string | no | 0–60 chars |  |\n| `isActive` | string | no | — |  |"
+          }
+        },
+        {
+          "name": "Add master item",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the new master so \"Get\", \"Update\" and other requests can use it.",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('masterId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"KHARIF\",\n  \"name\": \"Kharif\",\n  \"group\": \"Sample group\",\n  \"description\": \"Sample description\",\n  \"sortOrder\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/masters/:type",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "masters",
+                ":type"
+              ],
+              "variable": [
+                {
+                  "key": "type",
+                  "value": "{{type}}",
+                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`"
+                }
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/masters/:type`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `name` | string | yes | 1–200 chars |  |\n| `group` | string | no | 0–60 chars | Allowed values depend on the type (see /masters/types) |\n| `description` | string | no | 0–500 chars |  |\n| `sortOrder` | integer | no | min 0; max 9999 |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Update master item",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"KHARIF\",\n  \"name\": \"Kharif\",\n  \"group\": \"Sample group\",\n  \"description\": \"Sample description\",\n  \"sortOrder\": 0,\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/masters/:type/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "masters",
+                ":type",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "type",
+                  "value": "{{type}}",
+                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`"
+                },
+                {
+                  "key": "id",
+                  "value": "{{masterId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Deactivate with `isActive: false`; items are never deleted.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `PATCH /api/v1/masters/:type/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `name` | string | no | 1–200 chars |  |\n| `group` | string | no | 0–60 chars | Allowed values depend on the type (see /masters/types) |\n| `description` | string | no | 0–500 chars |  |\n| `sortOrder` | integer | no | min 0; max 9999 |  |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Download master template",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/masters/:type/import-template",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "masters",
+                ":type",
+                "import-template"
+              ],
+              "variable": [
+                {
+                  "key": "type",
+                  "value": "{{type}}",
+                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`"
+                }
+              ]
+            },
+            "description": "Excel template pre-filled with the current items (doubles as an export).\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `GET /api/v1/masters/:type/import-template`"
+          }
+        },
+        {
+          "name": "Import master items",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/masters/:type/import",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "masters",
+                ":type",
+                "import"
+              ],
+              "query": [
+                {
+                  "key": "dryRun",
+                  "value": "",
+                  "description": "string · true (default) = validate and preview only; false = save",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "type",
+                  "value": "{{type}}",
+                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`"
+                }
+              ]
+            },
+            "description": "Multipart upload: send the .xlsx in the form field **file** (max 5 MB).\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/masters/:type/import`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `dryRun` | string | no | — | true (default) = validate and preview only; false = save |"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Financial years",
+      "description": "Indian financial years (1 April – 31 March). Closed years block data entry; one year is current.",
+      "item": [
+        {
+          "name": "List financial years",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financial-years",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financial-years"
+              ]
+            },
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/financial-years`"
+          }
+        },
+        {
+          "name": "Add financial year",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the new financialYear so \"Get\", \"Update\" and other requests can use it.",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('financialYearId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"2026-27\",\n  \"isOpen\": true,\n  \"isCurrent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/financial-years",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financial-years"
+              ]
+            },
+            "description": "Dates are derived from the code (1 April – 31 March).\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/financial-years`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^\\d{4}-\\d{2}$` |  |\n| `isOpen` | boolean | no | — |  |\n| `isCurrent` | boolean | no | — |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Update financial year",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isOpen\": true,\n  \"isCurrent\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/financial-years/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financial-years",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{financialYearId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "`isOpen: false` closes the year for data entry. `isCurrent: true` makes it the default year.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `PATCH /api/v1/financial-years/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `isOpen` | boolean | no | — |  |\n| `isCurrent` | boolean | no | — |  |\n\nUnknown fields are rejected."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Parameters",
+      "description": "The parameter library every experiment records against (name, unit, category, data type, limits, method). Supports Excel import.",
+      "item": [
+        {
+          "name": "List parameters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/parameters",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "parameters"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "string · 0–100 chars",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "string · one of `Growth`, `Yield`, `Quality`, `Soil chemical`, `Soil physical`, `Soil biological`, `Plant nutrient`, `Pest & disease`, `Weed`, `Water`, `Economics`, `Input use`, `Weather`, `Other`",
+                  "disabled": true
+                },
+                {
+                  "key": "isActive",
+                  "value": "",
+                  "description": "string",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/parameters`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `search` | string | no | 0–100 chars |  |\n| `category` | string | no | one of `Growth`, `Yield`, `Quality`, `Soil chemical`, `Soil physical`, `Soil biological`, `Plant nutrient`, `Pest & disease`, `Weed`, `Water`, `Economics`, `Input use`, `Weather`, `Other` |  |\n| `isActive` | string | no | — |  |"
+          }
+        },
+        {
+          "name": "Add parameter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the new parameter so \"Get\", \"Update\" and other requests can use it.",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('parameterId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"GRAIN_YIELD\",\n  \"name\": \"Grain yield\",\n  \"unitCode\": \"KG_HA\",\n  \"category\": \"Yield\",\n  \"dataType\": \"number\",\n  \"decimals\": 0,\n  \"min\": 1,\n  \"max\": 1,\n  \"choices\": [\n    \"Sample choices\"\n  ],\n  \"method\": \"Sample method\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/parameters",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "parameters"
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/parameters`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Z0-9][A-Z0-9_]{0,39}$` |  |\n| `name` | string | yes | 2–200 chars |  |\n| `unitCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable | Code of a unit master item |\n| `category` | string | yes | one of `Growth`, `Yield`, `Quality`, `Soil chemical`, `Soil physical`, `Soil biological`, `Plant nutrient`, `Pest & disease`, `Weed`, `Water`, `Economics`, `Input use`, `Weather`, `Other` |  |\n| `dataType` | string | no | one of `number`, `text`, `date`, `choice`; default `\"number\"` |  |\n| `decimals` | integer | no | min 0; max 6 |  |\n| `min` | number | null | no | — |  |\n| `max` | number | null | no | — |  |\n| `choices` | string[] | no | — |  |\n| `method` | string | no | 0–1000 chars; nullable |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Update parameter",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"GRAIN_YIELD\",\n  \"name\": \"Grain yield\",\n  \"unitCode\": \"KG_HA\",\n  \"category\": \"Yield\",\n  \"dataType\": \"number\",\n  \"decimals\": 0,\n  \"min\": 1,\n  \"max\": 1,\n  \"choices\": [\n    \"Sample choices\"\n  ],\n  \"method\": \"Sample method\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/parameters/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "parameters",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{parameterId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Deactivate with `isActive: false`; parameters are never deleted.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `PATCH /api/v1/parameters/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_]{0,39}$` |  |\n| `name` | string | no | 2–200 chars |  |\n| `unitCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable | Code of a unit master item |\n| `category` | string | no | one of `Growth`, `Yield`, `Quality`, `Soil chemical`, `Soil physical`, `Soil biological`, `Plant nutrient`, `Pest & disease`, `Weed`, `Water`, `Economics`, `Input use`, `Weather`, `Other` |  |\n| `dataType` | string | no | one of `number`, `text`, `date`, `choice`; default `\"number\"` |  |\n| `decimals` | integer | no | min 0; max 6 |  |\n| `min` | number | null | no | — |  |\n| `max` | number | null | no | — |  |\n| `choices` | string[] | no | — |  |\n| `method` | string | no | 0–1000 chars; nullable |  |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Download parameter template",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/parameters/import-template",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "parameters",
+                "import-template"
+              ]
+            },
+            "description": "Pre-filled with the current library.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `GET /api/v1/parameters/import-template`"
+          }
+        },
+        {
+          "name": "Import parameters",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/parameters/import",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "parameters",
+                "import"
+              ],
+              "query": [
+                {
+                  "key": "dryRun",
+                  "value": "",
+                  "description": "string · true (default) = validate and preview only; false = save",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Multipart upload: send the .xlsx in the form field **file** (max 5 MB).\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/parameters/import`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `dryRun` | string | no | — | true (default) = validate and preview only; false = save |"
+          }
+        }
+      ]
     }
   ],
   "variable": [
@@ -725,6 +1230,24 @@
       "value": "",
       "type": "string",
       "description": "Set automatically by \"Create centre\""
+    },
+    {
+      "key": "masterId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by \"Create master\""
+    },
+    {
+      "key": "financialYearId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by \"Create financialYear\""
+    },
+    {
+      "key": "parameterId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by \"Create parameter\""
     }
   ],
   "event": [

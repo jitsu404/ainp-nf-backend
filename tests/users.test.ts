@@ -85,7 +85,10 @@ describe('user accounts', () => {
     const pi = await createUser('pi', centre.id);
     const { agent } = await signedInAgent('pc');
 
-    const updated = await agent.patch(`/api/v1/users/${pi.id}`).send({ mobile: '+91-98765-43210' }).expect(200);
+    const updated = await agent
+      .patch(`/api/v1/users/${pi.id}`)
+      .send({ mobile: '+91-98765-43210' })
+      .expect(200);
     expect(updated.body.data.mobile).toBe('+91-98765-43210');
 
     const off = await agent

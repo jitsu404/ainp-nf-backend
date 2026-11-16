@@ -8,6 +8,11 @@
 import { connectDB, disconnectDB } from '../config/db.js';
 import { env } from '../config/env.js';
 import { CentreModel } from '../modules/centres/centres.model.js';
+import { FinancialYearModel, fyCodeFor, fyDates } from '../modules/financialYears/financialYears.model.js';
+import { MasterItemModel } from '../modules/masters/masters.model.js';
+import { MASTER_DEFAULTS, type MasterType } from '../modules/masters/masters.types.js';
+import { PARAMETER_DEFAULTS } from '../modules/parameters/parameters.defaults.js';
+import { ParameterModel } from '../modules/parameters/parameters.model.js';
 import { passwordSchema } from '../modules/users/users.dto.js';
 import { UserModel } from '../modules/users/users.model.js';
 import { hashPassword } from '../modules/users/users.service.js';
@@ -268,6 +273,60 @@ const seedSuperAdmin = async (): Promise<void> => {
   devLog(`Created Super Admin ${email}`, true);
 };
 
+// Lookup lists, financial years and the parameter library. Only missing items are inserted, so
+// anything the PCU changed in the app is never overwritten.
+const seedMasters = async (): Promise<void> => {
+  let added = 0;
+  for (const [type, items] of Object.entries(MASTER_DEFAULTS) as [
+    MasterType,
+    { code: string; name: string; group?: string }[],
+  ][]) {
+    const result = await MasterItemModel.bulkWrite(
+      items.map((item, i) => ({
+        updateOne: {
+          filter: { type, code: item.code },
+          update: {
+            $setOnInsert: {
+              type,
+              ...item,
+              group: item.group ?? null,
+              sortOrder: (i + 1) * 10,
+              isActive: true,
+            },
+          },
+          upsert: true,
+        },
+      })),
+    );
+    added += result.upsertedCount;
+  }
+  devLog(`Masters: ${added} item(s) added`, true);
+
+  const current = fyCodeFor(new Date());
+  const start = Number(current.slice(0, 4));
+  const years = [start - 2, start - 1, start].map((y) => `${y}-${String((y + 1) % 100).padStart(2, '0')}`);
+  const hasCurrent = await FinancialYearModel.exists({ isCurrent: true });
+  for (const code of years) {
+    await FinancialYearModel.updateOne(
+      { code },
+      { $setOnInsert: { code, ...fyDates(code), isOpen: true, isCurrent: !hasCurrent && code === current } },
+      { upsert: true },
+    );
+  }
+  devLog(`Financial years ensured: ${years.join(', ')} (current ${current})`, true);
+
+  const params = await ParameterModel.bulkWrite(
+    PARAMETER_DEFAULTS.map((p) => ({
+      updateOne: {
+        filter: { code: p.code },
+        update: { $setOnInsert: { ...p, isActive: true } },
+        upsert: true,
+      },
+    })),
+  );
+  devLog(`Parameters: ${params.upsertedCount} added`, true);
+};
+
 const seedCentres = async (): Promise<void> => {
   const result = await CentreModel.bulkWrite(
     NF_CENTRES.map(([code, name, hostShort, hostType, host, city, pincode, state, zone]) => ({
@@ -302,6 +361,7 @@ try {
   await connectDB();
   await seedSuperAdmin();
   await seedCentres();
+  await seedMasters();
 } catch (err) {
   logger.error('Seed failed', { message: err instanceof Error ? err.message : String(err) });
   process.exitCode = 1;

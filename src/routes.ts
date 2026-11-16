@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { centresRouter } from './modules/centres/centres.routes.js';
+import { financialYearsRouter } from './modules/financialYears/financialYears.routes.js';
+import { mastersRouter } from './modules/masters/masters.routes.js';
+import { parametersRouter } from './modules/parameters/parameters.routes.js';
 import { usersRouter } from './modules/users/users.routes.js';
 
 export const API_PREFIX = '/api/v1';
@@ -43,6 +46,30 @@ export const API_MODULES: readonly ApiModule[] = [
     singular: 'centre',
     description:
       'Network and voluntary centres. Only the PCU and Super Administrator create or edit them (`centres.manage`). Everyone signed in can read them; PI and data-entry users see only their own centre.',
+  },
+  {
+    name: 'Masters',
+    prefix: '/masters',
+    router: mastersRouter,
+    singular: 'master',
+    description:
+      'Lookup lists (seasons, units, crops, NF inputs, programmes, budget heads, fund categories, staff posts). Everyone signed in reads them; `masters.edit` (PCU, Super Admin) changes them. Each list supports Excel import.',
+  },
+  {
+    name: 'Financial years',
+    prefix: '/financial-years',
+    router: financialYearsRouter,
+    singular: 'financialYear',
+    description:
+      'Indian financial years (1 April – 31 March). Closed years block data entry; one year is current.',
+  },
+  {
+    name: 'Parameters',
+    prefix: '/parameters',
+    router: parametersRouter,
+    singular: 'parameter',
+    description:
+      'The parameter library every experiment records against (name, unit, category, data type, limits, method). Supports Excel import.',
   },
 ];
 
