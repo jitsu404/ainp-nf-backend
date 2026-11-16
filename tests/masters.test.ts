@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { env } from '../src/config/env.js';
 import { FinancialYearModel } from '../src/modules/financialYears/financialYears.model.js';
 import { MasterItemModel } from '../src/modules/masters/masters.model.js';
 import { buildWorkbook } from '../src/utils/excel.js';
@@ -97,6 +98,12 @@ describe('masters', () => {
     const template = await agent.get('/api/v1/masters/season/import-template').expect(200);
     expect(template.headers['content-type']).toContain('spreadsheetml');
     expect(template.headers['content-disposition']).toContain('masters-season.xlsx');
+    // A cross-origin client (VITE_API_BASE_URL on another port) must be able to read the file name.
+    const crossOrigin = await agent
+      .get('/api/v1/masters/season/import-template')
+      .set('Origin', env.CLIENT_ORIGIN)
+      .expect(200);
+    expect(crossOrigin.headers['access-control-expose-headers']).toContain('Content-Disposition');
 
     const notExcel = await agent
       .post('/api/v1/masters/season/import')
