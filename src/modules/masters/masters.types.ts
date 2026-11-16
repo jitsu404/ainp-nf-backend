@@ -41,7 +41,7 @@ export const MASTER_TYPES = {
   nfInput: {
     label: 'NF / organic inputs',
     description: 'Natural farming and organic inputs (Jeevamrit, Ghanjeevamrit, FYM …).',
-    groups: ['Natural farming', 'Organic', 'Botanical', 'Other'],
+    groups: ['Natural farming', 'Organic', 'Botanical', 'Biological', 'Other'],
     groupLabel: 'Input type',
   },
   programme: {
@@ -69,9 +69,23 @@ export const MASTER_TYPES = {
 export type MasterType = keyof typeof MASTER_TYPES;
 export const MASTER_TYPE_IDS = Object.keys(MASTER_TYPES) as [MasterType, ...MasterType[]];
 
-/** Default values, inserted by `npm run seed` (existing items are never overwritten). */
-export const MASTER_DEFAULTS: Record<MasterType, { code: string; name: string; group?: string }[]> = {
+/**
+ * Default values, inserted by `npm run seed`. Existing items are never overwritten, so edits made
+ * in the app are kept and new defaults can be appended safely. `sortOrder` defaults to the
+ * position in the list × 10; give it explicitly to place a later addition between existing items.
+ * Sources: PCU master table (seasons), Annual Report 2025-26 (crops: Appendix 9 and 7.2.5;
+ * inputs: 7.1.3 and 7.2.5), NF datasheets 2a/2b/2c (units).
+ */
+export interface MasterDefault {
+  code: string;
+  name: string;
+  group?: string;
+  sortOrder?: number;
+}
+export const MASTER_DEFAULTS: Record<MasterType, MasterDefault[]> = {
   season: [
+    // Pre-kharif is used by Gangtok (maize, ginger, turmeric) in Appendix 9.
+    { code: 'PRE_KHARIF', name: 'Pre-kharif', sortOrder: 5 },
     { code: 'KHARIF', name: 'Kharif' },
     { code: 'RABI', name: 'Rabi' },
     { code: 'SUMMER', name: 'Summer' },
@@ -111,6 +125,14 @@ export const MASTER_DEFAULTS: Record<MasterType, { code: string; name: string; g
     ['MM', 'mm'],
     ['DEG_C', '°C'],
     ['DEGREE', 'degree'],
+    // Data sheet 2b (cost of cultivation details) and the farmer survey (2c, 7.1.1).
+    ['HOURS', 'hours'],
+    ['L', 'litres'],
+    ['HA', 'ha'],
+    ['M3_HA', 'm³/ha'],
+    ['NO_PLANT', 'no./plant'],
+    ['G_PLANT', 'g/plant'],
+    ['PPM', 'ppm'],
   ].map(([code, name]) => ({ code: code!, name: name! })),
   crop: [
     ['RICE', 'Rice', 'Cereal'],
@@ -135,6 +157,41 @@ export const MASTER_DEFAULTS: Record<MasterType, { code: string; name: string; g
     ['POTATO', 'Potato', 'Tuber'],
     ['ONION', 'Onion', 'Vegetable'],
     ['TOMATO', 'Tomato', 'Vegetable'],
+    // From the Annual Report 2025-26 (Appendix 9 crops and varieties; 7.2.5 cropping systems).
+    ['SWEET_CORN', 'Sweet corn', 'Cereal'],
+    ['BARNYARD_MILLET', 'Barnyard millet', 'Millet'],
+    ['BUCKWHEAT', 'Buckwheat', 'Other'],
+    ['FIELD_PEA', 'Field pea', 'Pulse'],
+    ['FIELD_BEAN', 'Field bean', 'Pulse'],
+    ['RAJMASH', 'Rajmash', 'Pulse'],
+    ['LINSEED', 'Linseed', 'Oilseed'],
+    ['TORIA', 'Toria', 'Oilseed'],
+    ['GARDEN_PEA', 'Garden / vegetable pea', 'Vegetable'],
+    ['VEGETABLE_COWPEA', 'Vegetable cowpea', 'Vegetable'],
+    ['FRENCH_BEAN', 'French bean', 'Vegetable'],
+    ['OKRA', 'Okra', 'Vegetable'],
+    ['BRINJAL', 'Brinjal', 'Vegetable'],
+    ['CHILLI', 'Chilli', 'Vegetable'],
+    ['CABBAGE', 'Cabbage', 'Vegetable'],
+    ['CAULIFLOWER', 'Cauliflower', 'Vegetable'],
+    ['CARROT', 'Carrot', 'Vegetable'],
+    ['CUCUMBER', 'Cucumber', 'Vegetable'],
+    ['SUMMER_SQUASH', 'Summer squash', 'Vegetable'],
+    ['AMARANTH', 'Amaranth', 'Vegetable'],
+    ['GINGER', 'Ginger', 'Spice'],
+    ['TURMERIC', 'Turmeric', 'Spice'],
+    ['CORIANDER', 'Coriander', 'Spice'],
+    ['FENNEL', 'Fennel', 'Spice'],
+    ['FENUGREEK', 'Fenugreek', 'Spice'],
+    ['CASSAVA', 'Cassava', 'Tuber'],
+    ['TARO', 'Taro', 'Tuber'],
+    ['SWEET_POTATO', 'Sweet potato', 'Tuber'],
+    ['BANANA', 'Banana', 'Fruit'],
+    ['BERSEEM', 'Berseem', 'Fodder'],
+    ['LUCERNE', 'Lucerne', 'Fodder'],
+    ['FODDER_MAIZE', 'Fodder maize', 'Fodder'],
+    ['FODDER_SORGHUM', 'Fodder sorghum', 'Fodder'],
+    ['DHAINCHA', 'Dhaincha (Sesbania)', 'Other'],
   ].map(([code, name, group]) => ({ code: code!, name: name!, group: group! })),
   nfInput: [
     ['BEEJAMRIT', 'Beejamrit', 'Natural farming'],
@@ -148,6 +205,22 @@ export const MASTER_DEFAULTS: Record<MasterType, { code: string; name: string; g
     ['VERMICOMPOST', 'Vermicompost', 'Organic'],
     ['COMPOST', 'Compost', 'Organic'],
     ['OILCAKES', 'Oilcakes', 'Organic'],
+    // Named in the Annual Report 2025-26 (7.1.3 input characterization, 7.2.5 treatments).
+    ['PANCHAGAVYA', 'Panchagavya', 'Natural farming'],
+    ['SOUR_BUTTERMILK', 'Sour buttermilk', 'Natural farming'],
+    ['COW_URINE', 'Cow urine', 'Natural farming'],
+    ['NEEM_OIL', 'Neem oil', 'Botanical'],
+    ['NEEM_CAKE', 'Neem cake', 'Organic'],
+    ['VERMIWASH', 'Vermiwash', 'Organic'],
+    ['ENRICHED_COMPOST', 'Enriched compost', 'Organic'],
+    ['POULTRY_MANURE', 'Poultry manure', 'Organic'],
+    ['GREEN_MANURE', 'Green manure', 'Organic'],
+    ['AZOLLA', 'Azolla', 'Organic'],
+    ['TRICHODERMA', 'Trichoderma', 'Biological'],
+    ['PSEUDOMONAS', 'Pseudomonas fluorescens', 'Biological'],
+    ['BEAUVERIA', 'Beauveria bassiana', 'Biological'],
+    ['RHIZOBIUM', 'Rhizobium', 'Biological'],
+    ['PSB', 'Phosphate solubilizing bacteria (PSB)', 'Biological'],
   ].map(([code, name, group]) => ({ code: code!, name: name!, group: group! })),
   programme: [
     { code: 'P1', name: 'Characterisation of organic and natural farming inputs and practices' },

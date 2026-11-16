@@ -11,7 +11,7 @@ import { CentreModel } from '../modules/centres/centres.model.js';
 import { ExperimentModel } from '../modules/experiments/experiments.model.js';
 import { FinancialYearModel, fyCodeFor, fyDates } from '../modules/financialYears/financialYears.model.js';
 import { MasterItemModel } from '../modules/masters/masters.model.js';
-import { MASTER_DEFAULTS, type MasterType } from '../modules/masters/masters.types.js';
+import { MASTER_DEFAULTS, type MasterDefault, type MasterType } from '../modules/masters/masters.types.js';
 import { PARAMETER_DEFAULTS } from '../modules/parameters/parameters.defaults.js';
 import { ParameterModel } from '../modules/parameters/parameters.model.js';
 import { passwordSchema } from '../modules/users/users.dto.js';
@@ -278,10 +278,7 @@ const seedSuperAdmin = async (): Promise<void> => {
 // anything the PCU changed in the app is never overwritten.
 const seedMasters = async (): Promise<void> => {
   let added = 0;
-  for (const [type, items] of Object.entries(MASTER_DEFAULTS) as [
-    MasterType,
-    { code: string; name: string; group?: string }[],
-  ][]) {
+  for (const [type, items] of Object.entries(MASTER_DEFAULTS) as [MasterType, MasterDefault[]][]) {
     const result = await MasterItemModel.bulkWrite(
       items.map((item, i) => ({
         updateOne: {
@@ -291,7 +288,7 @@ const seedMasters = async (): Promise<void> => {
               type,
               ...item,
               group: item.group ?? null,
-              sortOrder: (i + 1) * 10,
+              sortOrder: item.sortOrder ?? (i + 1) * 10,
               isActive: true,
             },
           },

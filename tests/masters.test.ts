@@ -3,6 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { env } from '../src/config/env.js';
 import { FinancialYearModel } from '../src/modules/financialYears/financialYears.model.js';
 import { MasterItemModel } from '../src/modules/masters/masters.model.js';
+import {
+  MASTER_DEFAULTS,
+  MASTER_TYPES,
+  type MasterDefault,
+  type MasterType,
+} from '../src/modules/masters/masters.types.js';
 import { buildWorkbook } from '../src/utils/excel.js';
 import { createCentre, signedInAgent } from './helpers.js';
 
@@ -143,6 +149,21 @@ describe('masters', () => {
       .attach('file', await xlsx([{ Name: 'Kharif' }]), 'seasons.xlsx')
       .expect(400);
     expect(missingColumn.body.error.code).toBe('MISSING_COLUMNS');
+  });
+});
+
+describe('master defaults (seed)', () => {
+  it('have unique codes per list, valid codes and allowed groups', () => {
+    for (const [type, items] of Object.entries(MASTER_DEFAULTS) as [MasterType, MasterDefault[]][]) {
+      const config = MASTER_TYPES[type];
+      const codes = items.map((i) => i.code);
+      expect(new Set(codes).size, `${type}: duplicate codes`).toBe(codes.length);
+      for (const item of items) {
+        expect(item.code, `${type}: ${item.code}`).toMatch(/^[A-Z0-9][A-Z0-9_-]{0,29}$/);
+        if ('groups' in config) expect(config.groups, `${type}: ${item.code}`).toContain(item.group);
+        else expect(item.group, `${type}: ${item.code}`).toBeUndefined();
+      }
+    }
   });
 });
 
