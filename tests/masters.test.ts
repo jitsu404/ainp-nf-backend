@@ -1,3 +1,4 @@
+import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { env } from '../src/config/env.js';
 import { FinancialYearModel } from '../src/modules/financialYears/financialYears.model.js';
@@ -52,6 +53,33 @@ describe('masters', () => {
       .expect(409);
     // The same code is fine in another type.
     await agent.post('/api/v1/masters/unit').send({ code: 'RE', name: 'Something' }).expect(201);
+  });
+
+  it('has a group only for lists that use one (seasons have none; crops have "Crop group")', async () => {
+    const { agent } = await signedInAgent('pc');
+    const bad = await agent
+      .post('/api/v1/masters/season')
+      .send({ code: 'KHARIF', name: 'Kharif', group: 'Monsoon' })
+      .expect(400);
+    expect(bad.body.error.code).toBe('GROUP_NOT_USED');
+    await agent.post('/api/v1/masters/season').send({ code: 'KHARIF', name: 'Kharif' }).expect(201);
+
+    const headers = async (type: string) => {
+      const res = await agent
+        .get(`/api/v1/masters/${type}/import-template`)
+        .buffer(true)
+        .parse((r, done) => {
+          const chunks: Buffer[] = [];
+          r.on('data', (c: Buffer) => chunks.push(c));
+          r.on('end', () => done(null, Buffer.concat(chunks)));
+        })
+        .expect(200);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(res.body as ArrayBuffer);
+      return (workbook.worksheets[0]!.getRow(1).values as unknown[]).filter(Boolean);
+    };
+    expect(await headers('season')).toEqual(['Code', 'Name', 'Description', 'Sort order', 'Active']);
+    expect(await headers('crop')).toContain('Crop group');
   });
 
   it('imports from Excel: dry run reports row errors and saves nothing; a clean file saves everything', async () => {

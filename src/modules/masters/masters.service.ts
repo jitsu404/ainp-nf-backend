@@ -22,7 +22,11 @@ export const masterTypes = () => Object.entries(MASTER_TYPES).map(([id, config])
 const checkGroup = (type: MasterType, group: string | undefined | null): string | null => {
   const config = MASTER_TYPES[type];
   if (!group) return null;
-  if ('groups' in config && !(config.groups as readonly string[]).includes(group)) {
+  // Only lists with a fixed set of groups (crops, inputs, budget heads, staff posts) use one.
+  if (!('groups' in config)) {
+    throw AppError.badRequest('GROUP_NOT_USED', `${config.label} have no group; leave it empty`);
+  }
+  if (!(config.groups as readonly string[]).includes(group)) {
     throw AppError.badRequest(
       'INVALID_GROUP',
       `${config.groupLabel} must be one of: ${config.groups.join(', ')}`,
@@ -96,11 +100,10 @@ const columnsFor = (type: MasterType): ExcelColumn[] => {
       note: 'Unique. Letters, digits, _ or -. Existing codes are updated.',
     },
     { key: 'name', header: 'Name', required: true, width: 40 },
-    {
-      key: 'group',
-      header: 'groupLabel' in config ? config.groupLabel : 'Group',
-      note: 'groups' in config ? `One of: ${config.groups.join(', ')}` : undefined,
-    },
+    // The group column only appears for lists that have groups (e.g. "Crop group" for crops).
+    ...('groups' in config
+      ? [{ key: 'group', header: config.groupLabel, note: `One of: ${config.groups.join(', ')}` }]
+      : []),
     { key: 'description', header: 'Description', width: 40 },
     { key: 'sortOrder', header: 'Sort order', note: 'Whole number; lower comes first.' },
     { key: 'isActive', header: 'Active', note: 'Yes or No (default Yes).' },
