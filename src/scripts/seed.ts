@@ -8,6 +8,7 @@
 import { connectDB, disconnectDB } from '../config/db.js';
 import { env } from '../config/env.js';
 import { CentreModel } from '../modules/centres/centres.model.js';
+import { ExperimentModel } from '../modules/experiments/experiments.model.js';
 import { FinancialYearModel, fyCodeFor, fyDates } from '../modules/financialYears/financialYears.model.js';
 import { MasterItemModel } from '../modules/masters/masters.model.js';
 import { MASTER_DEFAULTS, type MasterType } from '../modules/masters/masters.types.js';
@@ -357,11 +358,25 @@ const seedCentres = async (): Promise<void> => {
   );
 };
 
+/**
+ * Renames experiment designs from before the list was aligned with the Annual Report (16 Nov 2026):
+ * RCBD and Factorial RBD are both randomized block designs, named "RBD" in the reports.
+ * Updates bypass validation on purpose (the old names are no longer valid). Safe to run again.
+ */
+const migrateExperimentDesigns = async (): Promise<void> => {
+  const result = await ExperimentModel.collection.updateMany(
+    { design: { $in: ['RCBD', 'Factorial RBD'] } },
+    { $set: { design: 'RBD' } },
+  );
+  if (result.modifiedCount) devLog(`Experiments: ${result.modifiedCount} design(s) renamed to RBD`, true);
+};
+
 try {
   await connectDB();
   await seedSuperAdmin();
   await seedCentres();
   await seedMasters();
+  await migrateExperimentDesigns();
 } catch (err) {
   logger.error('Seed failed', { message: err instanceof Error ? err.message : String(err) });
   process.exitCode = 1;

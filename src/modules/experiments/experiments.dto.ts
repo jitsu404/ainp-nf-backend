@@ -3,7 +3,13 @@ import type { RequestSchemas } from '../../middlewares/validate.js';
 import { idParams, objectId } from '../../utils/validators.js';
 import { fyCode } from '../financialYears/financialYears.dto.js';
 import { masterCode } from '../masters/masters.dto.js';
-import { EXPERIMENT_DESIGNS, EXPERIMENT_STATUSES, PARAMETER_LEVELS } from './experiments.model.js';
+import {
+  DESIGNS_NEEDING_REPLICATIONS,
+  EXPERIMENT_DESIGNS,
+  EXPERIMENT_STATUSES,
+  PARAMETER_LEVELS,
+  type ExperimentDesign,
+} from './experiments.model.js';
 
 const treatment = z
   .object({
@@ -62,6 +68,7 @@ const checks = <
   }>,
 >(
   s: T,
+  { partial = false } = {},
 ) =>
   s
     .refine((b) => uniqueBy(b.treatments, (t) => t.code), {
@@ -75,9 +82,11 @@ const checks = <
     .refine(
       (b) =>
         b.design === undefined ||
-        ['Non-replicated', 'Survey'].includes(b.design) ||
+        !DESIGNS_NEEDING_REPLICATIONS.includes(b.design as ExperimentDesign) ||
+        // An update that doesn't send replications is checked against the saved value (service).
+        (partial && b.replications === undefined) ||
         (b.replications !== undefined && b.replications !== null && b.replications >= 2),
-      { message: 'Replicated designs need at least 2 replications', path: ['replications'] },
+      { message: `${DESIGNS_NEEDING_REPLICATIONS.join(' and ')} need at least 2 replications`, path: ['replications'] },
     );
 
 const createBody = checks(z.object(shape).strict());
@@ -89,6 +98,7 @@ const updateBody = checks(
     .extend({ status: z.enum(EXPERIMENT_STATUSES).optional() })
     .strict()
     .refine((b) => Object.keys(b).length > 0, { message: 'Provide at least one field to update' }),
+  { partial: true },
 );
 
 const listQuery = z.object({

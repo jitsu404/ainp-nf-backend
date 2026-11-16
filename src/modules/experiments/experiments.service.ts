@@ -8,7 +8,12 @@ import { centreExists } from '../centres/centres.service.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
 import { parametersByIds } from '../parameters/parameters.service.js';
 import type { CreateExperimentDto, ListExperimentsQuery, UpdateExperimentDto } from './experiments.dto.js';
-import { type Experiment, ExperimentModel } from './experiments.model.js';
+import {
+  DESIGNS_NEEDING_REPLICATIONS,
+  DESIGNS_WITHOUT_REPLICATIONS,
+  type Experiment,
+  ExperimentModel,
+} from './experiments.model.js';
 
 const MODULE = 'experiments';
 
@@ -137,7 +142,7 @@ export const createExperiment = async (ctx: RequestContext, dto: CreateExperimen
       [
         {
           ...dto,
-          replications: ['Non-replicated', 'Survey'].includes(dto.design) ? null : (dto.replications ?? null),
+          replications: DESIGNS_WITHOUT_REPLICATIONS.includes(dto.design) ? null : (dto.replications ?? null),
           createdBy: ctx.user.id,
           updatedBy: ctx.user.id,
         },
@@ -161,7 +166,14 @@ export const updateExperiment = async (ctx: RequestContext, id: string, dto: Upd
     if (!experiment) throw AppError.notFound('EXPERIMENT_NOT_FOUND', 'Experiment not found');
     assertCompatibleWithData(experiment, dto);
     experiment.set({ ...dto, updatedBy: ctx.user.id });
-    if (['Non-replicated', 'Survey'].includes(experiment.design)) experiment.replications = null;
+    if (DESIGNS_WITHOUT_REPLICATIONS.includes(experiment.design)) experiment.replications = null;
+    // The request may change only the design or only the replications; check the result.
+    if (DESIGNS_NEEDING_REPLICATIONS.includes(experiment.design) && (experiment.replications ?? 0) < 2) {
+      throw AppError.badRequest(
+        'REPLICATIONS_REQUIRED',
+        `${experiment.design} needs at least 2 replications`,
+      );
+    }
     await experiment.save({ session });
     await recordAudit(
       ctx,

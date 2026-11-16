@@ -4,14 +4,29 @@ import { Schema, type Types, model } from 'mongoose';
 // the parameters every centre records. It is assigned to centres; each centre runs it as a trial
 // (modules/trials) with its own cropping systems and practices, and records data in sheets.
 
+// Designs used in AINP-NF, as named in the Annual Report 2025-26 (RBD = randomized complete block,
+// split plot and strip plot in 7.2.x, farmer-participatory validation in 7.2.6, the geo-referenced
+// characterization survey in 7.1.1). Keep in sync with client/src/config/constants.js.
 export const EXPERIMENT_DESIGNS = [
-  'RCBD',
-  'Factorial RBD',
+  'RBD',
   'Split plot',
+  'Strip plot',
   'Non-replicated',
+  'Farmer participatory',
   'Survey',
 ] as const;
 export type ExperimentDesign = (typeof EXPERIMENT_DESIGNS)[number];
+
+/** Must have at least 2 replications. */
+export const DESIGNS_NEEDING_REPLICATIONS: readonly ExperimentDesign[] = ['RBD', 'Split plot'];
+/** Never replicated: data is one value per treatment. Strip plot may be either (both occur). */
+export const DESIGNS_WITHOUT_REPLICATIONS: readonly ExperimentDesign[] = [
+  'Non-replicated',
+  'Farmer participatory',
+  'Survey',
+];
+/** Designs the analysis service can run an ANOVA for; the others get treatment means only. */
+export const DESIGNS_WITH_ANOVA: readonly ExperimentDesign[] = ['RBD'];
 
 export const EXPERIMENT_STATUSES = ['Draft', 'Active', 'Closed'] as const;
 export type ExperimentStatus = (typeof EXPERIMENT_STATUSES)[number];

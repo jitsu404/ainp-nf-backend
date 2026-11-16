@@ -6,6 +6,7 @@ import { type ExcelColumn, buildMultiSheetWorkbook, readRows } from '../../utils
 import type { RowError } from '../../utils/importer.js';
 import { recordAudit } from '../audit/audit.service.js';
 import { findExperiment, markDataLocked, withParameterDetails } from '../experiments/experiments.service.js';
+import { DESIGNS_WITH_ANOVA } from '../experiments/experiments.model.js';
 import { assertYearOpen } from '../financialYears/financialYears.service.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
 import { getTrial } from '../trials/trials.service.js';
@@ -483,7 +484,16 @@ export const analyseSheet = async (ctx: RequestContext, id: string) => {
         byTreatment.get(o.treatmentCode)!.set(o.replication, o.valueNumber!);
       }
       const replicated = p.level === 'plot' ? experiment.replications : null;
-      const analysis: ParameterAnalysis = analyseParameter(byTreatment, codes, replicated);
+      let analysis: ParameterAnalysis = analyseParameter(byTreatment, codes, replicated);
+      // The ANOVA is the RBD model (replications as blocks). Split- and strip-plot data need their
+      // own error terms, so until those are built they get treatment means only.
+      if (replicated && !DESIGNS_WITH_ANOVA.includes(experiment.design)) {
+        analysis = {
+          ...analysis,
+          anova: null,
+          reason: `Analysis of variance for ${experiment.design.toLowerCase()} design is not available yet; treatment means only`,
+        };
+      }
       return {
         parameterId: p.parameterId,
         code: p.code,

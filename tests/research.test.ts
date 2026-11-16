@@ -48,7 +48,7 @@ const setup = async () => {
       code: 'NF-LTE',
       title: 'Long-term evaluation of natural farming practices',
       programmeCode: 'P2',
-      design: 'RCBD',
+      design: 'RBD',
       replications: 3,
       treatments: [
         { code: 'T1', name: 'Control' },
@@ -101,7 +101,7 @@ describe('experiments and trials', () => {
 
   it('validates the protocol (programme, replications, unique treatments)', async () => {
     const { pcu, grain } = await setup();
-    const base = { code: 'X1', title: 'Some experiment', design: 'RCBD', startYear: FY };
+    const base = { code: 'X1', title: 'Some experiment', design: 'RBD', startYear: FY };
     const noReps = await pcu
       .post('/api/v1/experiments')
       .send({ ...base, programmeCode: 'P2', replications: 1 })
@@ -388,6 +388,64 @@ describe('observation sheets', () => {
       .get(`/api/v1/sheets/summary?experimentId=${experimentId}&fyCode=${FY}`)
       .expect(200);
     expect(mine.body.data.centres).toHaveLength(1);
+  });
+});
+
+describe('experiment designs', () => {
+  it('applies each design’s replication rule', async () => {
+    const { pcu } = await setup();
+    const base = { title: 'Design rules experiment', programmeCode: 'P2', startYear: FY };
+    // Split plot needs replications, like RBD.
+    await pcu
+      .post('/api/v1/experiments')
+      .send({ ...base, code: 'SP1', design: 'Split plot', replications: 1 })
+      .expect(400);
+    // Farmer-participatory trials are never replicated: replications sent are dropped.
+    const fp = await pcu
+      .post('/api/v1/experiments')
+      .send({ ...base, code: 'FP1', design: 'Farmer participatory', replications: 3 })
+      .expect(201);
+    expect(fp.body.data.replications).toBeNull();
+    // Strip plot occurs both un-replicated and replicated in the reports.
+    const stripNone = await pcu
+      .post('/api/v1/experiments')
+      .send({ ...base, code: 'ST1', design: 'Strip plot' })
+      .expect(201);
+    expect(stripNone.body.data.replications).toBeNull();
+    const stripReps = await pcu
+      .post('/api/v1/experiments')
+      .send({ ...base, code: 'ST2', design: 'Strip plot', replications: 3 })
+      .expect(201);
+    expect(stripReps.body.data.replications).toBe(3);
+    // An update is checked against the saved experiment: switching a Strip plot without
+    // replications to RBD needs replications; switching an RBD to Split plot keeps its 3.
+    const toRbd = await pcu
+      .patch(`/api/v1/experiments/${stripNone.body.data.id}`)
+      .send({ design: 'RBD' })
+      .expect(400);
+    expect(toRbd.body.error.code).toBe('REPLICATIONS_REQUIRED');
+    await pcu.patch(`/api/v1/experiments/${stripReps.body.data.id}`).send({ design: 'RBD' }).expect(200);
+    await pcu.patch(`/api/v1/experiments/${stripReps.body.data.id}`).send({ replications: 1 }).expect(400);
+    // Old names are no longer accepted.
+    await pcu.post('/api/v1/experiments').send({ ...base, code: 'OLD', design: 'RCBD', replications: 3 }).expect(400);
+  });
+
+  it('runs the ANOVA only for RBD; a split-plot sheet gets treatment means only', async () => {
+    const { pcu, piA, grain, experimentId, trialAId } = await setup();
+    await pcu.patch(`/api/v1/experiments/${experimentId}`).send({ design: 'Split plot' }).expect(200);
+    const sheet = await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .expect(201);
+    await piA
+      .put(`/api/v1/sheets/${sheet.body.data.id}/values`)
+      .send({ values: fullPlotData(grain.id, { T1: [10, 13, 10], T2: [15, 16, 14], T3: [8, 9, 10] }) })
+      .expect(200);
+    const analysis = await piA.get(`/api/v1/sheets/${sheet.body.data.id}/analysis`).expect(200);
+    const result = analysis.body.data.parameters.find((p: { code: string }) => p.code === 'GRAIN_YIELD');
+    expect(result.means.map((m: { mean: number }) => m.mean)).toEqual([11, 15, 9]);
+    expect(result.anova).toBeNull();
+    expect(result.reason).toContain('split plot');
   });
 });
 
