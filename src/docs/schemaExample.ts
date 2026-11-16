@@ -74,7 +74,8 @@ export const exampleFor = (schema: JsonSchema, key = ''): unknown => {
         Object.entries(schema.properties ?? {}).map(([name, prop]) => [name, exampleFor(prop, name)]),
       );
     case 'array':
-      return schema.items ? [exampleFor(schema.items, key)] : [];
+      // An array of ids (centreIds) gets the singular variable ({{centreId}}).
+      return schema.items ? [exampleFor(schema.items, key.replace(/Ids$/, 'Id'))] : [];
     case 'integer':
     case 'number':
       return schema.minimum ?? 1;

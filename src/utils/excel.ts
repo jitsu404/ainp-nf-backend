@@ -24,14 +24,33 @@ export interface SheetRow {
 
 const HEADER_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7F0E1' } };
 
+export interface WorkbookSheet {
+  name: string;
+  columns: ExcelColumn[];
+  rows?: Record<string, unknown>[];
+}
+
 /** Builds an .xlsx with one sheet: styled header row (+ notes), optional data rows. */
-export const buildWorkbook = async (
+export const buildWorkbook = (
   sheetName: string,
   columns: ExcelColumn[],
   rows: Record<string, unknown>[] = [],
-): Promise<Buffer> => {
+): Promise<Buffer> => buildMultiSheetWorkbook([{ name: sheetName, columns, rows }]);
+
+/** Builds an .xlsx with several sheets (e.g. plot-level and treatment-level data). */
+export const buildMultiSheetWorkbook = async (sheets: WorkbookSheet[]): Promise<Buffer> => {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'AINP-NF PMS';
+  for (const { name, columns, rows = [] } of sheets) addSheet(workbook, name, columns, rows);
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+};
+
+const addSheet = (
+  workbook: ExcelJS.Workbook,
+  sheetName: string,
+  columns: ExcelColumn[],
+  rows: Record<string, unknown>[],
+) => {
   const sheet = workbook.addWorksheet(sheetName.slice(0, 31));
   sheet.columns = columns.map((c) => ({
     key: c.key,
@@ -50,8 +69,6 @@ export const buildWorkbook = async (
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
 
   for (const row of rows) sheet.addRow(Object.fromEntries(columns.map((c) => [c.key, row[c.key] ?? null])));
-
-  return Buffer.from(await workbook.xlsx.writeBuffer());
 };
 
 const normalise = (text: string): string =>
@@ -77,18 +94,29 @@ const cellValue = (cell: ExcelJS.Cell): CellValue => {
 };
 
 /**
- * Reads the first sheet of an uploaded workbook into rows keyed by column key.
+ * Reads one sheet of an uploaded workbook (by name, else the first) into rows keyed by column key.
  * Throws 400 if the file isn't a readable .xlsx or required headers are missing.
+ * With `optional`, a missing named sheet returns [] instead of failing.
  */
-export const readRows = async (buffer: Buffer, columns: ExcelColumn[]): Promise<SheetRow[]> => {
+export const readRows = async (
+  buffer: Buffer,
+  columns: ExcelColumn[],
+  { sheetName, optional = false }: { sheetName?: string; optional?: boolean } = {},
+): Promise<SheetRow[]> => {
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
   } catch {
     throw AppError.badRequest('INVALID_FILE', 'The file is not a readable .xlsx workbook');
   }
-  const sheet = workbook.worksheets[0];
-  if (!sheet) throw AppError.badRequest('INVALID_FILE', 'The workbook has no sheets');
+  const sheet = sheetName ? workbook.getWorksheet(sheetName) : workbook.worksheets[0];
+  if (!sheet) {
+    if (optional) return [];
+    throw AppError.badRequest(
+      'INVALID_FILE',
+      sheetName ? `The workbook has no "${sheetName}" sheet` : 'The workbook has no sheets',
+    );
+  }
 
   // Map header cells to column keys.
   const byHeader = new Map<string, string>();

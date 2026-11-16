@@ -1,0 +1,461 @@
+import ExcelJS from 'exceljs';
+import { describe, expect, it } from 'vitest';
+import { FinancialYearModel, fyDates } from '../src/modules/financialYears/financialYears.model.js';
+import { MasterItemModel } from '../src/modules/masters/masters.model.js';
+import { ParameterModel } from '../src/modules/parameters/parameters.model.js';
+import { analyseParameter } from '../src/modules/sheets/sheets.analysis.js';
+import { createCentre, signedInAgent } from './helpers.js';
+
+const FY = '2026-27';
+
+/** Masters, a year, two parameters and two centres, plus signed-in PCU and Centre PI agents. */
+const setup = async () => {
+  await MasterItemModel.insertMany([
+    { type: 'season', code: 'KHARIF', name: 'Kharif' },
+    { type: 'season', code: 'RABI', name: 'Rabi' },
+    { type: 'programme', code: 'P2', name: 'Package of practices' },
+    { type: 'crop', code: 'RICE', name: 'Rice', group: 'Cereal' },
+    { type: 'crop', code: 'WHEAT', name: 'Wheat', group: 'Cereal' },
+    { type: 'unit', code: 'KG_HA', name: 'kg/ha' },
+    { type: 'unit', code: 'RS_HA', name: 'Rs/ha' },
+  ]);
+  await FinancialYearModel.create({ code: FY, ...fyDates(FY), isOpen: true, isCurrent: true });
+  const grain = await ParameterModel.create({
+    code: 'GRAIN_YIELD',
+    name: 'Grain yield',
+    unitCode: 'KG_HA',
+    category: 'Yield',
+    min: 0,
+    max: 20000,
+  });
+  const net = await ParameterModel.create({
+    code: 'NET_RETURNS',
+    name: 'Net returns',
+    unitCode: 'RS_HA',
+    category: 'Economics',
+    min: null,
+    max: null,
+  });
+  const centreA = await createCentre();
+  const centreB = await createCentre();
+  const { agent: pcu } = await signedInAgent('pc');
+  const { agent: piA } = await signedInAgent('pi', centreA.id);
+  const { agent: piB } = await signedInAgent('pi', centreB.id);
+
+  const experiment = await pcu
+    .post('/api/v1/experiments')
+    .send({
+      code: 'NF-LTE',
+      title: 'Long-term evaluation of natural farming practices',
+      programmeCode: 'P2',
+      design: 'RCBD',
+      replications: 3,
+      treatments: [
+        { code: 'T1', name: 'Control' },
+        { code: 'T2', name: 'Complete NF' },
+        { code: 'T3', name: 'ICM' },
+      ],
+      parameters: [
+        { parameterId: grain.id, section: 'Yield', level: 'plot', required: true },
+        { parameterId: net.id, section: 'Economics', level: 'treatment' },
+      ],
+      seasons: ['KHARIF'],
+      startYear: FY,
+      centreIds: [centreA.id, centreB.id],
+    })
+    .expect(201);
+  await pcu.patch(`/api/v1/experiments/${experiment.body.data.id}`).send({ status: 'Active' }).expect(200);
+  const trials = await pcu.get(`/api/v1/trials?experimentId=${experiment.body.data.id}`).expect(200);
+  const trialA = trials.body.data.find((t: { centreId: { id: string } }) => t.centreId.id === centreA.id);
+  return {
+    pcu,
+    piA,
+    piB,
+    grain,
+    net,
+    centreA,
+    centreB,
+    experimentId: experiment.body.data.id as string,
+    trialAId: trialA.id as string,
+  };
+};
+
+const fullPlotData = (grainId: string, yields: Record<string, number[]>) =>
+  Object.entries(yields).flatMap(([t, ys]) =>
+    ys.map((value, i) => ({ treatmentCode: t, replication: i + 1, parameterId: grainId, value })),
+  );
+
+describe('experiments and trials', () => {
+  it('PCU creates and assigns an experiment; each centre gets a trial and sees only its own', async () => {
+    const { pcu, piA, piB, experimentId, trialAId } = await setup();
+    const all = await pcu.get('/api/v1/trials').expect(200);
+    expect(all.body.data).toHaveLength(2);
+
+    const mine = await piA.get('/api/v1/trials').expect(200);
+    expect(mine.body.data.map((t: { id: string }) => t.id)).toEqual([trialAId]);
+    await piB.get(`/api/v1/trials/${trialAId}`).expect(404);
+    await piA.get(`/api/v1/experiments/${experimentId}`).expect(200);
+
+    await piA.post('/api/v1/experiments').send({}).expect(403);
+  });
+
+  it('validates the protocol (programme, replications, unique treatments)', async () => {
+    const { pcu, grain } = await setup();
+    const base = { code: 'X1', title: 'Some experiment', design: 'RCBD', startYear: FY };
+    const noReps = await pcu
+      .post('/api/v1/experiments')
+      .send({ ...base, programmeCode: 'P2', replications: 1 })
+      .expect(400);
+    expect(noReps.body.error.code).toBe('VALIDATION_ERROR');
+    const badProgramme = await pcu
+      .post('/api/v1/experiments')
+      .send({ ...base, programmeCode: 'P9', replications: 3 })
+      .expect(400);
+    expect(badProgramme.body.error.code).toBe('UNKNOWN_PROGRAMME');
+    await pcu
+      .post('/api/v1/experiments')
+      .send({
+        ...base,
+        programmeCode: 'P2',
+        replications: 3,
+        treatments: [
+          { code: 'T1', name: 'A' },
+          { code: 't1', name: 'B' },
+        ],
+        parameters: [{ parameterId: grain.id }],
+      })
+      .expect(400);
+  });
+
+  it('lets the centre set up cropping systems and practices, checked against masters and protocol', async () => {
+    const { piA, trialAId } = await setup();
+    const ok = await piA
+      .patch(`/api/v1/trials/${trialAId}`)
+      .send({
+        croppingSystems: [
+          {
+            code: 'cs1',
+            name: 'Rice – Wheat',
+            seasons: [
+              {
+                seasonCode: 'KHARIF',
+                mainCropCode: 'RICE',
+                mainVariety: 'Pusa Basmati 1121',
+                rowRatio: '2:1',
+              },
+            ],
+          },
+        ],
+        practices: [{ treatmentCode: 'T2', nutrientDetails: 'Jeevamrit 500 l/ha at 15-day interval' }],
+        status: 'Running',
+      })
+      .expect(200);
+    expect(ok.body.data.croppingSystems[0]).toMatchObject({
+      code: 'CS1',
+      seasons: [{ mainCropCode: 'RICE' }],
+    });
+    expect(ok.body.data.experiment.treatments).toHaveLength(3);
+
+    const badCrop = await piA
+      .patch(`/api/v1/trials/${trialAId}`)
+      .send({
+        croppingSystems: [
+          { code: 'CS1', name: 'Test system', seasons: [{ seasonCode: 'KHARIF', mainCropCode: 'MANGO' }] },
+        ],
+      })
+      .expect(400);
+    expect(badCrop.body.error.code).toBe('UNKNOWN_CROP');
+    const badSeason = await piA
+      .patch(`/api/v1/trials/${trialAId}`)
+      .send({
+        croppingSystems: [
+          { code: 'CS1', name: 'Test system', seasons: [{ seasonCode: 'RABI', mainCropCode: 'WHEAT' }] },
+        ],
+      })
+      .expect(400);
+    expect(badSeason.body.error.code).toBe('SEASON_NOT_IN_PROTOCOL');
+  });
+});
+
+describe('observation sheets', () => {
+  it('records data with validation, then submit → return → resubmit → approve, and locks', async () => {
+    const { pcu, piA, grain, net, experimentId, trialAId } = await setup();
+    const sheet = await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .expect(201);
+    const id = sheet.body.data.id as string;
+    await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .expect(409);
+
+    const invalid = await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({
+        values: [
+          { treatmentCode: 'T1', replication: 1, parameterId: grain.id, value: 99999 }, // above max
+          { treatmentCode: 'T9', replication: 1, parameterId: grain.id, value: 10 }, // unknown treatment
+          { treatmentCode: 'T1', replication: null, parameterId: grain.id, value: 10 }, // plot-level needs a rep
+          { treatmentCode: 'T1', replication: 1, parameterId: net.id, value: 5 }, // treatment-level has no rep
+        ],
+      })
+      .expect(400);
+    expect(invalid.body.error.code).toBe('INVALID_VALUES');
+    expect(invalid.body.error.details.cells).toHaveLength(4);
+
+    await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({ values: fullPlotData(grain.id, { T1: [3200, 3400], T2: [3600, 3800, 3700] }) })
+      .expect(200);
+    const incomplete = await piA.post(`/api/v1/sheets/${id}/submit`).send({}).expect(400);
+    expect(incomplete.body.error).toMatchObject({
+      code: 'INCOMPLETE_SHEET',
+      details: { missing: expect.arrayContaining(['T1 R3: Grain yield', 'T3 R1: Grain yield']) },
+    });
+
+    await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({
+        values: [
+          ...fullPlotData(grain.id, { T1: [3200, 3400, 3300], T3: [3500, 3550, 3450] }),
+          { treatmentCode: 'T2', replication: null, parameterId: net.id, value: 45000 },
+        ],
+      })
+      .expect(200);
+    await piA.post(`/api/v1/sheets/${id}/submit`).send({ remark: 'Kharif data' }).expect(200);
+    const locked = await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({ values: fullPlotData(grain.id, { T1: [1] }) })
+      .expect(409);
+    expect(locked.body.error.code).toBe('SHEET_LOCKED');
+
+    await piA.post(`/api/v1/sheets/${id}/approve`).send({}).expect(403); // a PI can't approve
+    await pcu.post(`/api/v1/sheets/${id}/return`).send({ remark: 'Recheck T1 R2' }).expect(200);
+    await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({ values: fullPlotData(grain.id, { T1: [3200, 3350] }) })
+      .expect(200);
+    await piA.post(`/api/v1/sheets/${id}/submit`).send({}).expect(200);
+    const approved = await pcu.post(`/api/v1/sheets/${id}/approve`).send({ remark: 'OK' }).expect(200);
+    expect(approved.body.data.status).toBe('Approved');
+    expect(approved.body.data.history.map((h: { status: string }) => h.status)).toEqual([
+      'Draft',
+      'Submitted',
+      'Returned',
+      'Submitted',
+      'Approved',
+    ]);
+    await pcu.post(`/api/v1/sheets/${id}/approve`).send({}).expect(409);
+
+    // Data now protects the protocol.
+    const change = await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({
+        treatments: [
+          { code: 'T1', name: 'Control' },
+          { code: 'T2', name: 'Complete NF' },
+        ],
+      })
+      .expect(409);
+    expect(change.body.error.code).toBe('EXPERIMENT_HAS_DATA');
+    await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({
+        treatments: [
+          { code: 'T1', name: 'Control' },
+          { code: 'T2', name: 'Complete NF' },
+          { code: 'T3', name: 'ICM' },
+          { code: 'T4', name: 'New' },
+        ],
+      })
+      .expect(200);
+  });
+
+  it('keeps centres out of other centres’ sheets and blocks entry in closed years', async () => {
+    const { piA, piB, grain, trialAId } = await setup();
+    const sheet = await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .expect(201);
+    await piB.get(`/api/v1/sheets/${sheet.body.data.id}`).expect(404);
+    await piB
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .expect(404);
+
+    await FinancialYearModel.updateOne({ code: FY }, { isOpen: false });
+    const closed = await piA
+      .put(`/api/v1/sheets/${sheet.body.data.id}/values`)
+      .send({ values: fullPlotData(grain.id, { T1: [1] }) })
+      .expect(409);
+    expect(closed.body.error.code).toBe('FY_CLOSED');
+  });
+
+  it('round-trips Excel: download the template, fill it, preview, then save', async () => {
+    const { piA, grain, trialAId } = await setup();
+    const sheet = await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .expect(201);
+    const id = sheet.body.data.id as string;
+
+    const download = await piA
+      .get(`/api/v1/sheets/${id}/template`)
+      .buffer(true)
+      .parse((res, cb) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => cb(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(download.body as ArrayBuffer);
+    const plot = workbook.getWorksheet('Plot data')!;
+    expect(plot.getRow(1).getCell(3).value).toBe('Grain yield (KG_HA) [GRAIN_YIELD]');
+    expect(plot.rowCount).toBe(1 + 3 * 3); // header + treatments × replications
+
+    const yields = [10, 12, 11, 14, 15, 16, 9, 8, 'abc'];
+    for (let i = 0; i < 9; i++) plot.getRow(i + 2).getCell(3).value = yields[i] as number | string;
+    workbook.getWorksheet('Treatment data')!.getRow(3).getCell(2).value = 45000;
+    const bad = Buffer.from(await workbook.xlsx.writeBuffer());
+    const preview = await piA
+      .post(`/api/v1/sheets/${id}/import?dryRun=false`)
+      .attach('file', bad, 'data.xlsx')
+      .expect(200);
+    expect(preview.body.data).toMatchObject({
+      dryRun: true,
+      errors: [expect.objectContaining({ row: 10, field: 'GRAIN_YIELD' })],
+    });
+
+    plot.getRow(10).getCell(3).value = 10;
+    const good = Buffer.from(await workbook.xlsx.writeBuffer());
+    const saved = await piA
+      .post(`/api/v1/sheets/${id}/import?dryRun=false`)
+      .attach('file', good, 'data.xlsx')
+      .expect(200);
+    expect(saved.body.data).toMatchObject({ dryRun: false, filled: 10, errors: [] });
+
+    const detail = await piA.get(`/api/v1/sheets/${id}`).expect(200);
+    expect(
+      detail.body.data.values.filter((v: { parameterId: string }) => v.parameterId === grain.id),
+    ).toHaveLength(9);
+
+    const analysis = await piA.get(`/api/v1/sheets/${id}/analysis`).expect(200);
+    const grainResult = analysis.body.data.parameters.find((p: { code: string }) => p.code === 'GRAIN_YIELD');
+    expect(grainResult.means.map((m: { mean: number }) => m.mean)).toEqual([11, 15, 9]);
+    expect(grainResult.anova.significant).toBe(true);
+  });
+
+  it('summarises approved data across centres', async () => {
+    const { pcu, piA, piB, grain, experimentId, centreA } = await setup();
+    const trials = await pcu.get(`/api/v1/trials?experimentId=${experimentId}`).expect(200);
+    const trialOf = (centreId: string) =>
+      trials.body.data.find((t: { centreId: { id: string } }) => t.centreId.id === centreId);
+    const trialA = trialOf(centreA.id);
+    const trialB = trials.body.data.find((t: { id: string }) => t.id !== trialA.id);
+    for (const [centrePi, trial, base] of [
+      [piA, trialA, 3000],
+      [piB, trialB, 4000],
+    ] as const) {
+      const sheet = await centrePi
+        .post('/api/v1/sheets')
+        .send({ trialId: trial.id, fyCode: FY, seasonCode: 'KHARIF' })
+        .expect(201);
+      await centrePi
+        .put(`/api/v1/sheets/${sheet.body.data.id}/values`)
+        .send({
+          values: fullPlotData(grain.id, {
+            T1: [base, base, base],
+            T2: [base + 600, base + 600, base + 600],
+            T3: [base + 300, base + 300, base + 300],
+          }),
+        })
+        .expect(200);
+      await centrePi.post(`/api/v1/sheets/${sheet.body.data.id}/submit`).send({}).expect(200);
+      await pcu.post(`/api/v1/sheets/${sheet.body.data.id}/approve`).send({}).expect(200);
+    }
+    const summary = await pcu
+      .get(`/api/v1/sheets/summary?experimentId=${experimentId}&fyCode=${FY}`)
+      .expect(200);
+    expect(summary.body.data.centres).toHaveLength(2);
+    const means = summary.body.data.centres
+      .map((c: { means: Record<string, Record<string, number>> }) => c.means[grain.id]!.T2)
+      .sort();
+    expect(means).toEqual([3600, 4600]);
+
+    const mine = await piA
+      .get(`/api/v1/sheets/summary?experimentId=${experimentId}&fyCode=${FY}`)
+      .expect(200);
+    expect(mine.body.data.centres).toHaveLength(1);
+  });
+});
+
+describe('RCBD analysis', () => {
+  it('matches a hand-worked example (3 treatments × 3 replications)', () => {
+    // T1: 10 12 11 | T2: 14 15 16 | T3: 9 8 10
+    // CF = 1225; SS total 62; SS treatments 56; SS reps 2.667; SS error 3.333; MSE 0.8333 (df 4)
+    const values = new Map([
+      [
+        'T1',
+        new Map([
+          [1, 10],
+          [2, 12],
+          [3, 11],
+        ]),
+      ],
+      [
+        'T2',
+        new Map([
+          [1, 14],
+          [2, 15],
+          [3, 16],
+        ]),
+      ],
+      [
+        'T3',
+        new Map([
+          [1, 9],
+          [2, 8],
+          [3, 10],
+        ]),
+      ],
+    ]) as Map<string, Map<number | null, number>>;
+    const result = analyseParameter(values, ['T1', 'T2', 'T3'], 3);
+    expect(result.means.map((m) => m.mean)).toEqual([11, 15, 9]);
+    const a = result.anova!;
+    const row = (s: string) => a.table.find((r) => r.source === s)!;
+    expect(row('Treatments')).toMatchObject({ df: 2, ss: 56, ms: 28 });
+    expect(row('Replications').ss).toBeCloseTo(2.6667, 3);
+    expect(row('Error')).toMatchObject({ df: 4 });
+    expect(row('Error').ms).toBeCloseTo(0.8333, 3);
+    expect(row('Treatments').f).toBeCloseTo(33.6, 3);
+    expect(row('Treatments').p).toBeLessThan(0.01);
+    expect(a.cv).toBeCloseTo(7.82, 2);
+    expect(a.sem).toBeCloseTo(0.527, 3);
+    expect(a.sed).toBeCloseTo(0.7454, 3);
+    expect(a.cd5).toBeCloseTo(2.0694, 3); // t(0.975, 4) = 2.7764
+    expect(a.significant).toBe(true);
+  });
+
+  it('gives means only when data is incomplete or not replicated', () => {
+    const values = new Map([
+      ['T1', new Map([[1, 10]])],
+      [
+        'T2',
+        new Map([
+          [1, 12],
+          [2, 13],
+        ]),
+      ],
+    ]) as Map<string, Map<number | null, number>>;
+    expect(analyseParameter(values, ['T1', 'T2'], 2)).toMatchObject({
+      anova: null,
+      reason: 'Incomplete data: T1 R2 missing',
+    });
+    expect(analyseParameter(values, ['T1', 'T2'], null)).toMatchObject({
+      anova: null,
+      reason: 'Not a replicated design',
+    });
+  });
+});

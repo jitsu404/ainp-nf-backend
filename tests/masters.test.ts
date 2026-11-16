@@ -213,3 +213,40 @@ describe('parameter library', () => {
     expect(list.body.data[0]).toMatchObject({ code: 'TEXTURE', choices: ['Sandy', 'Loam', 'Clay'] });
   });
 });
+
+describe('partial updates keep fields that were not sent', () => {
+  it('editing a centre name keeps its type; editing a parameter keeps its data type', async () => {
+    const { agent } = await signedInAgent('superadmin');
+    const centre = await agent
+      .post('/api/v1/centres')
+      .send({
+        code: 'VOL',
+        name: 'Voluntary',
+        host: 'Some University',
+        state: 'Kerala',
+        type: 'Voluntary Centre',
+      })
+      .expect(201);
+    const edited = await agent
+      .patch(`/api/v1/centres/${centre.body.data.id}`)
+      .send({ name: 'Renamed' })
+      .expect(200);
+    expect(edited.body.data.type).toBe('Voluntary Centre');
+
+    const p = await agent
+      .post('/api/v1/parameters')
+      .send({
+        code: 'TEXTURE',
+        name: 'Texture',
+        category: 'Soil physical',
+        dataType: 'choice',
+        choices: ['Sandy', 'Clay'],
+      })
+      .expect(201);
+    const renamed = await agent
+      .patch(`/api/v1/parameters/${p.body.data.id}`)
+      .send({ name: 'Soil texture' })
+      .expect(200);
+    expect(renamed.body.data).toMatchObject({ dataType: 'choice', choices: ['Sandy', 'Clay'] });
+  });
+});

@@ -253,3 +253,18 @@ When adding routes:
 - Read config only through `config/env.ts`; never read `process.env` elsewhere (only `tests/setup.ts` sets it).
 - No secrets in the repo. `.env` is git-ignored; `.env.example` lists every key with dummy values.
 - This folder is its own git repository. The parent `ainp-nf/` is not a repository.
+
+- **Never put `.default()` on a field of a schema that is also used with `.partial()`** (update DTOs). Zod keeps the default inside `.partial()`, so a PATCH that omits the field silently resets it. That bug once reset experiments' treatments to `[]` and centres' type on every edit. Put defaults in the Mongoose model instead. Defaults inside array items are fine, because items are always sent whole.
+
+## Research modules (experiments → trials → sheets)
+
+- **Experiment** (`modules/experiments`, `research.config`: PCU / Super Admin): the PCU protocol. Programme, design (RCBD / Factorial RBD / Split plot / Non-replicated / Survey), replications, common treatments (T1…), parameters from the library (each `plot`-level = per treatment × replication, or `treatment`-level = once per treatment; `required` blocks submission), seasons, and assigned centres. Assigning centres creates their **trials** (`ensureTrials`, called from the controller).
+- **`dataLocked`**: set when any centre records data. After that the design, replications and existing treatments/parameters can't change (409 `EXPERIMENT_HAS_DATA`); new ones can be added.
+- **Trial** (`modules/trials`, `research.enter`): the experiment at one centre. The centre sets cropping systems (crops and varieties per season, checked against the masters and the protocol's seasons), practice details per treatment, in-charge (must belong to the centre), layout notes and status.
+- **Sheet** (`modules/sheets`): trial × FY × season (× cropping system or crop), unique. Values live in `observations`, one row per treatment × replication × parameter (`valueNumber` / `valueText`).
+  - Every cell is checked against the protocol and the library (`checkCell`). A batch with any error is rejected whole.
+  - Workflow: Draft → Submitted (`research.submit`; fails with `INCOMPLETE_SHEET` listing missing required cells) → Returned (`research.review` / `research.approve`, remark required) or Approved (`research.approve`, locks). Transitions use conditional updates against races.
+  - Closed financial years block all changes (`FY_CLOSED`).
+  - Excel template: a "Plot data" tab (treatment × replication rows) and a "Treatment data" tab. Import checks every cell; dry run by default; empty cells clear values.
+- **Analysis** (`sheets.analysis.ts`, pure and unit-tested): treatment means, grand mean, and for complete replicated data RCBD ANOVA (F, p via `jstat`), CV %, SEm±, SEd±, CD (5 %), the latter only when significant. `GET /sheets/summary` consolidates treatment means across centres from approved sheets. DMRT and pooled analysis belong in the statistics service (plan §6.4).
+- **Spreading a Mongoose sub-document (`{...sub}`) does not copy its fields.** Copy fields explicitly or use `.toObject()`; this once dropped every parameter's `level`.

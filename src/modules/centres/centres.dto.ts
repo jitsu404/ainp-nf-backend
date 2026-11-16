@@ -44,7 +44,7 @@ const centreBody = z
       .max(80)
       .optional()
       .meta({ example: 'Upper Gangetic Plains', description: 'Agro-climatic zone' }),
-    type: z.enum(CENTRE_TYPES).default('Network Centre'),
+    type: z.enum(CENTRE_TYPES).optional().meta({ description: 'Default: Network Centre' }),
   })
   .strict();
 

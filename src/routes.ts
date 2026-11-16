@@ -4,6 +4,9 @@ import { centresRouter } from './modules/centres/centres.routes.js';
 import { financialYearsRouter } from './modules/financialYears/financialYears.routes.js';
 import { mastersRouter } from './modules/masters/masters.routes.js';
 import { parametersRouter } from './modules/parameters/parameters.routes.js';
+import { experimentsRouter } from './modules/experiments/experiments.routes.js';
+import { sheetsRouter } from './modules/sheets/sheets.routes.js';
+import { trialsRouter } from './modules/trials/trials.routes.js';
 import { usersRouter } from './modules/users/users.routes.js';
 
 export const API_PREFIX = '/api/v1';
@@ -70,6 +73,30 @@ export const API_MODULES: readonly ApiModule[] = [
     singular: 'parameter',
     description:
       'The parameter library every experiment records against (name, unit, category, data type, limits, method). Supports Excel import.',
+  },
+  {
+    name: 'Experiments',
+    prefix: '/experiments',
+    router: experimentsRouter,
+    singular: 'experiment',
+    description:
+      'PCU experiment protocols: programme, design, replications, common treatments, parameters to record and seasons, assigned to centres. Centre users see the experiments assigned to them.',
+  },
+  {
+    name: 'Trials',
+    prefix: '/trials',
+    router: trialsRouter,
+    singular: 'trial',
+    description:
+      'An experiment as run at one centre: its cropping systems, crops and varieties per season, practice details per treatment and in-charge. Created when the experiment is assigned.',
+  },
+  {
+    name: 'Observation sheets',
+    prefix: '/sheets',
+    router: sheetsRouter,
+    singular: 'sheet',
+    description:
+      'Data recording per trial × year × season: cell entry or Excel import, Draft → Submitted → Returned/Approved workflow, analysis (means, RCBD ANOVA) and cross-centre summary.',
   },
 ];
 

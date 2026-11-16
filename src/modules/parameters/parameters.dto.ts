@@ -20,7 +20,7 @@ const shape = {
     .optional()
     .meta({ example: 'KG_HA', description: 'Code of a unit master item' }),
   category: z.enum(PARAMETER_CATEGORIES).meta({ example: 'Yield' }),
-  dataType: z.enum(PARAMETER_DATA_TYPES).default('number'),
+  dataType: z.enum(PARAMETER_DATA_TYPES).optional().meta({ description: 'Default: number' }),
   decimals: z.number().int().min(0).max(6).optional(),
   min: z.number().nullable().optional(),
   max: z.number().nullable().optional(),
