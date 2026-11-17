@@ -16,10 +16,15 @@
     "test": "cross-env NODE_ENV=test vitest run",
     "test:watch": "cross-env NODE_ENV=test vitest",
     "lint": "eslint .",
-    "format": "prettier --write .",
     "seed": "tsx src/scripts/seed.ts",
     "postman": "tsx src/scripts/generate-postman.ts",
-    "migrate:user-fields": "tsx src/scripts/migrate-user-fields.ts"
+    "migrate:user-fields": "tsx src/scripts/migrate-user-fields.ts",
+    "format": "prettier --write .",
+    "prepare": "husky",
+    "format:check": "prettier --check ."
+  },
+  "lint-staged": {
+    "*.{ts,js,mjs,cjs,json}": "prettier --write"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -55,6 +60,8 @@
     "eslint": "^10.15.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.14.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "mongodb-memory-server": "^11.3.0",
     "prettier": "^3.10.1",
     "supertest": "^7.3.2",
