@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { FinancialYearModel, fyDates } from '../src/modules/financialYears/financialYears.model.js';
 import { MasterItemModel } from '../src/modules/masters/masters.model.js';
 import { ParameterModel } from '../src/modules/parameters/parameters.model.js';
-import { analyseParameter, dmrtLetters } from '../src/modules/sheets/sheets.analysis.js';
+import { analyseParameter, dmrtLetters, pooledAnalysis } from '../src/modules/sheets/sheets.analysis.js';
 import { createCentre, signedInAgent } from './helpers.js';
 
 const FY = '2026-27';
@@ -383,6 +383,12 @@ describe('observation sheets', () => {
       .map((c: { means: Record<string, Record<string, number>> }) => c.means[grain.id]!.T2)
       .sort();
     expect(means).toEqual([3600, 4600]);
+    // Pooled over the two centres; every plot within a centre has the same value, so there is no error.
+    expect(summary.body.data.pooled[grain.id]).toEqual({
+      reason: 'No residual variation (pooled error mean square is 0)',
+    });
+    expect(summary.body.data.experiment).toMatchObject({ design: 'RBD', referenceTreatmentCode: null });
+    expect(summary.body.data.centres[0]).toHaveProperty('croppingSystemName', null);
 
     const mine = await piA
       .get(`/api/v1/sheets/summary?experimentId=${experimentId}&fyCode=${FY}`)
@@ -754,6 +760,69 @@ describe('RCBD analysis', () => {
     // DMRT: Duncan's ranges for 4 error df are 3.93 (p = 2) and 4.01 (p = 3), × SEm 0.527 = 2.07 and 2.11.
     // T2 (15) differs from T1 (11) and T3 (9); T1 − T3 = 2 is within 2.07, so they share a letter.
     expect(a.groups).toEqual({ T2: 'a', T1: 'b', T3: 'b' });
+  });
+
+  it('pools RBDs over locations (values checked by an independent calculation)', () => {
+    const result = pooledAnalysis(
+      [
+        {
+          label: 'A',
+          grid: [
+            [10, 12, 11],
+            [14, 16, 15],
+            [8, 10, 10],
+          ],
+        },
+        {
+          label: 'B',
+          grid: [
+            [13, 12, 14],
+            [15, 17, 16],
+            [12, 11, 13],
+          ],
+        },
+      ],
+      ['T1', 'T2', 'T3'],
+    );
+    if ('reason' in result) throw new Error(result.reason);
+    const row = (s: string) => result.table.find((r) => r.source === s)!;
+    expect(row('Locations')).toMatchObject({ df: 1 });
+    expect(row('Locations').ss).toBeCloseTo(16.0556, 3);
+    expect(row('Replications within locations').ss).toBeCloseTo(8.2222, 3);
+    expect(row('Treatments').ss).toBeCloseTo(74.7778, 3);
+    expect(row('Treatments × Locations').ss).toBeCloseTo(2.1111, 3);
+    expect(row('Pooled error')).toMatchObject({ df: 8 });
+    expect(row('Pooled error').ss).toBeCloseTo(4.4444, 3);
+    expect(row('Total').ss).toBeCloseTo(105.6111, 3);
+    // Treatments are tested against the T × L mean square; T × L against the pooled error.
+    expect(row('Treatments').f).toBeCloseTo(35.4211, 3);
+    expect(row('Treatments × Locations').f).toBeCloseTo(1.9, 3);
+    expect(result.means.map((m) => m.mean)).toEqual([12, 15.5, 10.6667]);
+    expect(result.cv).toBeCloseTo(5.86, 2);
+    expect(result.sem).toBeCloseTo(0.4194, 3);
+    expect(result.sed).toBeCloseTo(0.5932, 3);
+    expect(result.cd5).toBeCloseTo(2.5523, 3); // t(0.975, 2) = 4.3027
+    expect(result).toMatchObject({ significant: true, interactionSignificant: false });
+    expect(result.groups).toEqual({ T2: 'a', T1: 'b', T3: 'b' });
+    expect(result.bartlett.chiSquare).toBeCloseTo(3.6325, 3);
+    expect(result.bartlett.homogeneous).toBe(true);
+
+    expect(
+      pooledAnalysis(
+        [
+          {
+            label: 'A',
+            grid: [
+              [1, 2],
+              [3, 4],
+            ],
+          },
+        ],
+        ['T1', 'T2'],
+      ),
+    ).toEqual({
+      reason: 'Needs complete data from at least 2 locations',
+    });
   });
 
   it('gives overlapping DMRT groups (Duncan table, 10 error df)', () => {

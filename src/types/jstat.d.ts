@@ -6,6 +6,7 @@ declare module 'jstat' {
     studentt: { inv(p: number, dof: number): number };
     /** Studentized range: inv(probability, number of means, error df). */
     tukey: { inv(p: number, nmeans: number, dof: number): number };
+    chisquare: { cdf(x: number, dof: number): number };
   };
   export default jStat;
 }

@@ -15,9 +15,9 @@ import {
 import { assertYearOpen, listFinancialYears } from '../financialYears/financialYears.service.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
 import { calculatedParameters } from '../parameters/parameters.service.js';
-import { getTrial, listTrials } from '../trials/trials.service.js';
+import { getTrial, listTrials, trialsByIds } from '../trials/trials.service.js';
 import { type ObsRow, calculatedIds, computeCalculated } from './sheets.calculated.js';
-import { type ParameterAnalysis, analyseParameter } from './sheets.analysis.js';
+import { type ParameterAnalysis, analyseParameter, pooledAnalysis } from './sheets.analysis.js';
 import type { CellInput, CreateSheetDto, ListSheetsQuery, SummaryQuery } from './sheets.dto.js';
 import {
   EDITABLE_STATUSES,
@@ -616,6 +616,10 @@ export const experimentSummary = async (ctx: RequestContext, query: SummaryQuery
   }
 
   const numeric = experiment.parameters.filter((p) => p.dataType === 'number');
+  const trials = await trialsByIds([...new Set(sheets.map((s) => String(s.trialId)))]);
+  const systemName = (s: (typeof sheets)[number]) =>
+    trials.get(String(s.trialId))?.croppingSystems.find((cs) => cs.code === s.croppingSystemCode)?.name ??
+    null;
   const rows = sheets.map((s) => {
     const mine = perSheet.get(s.id) ?? [];
     const means: Record<string, Record<string, number | null>> = {};
@@ -635,13 +639,49 @@ export const experimentSummary = async (ctx: RequestContext, query: SummaryQuery
       centre: { id: String(s.centreId._id), code: s.centreId.code, name: s.centreId.name },
       seasonCode: s.seasonCode,
       croppingSystemCode: s.croppingSystemCode,
+      croppingSystemName: systemName(s),
       cropCode: s.cropCode,
       status: s.status,
       means,
     };
   });
+
+  // Pooled analysis over locations (each sheet is one location) for per-plot parameters of RBD
+  // experiments, using the sheets with complete data.
+  const codes = experiment.treatments.map((t) => t.code);
+  const reps = experiment.replications ?? 0;
+  const pooled: Record<string, ReturnType<typeof pooledAnalysis>> = {};
+  if (DESIGNS_WITH_ANOVA.includes(experiment.design) && reps >= 2) {
+    const centresWithSeveral = new Set(
+      sheets.map((s) => String(s.centreId._id)).filter((id, i, all) => all.indexOf(id) !== i),
+    );
+    for (const p of numeric.filter((x) => x.level === 'plot')) {
+      const locations: { label: string; grid: number[][] }[] = [];
+      for (const s of sheets) {
+        const cells = new Map(
+          (perSheet.get(s.id) ?? [])
+            .filter((o) => o.parameterId === p.parameterId)
+            .map((o) => [`${o.treatmentCode}|${o.replication}`, o.value]),
+        );
+        const grid = codes.map((t) => Array.from({ length: reps }, (_, j) => cells.get(`${t}|${j + 1}`)));
+        if (grid.every((row) => row.every((v) => v !== undefined))) {
+          const label = centresWithSeveral.has(String(s.centreId._id))
+            ? `${s.centreId.name} (${s.croppingSystemCode ?? s.seasonCode})`
+            : s.centreId.name;
+          locations.push({ label, grid: grid as number[][] });
+        }
+      }
+      pooled[p.parameterId] = pooledAnalysis(locations, codes);
+    }
+  }
   return {
-    experiment: { id: experiment.id, code: experiment.code, title: experiment.title },
+    experiment: {
+      id: experiment.id,
+      code: experiment.code,
+      title: experiment.title,
+      design: experiment.design,
+      referenceTreatmentCode: experiment.referenceTreatmentCode ?? null,
+    },
     fyCode: query.fyCode,
     treatments: experiment.treatments,
     parameters: numeric.map((p) => ({
@@ -650,8 +690,10 @@ export const experimentSummary = async (ctx: RequestContext, query: SummaryQuery
       name: p.name,
       unitCode: p.unitCode,
       section: p.section,
+      level: p.level,
     })),
     centres: rows,
+    pooled,
   };
 };
 
