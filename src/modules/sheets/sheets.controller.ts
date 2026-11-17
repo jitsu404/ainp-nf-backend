@@ -16,7 +16,9 @@ import type {
   submitSheetSchemas,
   summarySchemas,
   reportingSchemas,
+  trendSchemas,
 } from './sheets.dto.js';
+import * as sheetsReports from './sheets.reports.js';
 import * as sheetsService from './sheets.service.js';
 
 export const list = async (req: Request, res: Response) => {
@@ -80,4 +82,21 @@ export const reporting = async (req: Request, res: Response) => {
 export const summary = async (req: Request, res: Response) => {
   const { query } = getValidated<typeof summarySchemas>(req);
   ok(res, await sheetsService.experimentSummary(contextOf(req), query));
+};
+
+export const trend = async (req: Request, res: Response) => {
+  const { query } = getValidated<typeof trendSchemas>(req);
+  ok(res, await sheetsReports.experimentTrend(contextOf(req), query));
+};
+
+export const summaryExport = async (req: Request, res: Response) => {
+  const { query } = getValidated<typeof summarySchemas>(req);
+  const { buffer, filename } = await sheetsReports.exportSummary(contextOf(req), query);
+  sendFile(res, buffer, filename, XLSX_CONTENT_TYPE);
+};
+
+export const analysisExport = async (req: Request, res: Response) => {
+  const { params } = getValidated<typeof sheetAnalysisSchemas>(req);
+  const { buffer, filename } = await sheetsReports.exportSheetAnalysis(contextOf(req), params.id);
+  sendFile(res, buffer, filename, XLSX_CONTENT_TYPE);
 };

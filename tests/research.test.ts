@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import type request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { FinancialYearModel, fyDates } from '../src/modules/financialYears/financialYears.model.js';
 import { MasterItemModel } from '../src/modules/masters/masters.model.js';
@@ -557,6 +558,58 @@ describe('calculated parameters', () => {
     const headers = (workbook.getWorksheet('Treatment data')!.getRow(1).values as unknown[]).map(String);
     expect(headers.some((h) => h.includes('NET_CALC') || h.includes('BC_CALC'))).toBe(false);
     expect(headers.some((h) => h.includes('SALE_PRICE_MAIN'))).toBe(true);
+  });
+});
+
+describe('trend and Excel exports', () => {
+  const download = (agent: ReturnType<typeof request.agent>, url: string) =>
+    agent
+      .get(url)
+      .buffer(true)
+      .parse((res, cb) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => cb(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+
+  it('gives means per year since the start, and exports the analysis and summary', async () => {
+    const { pcu, piA, grain, experimentId, trialAId } = await setup();
+    await FinancialYearModel.create({ code: '2027-28', ...fyDates('2027-28'), isOpen: true });
+    const sheet = await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .expect(201);
+    const id = sheet.body.data.id as string;
+    await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({ values: fullPlotData(grain.id, { T1: [10, 13, 10], T2: [15, 16, 14], T3: [8, 9, 10] }) })
+      .expect(200);
+    await piA.post(`/api/v1/sheets/${id}/submit`).send({}).expect(200);
+    await pcu.post(`/api/v1/sheets/${id}/approve`).send({}).expect(200);
+
+    const trend = await pcu.get(`/api/v1/sheets/trend?experimentId=${experimentId}`).expect(200);
+    expect(trend.body.data.years.map((y: { fyCode: string }) => y.fyCode)).toEqual([FY, '2027-28']);
+    expect(trend.body.data.years[0]).toMatchObject({
+      sheets: 1,
+      means: { [grain.id]: { T1: 11, T2: 15, T3: 9 } },
+    });
+    expect(trend.body.data.years[1].means[grain.id]).toEqual({ T1: null, T2: null, T3: null });
+
+    const analysis = await download(piA, `/api/v1/sheets/${id}/analysis/export`);
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(analysis.body as ArrayBuffer);
+    expect(book.worksheets.map((w) => w.name)).toEqual(['Treatment means', 'ANOVA']);
+    expect(book.getWorksheet('Treatment means')!.rowCount).toBeGreaterThan(3);
+
+    const summary = await download(
+      pcu,
+      `/api/v1/sheets/summary/export?experimentId=${experimentId}&fyCode=${FY}`,
+    );
+    expect(summary.headers['content-disposition']).toContain('NF-LTE_2026-27_summary.xlsx');
+    const book2 = new ExcelJS.Workbook();
+    await book2.xlsx.load(summary.body as ArrayBuffer);
+    expect(book2.worksheets.map((w) => w.name)).toEqual(['Means by centre', 'Pooled analysis']);
   });
 });
 

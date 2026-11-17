@@ -18,6 +18,7 @@ import {
   submitSheetSchemas,
   summarySchemas,
   reportingSchemas,
+  trendSchemas,
 } from './sheets.dto.js';
 
 export const sheetsRouter = Router();
@@ -26,6 +27,25 @@ export const sheetsRouter = Router();
 sheetsRouter.use(authenticate);
 
 sheetsRouter.get('/', apiDoc({ name: 'List sheets' }), validate(listSheetsSchemas), controller.list);
+sheetsRouter.get(
+  '/trend',
+  apiDoc({
+    name: 'Trend across years',
+    description:
+      'Treatment means (mean of centres, approved sheets) for each financial year since the experiment started; optionally one season or one centre.',
+  }),
+  validate(trendSchemas),
+  controller.trend,
+);
+sheetsRouter.get(
+  '/summary/export',
+  apiDoc({
+    name: 'Export summary',
+    description: 'The cross-centre summary and pooled analyses as Excel (same filters as the summary).',
+  }),
+  validate(summarySchemas),
+  controller.summaryExport,
+);
 sheetsRouter.get(
   '/reporting',
   apiDoc({
@@ -119,6 +139,15 @@ sheetsRouter.post(
   uploadExcel,
   validate(importSheetSchemas),
   controller.importFile,
+);
+sheetsRouter.get(
+  '/:id/analysis/export',
+  apiDoc({
+    name: 'Export sheet analysis',
+    description: 'Treatment means (DMRT, % vs reference) and ANOVA tables as Excel.',
+  }),
+  validate(sheetAnalysisSchemas),
+  controller.analysisExport,
 );
 sheetsRouter.get(
   '/:id/analysis',

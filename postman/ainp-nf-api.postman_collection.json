@@ -1542,6 +1542,89 @@
           }
         },
         {
+          "name": "Trend across years",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sheets/trend?experimentId={{experimentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets",
+                "trend"
+              ],
+              "query": [
+                {
+                  "key": "experimentId",
+                  "value": "{{experimentId}}",
+                  "description": "string · ObjectId",
+                  "disabled": false
+                },
+                {
+                  "key": "seasonCode",
+                  "value": "",
+                  "description": "string · pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`",
+                  "disabled": true
+                },
+                {
+                  "key": "centreId",
+                  "value": "",
+                  "description": "string · ObjectId · One centre only (default: mean of all centres)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Treatment means (mean of centres, approved sheets) for each financial year since the experiment started; optionally one season or one centre.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/trend`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | yes | ObjectId |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `centreId` | string | no | ObjectId | One centre only (default: mean of all centres) |"
+          }
+        },
+        {
+          "name": "Export summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sheets/summary/export?experimentId={{experimentId}}&fyCode=2026-27",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets",
+                "summary",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "experimentId",
+                  "value": "{{experimentId}}",
+                  "description": "string · ObjectId",
+                  "disabled": false
+                },
+                {
+                  "key": "fyCode",
+                  "value": "2026-27",
+                  "description": "string · pattern `^\\d{4}-\\d{2}$`",
+                  "disabled": false
+                },
+                {
+                  "key": "seasonCode",
+                  "value": "",
+                  "description": "string · pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`",
+                  "disabled": true
+                },
+                {
+                  "key": "includeUnapproved",
+                  "value": "",
+                  "description": "string · Include sheets not yet approved",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "The cross-centre summary and pooled analyses as Excel (same filters as the summary).\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/summary/export`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | yes | ObjectId |  |\n| `fyCode` | string | yes | pattern `^\\d{4}-\\d{2}$` |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `includeUnapproved` | string | no | — | Include sheets not yet approved |"
+          }
+        },
+        {
           "name": "Reporting status",
           "request": {
             "method": "GET",
@@ -1899,6 +1982,33 @@
               ]
             },
             "description": "Multipart upload: send the .xlsx in the form field **file** (max 5 MB).\n\n**Access:** signed in, and the role needs `research.enter`\n\n**Endpoint:** `POST /api/v1/sheets/:id/import`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `dryRun` | string | no | — | true (default) = validate and preview only; false = save |"
+          }
+        },
+        {
+          "name": "Export sheet analysis",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sheets/:id/analysis/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets",
+                ":id",
+                "analysis",
+                "export"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{sheetId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Treatment means (DMRT, % vs reference) and ANOVA tables as Excel.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/:id/analysis/export`"
           }
         },
         {

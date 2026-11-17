@@ -67,6 +67,14 @@ export const sheetTemplateSchemas = { params: idParams } satisfies RequestSchema
 export const importSheetSchemas = { params: idParams, query: importQuery } satisfies RequestSchemas;
 export const sheetAnalysisSchemas = { params: idParams } satisfies RequestSchemas;
 export const summarySchemas = { query: summaryQuery } satisfies RequestSchemas;
+const trendQuery = z.object({
+  experimentId: objectId,
+  seasonCode: masterCode.optional(),
+  centreId: objectId.optional().meta({ description: 'One centre only (default: mean of all centres)' }),
+});
+export const trendSchemas = { query: trendQuery } satisfies RequestSchemas;
+export type TrendQuery = z.output<typeof trendQuery>;
+
 export const reportingSchemas = {
   query: z.object({ experimentId: objectId }),
 } satisfies RequestSchemas;
