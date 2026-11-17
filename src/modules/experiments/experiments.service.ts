@@ -3,7 +3,7 @@ import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
 import { type RequestContext, withScope } from '../../utils/context.js';
 import { escapeRegex } from '../../utils/validators.js';
-import { recordAudit } from '../audit/audit.service.js';
+import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { centreExists } from '../centres/centres.service.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
 import { parametersByIds } from '../parameters/parameters.service.js';
@@ -165,6 +165,9 @@ export const updateExperiment = async (ctx: RequestContext, id: string, dto: Upd
     const experiment = await ExperimentModel.findById(id).session(session);
     if (!experiment) throw AppError.notFound('EXPERIMENT_NOT_FOUND', 'Experiment not found');
     assertCompatibleWithData(experiment, dto);
+    // Replications can change as a side effect of the design, so record them too.
+    const keys = [...new Set([...Object.keys(dto), 'replications'])];
+    const before = snapshot(experiment, keys);
     experiment.set({ ...dto, updatedBy: ctx.user.id });
     if (DESIGNS_WITHOUT_REPLICATIONS.includes(experiment.design)) experiment.replications = null;
     // The request may change only the design or only the replications; check the result.
@@ -181,7 +184,7 @@ export const updateExperiment = async (ctx: RequestContext, id: string, dto: Upd
         action: `Updated experiment ${experiment.code}`,
         module: MODULE,
         entityId: experiment.id,
-        changes: dto,
+        changes: fieldChanges(before, snapshot(experiment, keys)),
       },
       session,
     );

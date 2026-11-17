@@ -2,7 +2,7 @@ import { type QueryFilter, type Types, trusted } from 'mongoose';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
 import { type RequestContext, withScope } from '../../utils/context.js';
-import { recordAudit } from '../audit/audit.service.js';
+import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { findExperiment, withParameterDetails } from '../experiments/experiments.service.js';
 import type { Experiment } from '../experiments/experiments.model.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
@@ -114,6 +114,7 @@ export const updateTrial = async (ctx: RequestContext, id: string, dto: UpdateTr
   return withTransaction(async (session) => {
     const doc = await TrialModel.findById(id).session(session);
     if (!doc) throw AppError.notFound('TRIAL_NOT_FOUND', 'Trial not found');
+    const before = snapshot(doc, Object.keys(dto));
     doc.set({ ...dto, updatedBy: ctx.user.id });
     await doc.save({ session });
     await recordAudit(
@@ -123,7 +124,7 @@ export const updateTrial = async (ctx: RequestContext, id: string, dto: UpdateTr
         module: MODULE,
         entityId: doc.id,
         centreId: String(doc.centreId),
-        changes: dto,
+        changes: fieldChanges(before, snapshot(doc, Object.keys(dto))),
       },
       session,
     );

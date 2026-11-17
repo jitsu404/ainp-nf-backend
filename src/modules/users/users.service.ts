@@ -14,7 +14,7 @@ import { AppError } from '../../utils/AppError.js';
 import type { RequestContext } from '../../utils/context.js';
 import { pageMeta } from '../../utils/response.js';
 import { skipFor } from '../../utils/validators.js';
-import { recordAudit } from '../audit/audit.service.js';
+import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { centreExists } from '../centres/centres.service.js';
 import { type User, UserModel } from './users.model.js';
 import type { AssignCentrePiDto, CreateUserDto, ListUsersQuery, UpdateUserDto } from './users.dto.js';
@@ -226,6 +226,9 @@ export const updateUser = async (ctx: RequestContext, id: string, dto: UpdateUse
     // Load-and-save (not findOneAndUpdate) so the model rebuilds `name` from the name parts.
     const user = await UserModel.findById(existing.id).session(session);
     if (!user) throw AppError.notFound('USER_NOT_FOUND', 'User not found');
+    // `name` is rebuilt from the parts, so record it too.
+    const keys = [...Object.keys(dto), 'name'];
+    const before = snapshot(user, keys);
     user.set({ ...dto, updatedBy: ctx.user.id });
     await user.save({ session });
     await recordAudit(
@@ -235,7 +238,7 @@ export const updateUser = async (ctx: RequestContext, id: string, dto: UpdateUse
         module: MODULE,
         entityId: user.id,
         centreId: user.centreId?.toString() ?? null,
-        changes: dto,
+        changes: fieldChanges(before, snapshot(user, keys)),
       },
       session,
     );

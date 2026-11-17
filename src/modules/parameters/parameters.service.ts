@@ -5,7 +5,7 @@ import type { RequestContext } from '../../utils/context.js';
 import { type ExcelColumn, buildWorkbook, readRows } from '../../utils/excel.js';
 import { type ImportResult, validateRows } from '../../utils/importer.js';
 import { escapeRegex } from '../../utils/validators.js';
-import { recordAudit } from '../audit/audit.service.js';
+import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
 import {
   type CreateParameterDto,
@@ -68,6 +68,7 @@ export const updateParameter = async (ctx: RequestContext, id: string, dto: Upda
   return withTransaction(async (session) => {
     const parameter = await ParameterModel.findById(id).session(session);
     if (!parameter) throw AppError.notFound('PARAMETER_NOT_FOUND', 'Parameter not found');
+    const before = snapshot(parameter, Object.keys(dto));
     parameter.set({ ...dto, updatedBy: ctx.user.id });
     if (parameter.min !== null && parameter.max !== null && parameter.min > parameter.max) {
       throw AppError.badRequest('INVALID_RANGE', 'min must not be greater than max');
@@ -75,7 +76,12 @@ export const updateParameter = async (ctx: RequestContext, id: string, dto: Upda
     await parameter.save({ session });
     await recordAudit(
       ctx,
-      { action: `Updated parameter ${parameter.code}`, module: MODULE, entityId: parameter.id, changes: dto },
+      {
+        action: `Updated parameter ${parameter.code}`,
+        module: MODULE,
+        entityId: parameter.id,
+        changes: fieldChanges(before, snapshot(parameter, Object.keys(dto))),
+      },
       session,
     );
     return parameter;

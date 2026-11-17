@@ -2,7 +2,7 @@ import type { ClientSession } from 'mongoose';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
 import type { RequestContext } from '../../utils/context.js';
-import { recordAudit } from '../audit/audit.service.js';
+import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import type { CreateFyDto, UpdateFyDto } from './financialYears.dto.js';
 import { FinancialYearModel, fyDates } from './financialYears.model.js';
 
@@ -47,6 +47,7 @@ export const updateFinancialYear = (ctx: RequestContext, id: string, dto: Update
     const fy = await FinancialYearModel.findById(id).session(session);
     if (!fy) throw AppError.notFound('FY_NOT_FOUND', 'Financial year not found');
     if (dto.isCurrent) await clearCurrent(session);
+    const before = snapshot(fy, Object.keys(dto));
     fy.set({ ...dto, updatedBy: ctx.user.id });
     await fy.save({ session });
     const what = [
@@ -59,7 +60,7 @@ export const updateFinancialYear = (ctx: RequestContext, id: string, dto: Update
         action: `Financial year ${fy.code} ${what.join(' and ')}`,
         module: MODULE,
         entityId: fy.id,
-        changes: dto,
+        changes: fieldChanges(before, snapshot(fy, Object.keys(dto))),
       },
       session,
     );

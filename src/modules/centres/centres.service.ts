@@ -4,7 +4,7 @@ import { AppError } from '../../utils/AppError.js';
 import { type RequestContext, withScope } from '../../utils/context.js';
 import { type PageMeta, pageMeta } from '../../utils/response.js';
 import { skipFor } from '../../utils/validators.js';
-import { recordAudit } from '../audit/audit.service.js';
+import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { activeMasterNames } from '../masters/masters.service.js';
 import { type Centre, CentreModel } from './centres.model.js';
 import type { CreateCentreDto, ListCentresQuery, UpdateCentreDto } from './centres.dto.js';
@@ -75,6 +75,9 @@ export const createCentre = async (ctx: RequestContext, dto: CreateCentreDto) =>
 export const updateCentre = async (ctx: RequestContext, id: string, dto: UpdateCentreDto) => {
   await checkZone(dto.zone ?? undefined);
   return withTransaction(async (session) => {
+    const existing = await CentreModel.findOne(scoped(ctx, { _id: id })).session(session).lean();
+    if (!existing) throw AppError.notFound('CENTRE_NOT_FOUND', 'Centre not found');
+    const before = snapshot(existing, Object.keys(dto));
     const centre = await CentreModel.findOneAndUpdate(
       scoped(ctx, { _id: id }),
       { ...dto, updatedBy: ctx.user.id },
@@ -88,7 +91,7 @@ export const updateCentre = async (ctx: RequestContext, id: string, dto: UpdateC
         module: MODULE,
         entityId: centre.id,
         centreId: centre.id,
-        changes: dto,
+        changes: fieldChanges(before, snapshot(centre, Object.keys(dto))),
       },
       session,
     );

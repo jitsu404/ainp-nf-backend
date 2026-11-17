@@ -28,7 +28,8 @@ export const login = async (req: Request, res: Response) => {
   ok(res, authService.sessionOf(user));
 };
 
-export const logout = (_req: Request, res: Response) => {
+export const logout = async (req: Request, res: Response) => {
+  await authService.logout(req.cookies?.[AUTH_COOKIE], { requestId: req.id, ip: req.ip });
   res.clearCookie(AUTH_COOKIE, cookieOptions);
   noContent(res);
 };

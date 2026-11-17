@@ -13,7 +13,7 @@ describe('centres', () => {
     expect(res.body.data).toMatchObject({ code: 'MDP', type: 'Network Centre', isActive: true });
     const audit = await AuditLogModel.findOne({ entityId: res.body.data.id });
     expect(audit).toMatchObject({ module: 'centres', roleId: 'superadmin', userName: user.name });
-    expect(audit?.userId.toString()).toBe(user.id);
+    expect(audit?.userId?.toString()).toBe(user.id);
   });
 
   it('lets the PCU create and edit centres', async () => {
