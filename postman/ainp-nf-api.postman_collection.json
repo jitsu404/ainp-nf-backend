@@ -760,6 +760,12 @@
                   "value": "",
                   "description": "string",
                   "disabled": true
+                },
+                {
+                  "key": "linkedTo",
+                  "value": "",
+                  "description": "string · ObjectId · Filter by linked master item ID",
+                  "disabled": true
                 }
               ],
               "variable": [
@@ -770,7 +776,7 @@
                 }
               ]
             },
-            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/masters/:type`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `search` | string | no | 0–100 chars |  |\n| `group` | string | no | 0–60 chars |  |\n| `isActive` | string | no | — |  |"
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/masters/:type`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `search` | string | no | 0–100 chars |  |\n| `group` | string | no | 0–60 chars |  |\n| `isActive` | string | no | — |  |\n| `linkedTo` | string | no | ObjectId | Filter by linked master item ID |"
           }
         },
         {
@@ -799,7 +805,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"KHARIF\",\n  \"name\": \"Kharif\",\n  \"group\": \"Sample group\",\n  \"description\": \"Sample description\",\n  \"sortOrder\": 0\n}",
+              "raw": "{\n  \"code\": \"KHARIF\",\n  \"name\": \"Kharif\",\n  \"group\": \"Sample group\",\n  \"linkedTo\": \"{{linkedTo}}\",\n  \"description\": \"Sample description\",\n  \"sortOrder\": 0\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -823,7 +829,7 @@
                 }
               ]
             },
-            "description": "**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/masters/:type`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `name` | string | yes | 1–200 chars |  |\n| `group` | string | no | 0–60 chars | Allowed values depend on the type (see /masters/types) |\n| `description` | string | no | 0–500 chars |  |\n| `sortOrder` | integer | no | min 0; max 9999 |  |\n\nUnknown fields are rejected."
+            "description": "**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/masters/:type`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `name` | string | yes | 1–200 chars |  |\n| `group` | string | no | 0–60 chars | Allowed values depend on the type (see /masters/types) |\n| `linkedTo` | string | no | ObjectId; nullable | Optional ID of linked master item (e.g. fundCategory for budgetHead) |\n| `description` | string | no | 0–500 chars |  |\n| `sortOrder` | integer | no | min 0; max 9999 |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -838,7 +844,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"KHARIF\",\n  \"name\": \"Kharif\",\n  \"group\": \"Sample group\",\n  \"description\": \"Sample description\",\n  \"sortOrder\": 0,\n  \"isActive\": true\n}",
+              "raw": "{\n  \"code\": \"KHARIF\",\n  \"name\": \"Kharif\",\n  \"group\": \"Sample group\",\n  \"linkedTo\": \"{{linkedTo}}\",\n  \"description\": \"Sample description\",\n  \"sortOrder\": 0,\n  \"isActive\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -868,7 +874,7 @@
                 }
               ]
             },
-            "description": "Deactivate with `isActive: false`; items are never deleted.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `PATCH /api/v1/masters/:type/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `name` | string | no | 1–200 chars |  |\n| `group` | string | no | 0–60 chars | Allowed values depend on the type (see /masters/types) |\n| `description` | string | no | 0–500 chars |  |\n| `sortOrder` | integer | no | min 0; max 9999 |  |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
+            "description": "Deactivate with `isActive: false`; items are never deleted.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `PATCH /api/v1/masters/:type/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `name` | string | no | 1–200 chars |  |\n| `group` | string | no | 0–60 chars | Allowed values depend on the type (see /masters/types) |\n| `linkedTo` | string | no | ObjectId; nullable | Optional ID of linked master item (e.g. fundCategory for budgetHead) |\n| `description` | string | no | 0–500 chars |  |\n| `sortOrder` | integer | no | min 0; max 9999 |  |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -1533,6 +1539,32 @@
               ]
             },
             "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `trialId` | string | no | ObjectId |  |\n| `experimentId` | string | no | ObjectId |  |\n| `centreId` | string | no | ObjectId |  |\n| `fyCode` | string | no | pattern `^\\d{4}-\\d{2}$` |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `status` | string | no | one of `Draft`, `Submitted`, `Returned`, `Approved` |  |"
+          }
+        },
+        {
+          "name": "Reporting status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sheets/reporting?experimentId={{experimentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sheets",
+                "reporting"
+              ],
+              "query": [
+                {
+                  "key": "experimentId",
+                  "value": "{{experimentId}}",
+                  "description": "string · ObjectId",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "For one experiment: each assigned centre × financial year (since the start year) × season, with the sheets opened and their status. Centre users see only their own centre.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/reporting`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | yes | ObjectId |  |"
           }
         },
         {

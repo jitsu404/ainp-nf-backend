@@ -15,6 +15,7 @@ import type {
   sheetTemplateSchemas,
   submitSheetSchemas,
   summarySchemas,
+  reportingSchemas,
 } from './sheets.dto.js';
 import * as sheetsService from './sheets.service.js';
 
@@ -69,6 +70,11 @@ export const importFile = async (req: Request, res: Response) => {
 export const analysis = async (req: Request, res: Response) => {
   const { params } = getValidated<typeof sheetAnalysisSchemas>(req);
   ok(res, await sheetsService.analyseSheet(contextOf(req), params.id));
+};
+
+export const reporting = async (req: Request, res: Response) => {
+  const { query } = getValidated<typeof reportingSchemas>(req);
+  ok(res, await sheetsService.reportingStatus(contextOf(req), query.experimentId));
 };
 
 export const summary = async (req: Request, res: Response) => {

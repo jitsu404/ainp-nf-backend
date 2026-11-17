@@ -17,6 +17,7 @@ import {
   sheetTemplateSchemas,
   submitSheetSchemas,
   summarySchemas,
+  reportingSchemas,
 } from './sheets.dto.js';
 
 export const sheetsRouter = Router();
@@ -25,6 +26,16 @@ export const sheetsRouter = Router();
 sheetsRouter.use(authenticate);
 
 sheetsRouter.get('/', apiDoc({ name: 'List sheets' }), validate(listSheetsSchemas), controller.list);
+sheetsRouter.get(
+  '/reporting',
+  apiDoc({
+    name: 'Reporting status',
+    description:
+      'For one experiment: each assigned centre × financial year (since the start year) × season, with the sheets opened and their status. Centre users see only their own centre.',
+  }),
+  validate(reportingSchemas),
+  controller.reporting,
+);
 sheetsRouter.get(
   '/summary',
   apiDoc({

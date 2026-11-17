@@ -391,6 +391,37 @@ describe('observation sheets', () => {
   });
 });
 
+describe('reporting status', () => {
+  it('lists each assigned centre × year × season with its sheets; a PI sees only their own centre', async () => {
+    const { pcu, piA, experimentId, trialAId, centreA } = await setup();
+    await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .expect(201);
+
+    const all = await pcu.get(`/api/v1/sheets/reporting?experimentId=${experimentId}`).expect(200);
+    expect(all.body.data).toMatchObject({ years: [FY], seasons: ['KHARIF'], openYears: [FY] });
+    expect(all.body.data.centres).toHaveLength(2);
+    const a = all.body.data.centres.find((c: { centre: { id: string } }) => c.centre.id === centreA.id);
+    expect(a.sheets).toEqual([
+      expect.objectContaining({ fyCode: FY, seasonCode: 'KHARIF', status: 'Draft' }),
+    ]);
+    const b = all.body.data.centres.find((c: { centre: { id: string } }) => c.centre.id !== centreA.id);
+    expect(b.sheets).toEqual([]);
+
+    const mine = await piA.get(`/api/v1/sheets/reporting?experimentId=${experimentId}`).expect(200);
+    expect(mine.body.data.centres.map((c: { centre: { id: string } }) => c.centre.id)).toEqual([centreA.id]);
+
+    // A centre that is no longer assigned drops out of the grid.
+    await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({ centreIds: [centreA.id] })
+      .expect(200);
+    const after = await pcu.get(`/api/v1/sheets/reporting?experimentId=${experimentId}`).expect(200);
+    expect(after.body.data.centres).toHaveLength(1);
+  });
+});
+
 describe('sheet audit history', () => {
   it('records every changed cell (old → new), how it came in, and the centre', async () => {
     const { piA, grain, trialAId, centreA } = await setup();

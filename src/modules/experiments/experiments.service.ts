@@ -8,6 +8,7 @@ import { centreExists } from '../centres/centres.service.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
 import { parametersByIds } from '../parameters/parameters.service.js';
 import type { CreateExperimentDto, ListExperimentsQuery, UpdateExperimentDto } from './experiments.dto.js';
+export { DESIGNS_WITH_ANOVA } from './experiments.model.js';
 import {
   DESIGNS_NEEDING_REPLICATIONS,
   DESIGNS_WITHOUT_REPLICATIONS,

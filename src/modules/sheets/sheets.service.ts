@@ -5,11 +5,16 @@ import { type RequestContext, withScope } from '../../utils/context.js';
 import { type ExcelColumn, buildMultiSheetWorkbook, readRows } from '../../utils/excel.js';
 import type { RowError } from '../../utils/importer.js';
 import { type CellChange, recordAudit } from '../audit/audit.service.js';
-import { findExperiment, markDataLocked, withParameterDetails } from '../experiments/experiments.service.js';
-import { DESIGNS_WITH_ANOVA } from '../experiments/experiments.model.js';
-import { assertYearOpen } from '../financialYears/financialYears.service.js';
+import {
+  DESIGNS_WITH_ANOVA,
+  findExperiment,
+  getExperiment,
+  markDataLocked,
+  withParameterDetails,
+} from '../experiments/experiments.service.js';
+import { assertYearOpen, listFinancialYears } from '../financialYears/financialYears.service.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
-import { getTrial } from '../trials/trials.service.js';
+import { getTrial, listTrials } from '../trials/trials.service.js';
 import { type ParameterAnalysis, analyseParameter } from './sheets.analysis.js';
 import type { CellInput, CreateSheetDto, ListSheetsQuery, SummaryQuery } from './sheets.dto.js';
 import {
@@ -607,5 +612,66 @@ export const experimentSummary = async (ctx: RequestContext, query: SummaryQuery
       section: p.section,
     })),
     centres: rows,
+  };
+};
+
+// ── Reporting status ─────────────────────────────────────────────────────────
+
+/**
+ * Who has reported what: for each assigned centre, every financial year since the experiment
+ * started × each of its seasons, with the sheets opened there and their status. An empty cell
+ * means no sheet was opened. Centre users see only their own centre (scoped trials and sheets).
+ */
+export const reportingStatus = async (ctx: RequestContext, experimentId: string) => {
+  const experiment = await getExperiment(ctx, experimentId); // 404 if not assigned to the caller
+  const assigned = new Set(experiment.centreIds.map(String));
+  const [trials, sheets, years] = await Promise.all([
+    listTrials(ctx, { experimentId }),
+    SheetModel.find(scoped(ctx, { experimentId }), {
+      trialId: 1,
+      fyCode: 1,
+      seasonCode: 1,
+      croppingSystemCode: 1,
+      cropCode: 1,
+      status: 1,
+      updatedAt: 1,
+    }).lean(),
+    listFinancialYears(),
+  ]);
+  const yearCodes = years
+    .map((y) => y.code)
+    .filter((code) => code >= experiment.startYear)
+    .sort();
+  const byTrial = new Map<string, typeof sheets>();
+  for (const s of sheets) {
+    const key = String(s.trialId);
+    if (!byTrial.has(key)) byTrial.set(key, []);
+    byTrial.get(key)!.push(s);
+  }
+  const centres = trials
+    .filter((t) => assigned.has(String((t.centreId as unknown as { _id: unknown })._id)))
+    .map((t) => {
+      const centre = t.centreId as unknown as { _id: unknown; code: string; name: string };
+      return {
+        trialId: t.id as string,
+        centre: { id: String(centre._id), code: centre.code, name: centre.name },
+        sheets: (byTrial.get(t.id as string) ?? []).map((s) => ({
+          id: String(s._id),
+          fyCode: s.fyCode,
+          seasonCode: s.seasonCode,
+          croppingSystemCode: s.croppingSystemCode ?? null,
+          cropCode: s.cropCode ?? null,
+          status: s.status,
+          updatedAt: s.updatedAt,
+        })),
+      };
+    })
+    .sort((a, b) => a.centre.name.localeCompare(b.centre.name));
+  return {
+    experiment: { id: experiment.id as string, code: experiment.code, status: experiment.status },
+    years: yearCodes,
+    openYears: years.filter((y) => y.isOpen).map((y) => y.code),
+    seasons: experiment.seasons,
+    centres,
   };
 };

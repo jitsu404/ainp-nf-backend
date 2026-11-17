@@ -67,6 +67,9 @@ export const sheetTemplateSchemas = { params: idParams } satisfies RequestSchema
 export const importSheetSchemas = { params: idParams, query: importQuery } satisfies RequestSchemas;
 export const sheetAnalysisSchemas = { params: idParams } satisfies RequestSchemas;
 export const summarySchemas = { query: summaryQuery } satisfies RequestSchemas;
+export const reportingSchemas = {
+  query: z.object({ experimentId: objectId }),
+} satisfies RequestSchemas;
 
 export type CreateSheetDto = z.output<typeof createBody>;
 export type SaveValuesDto = z.output<typeof valuesBody>;
