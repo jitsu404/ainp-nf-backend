@@ -711,24 +711,6 @@
       "description": "Lookup lists (seasons, units, crops, NF inputs, programmes, budget heads, fund categories, staff posts). Everyone signed in reads them; `masters.edit` (PCU, Super Admin) changes them. Each list supports Excel import.",
       "item": [
         {
-          "name": "List master types",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/masters/types",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "masters",
-                "types"
-              ]
-            },
-            "description": "The lookup lists available, with their allowed groups.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/masters/types`"
-          }
-        },
-        {
           "name": "List master items",
           "request": {
             "method": "GET",
@@ -2197,6 +2179,227 @@
           }
         }
       ]
+    },
+    {
+      "name": "Budget allocations",
+      "description": "Budget allocations per centre, financial year, budget head, and fund category.",
+      "item": [
+        {
+          "name": "List budget allocations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/budget-allocations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "budget-allocations"
+              ],
+              "query": [
+                {
+                  "key": "centre",
+                  "value": "",
+                  "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "fy",
+                  "value": "",
+                  "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "budgetHead",
+                  "value": "",
+                  "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "fundCategory",
+                  "value": "",
+                  "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "isTotal",
+                  "value": "",
+                  "description": "string",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List budget allocations with optional filters (centre, financial year, etc.).\n\n**Access:** signed in, and the role needs one of `finance.allocation`, `finance.manage`\n\n**Endpoint:** `GET /api/v1/budget-allocations`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `centre` | string | no | ObjectId |  |\n| `fy` | string | no | ObjectId |  |\n| `budgetHead` | string | no | ObjectId |  |\n| `fundCategory` | string | no | ObjectId |  |\n| `isTotal` | string | no | — |  |"
+          }
+        },
+        {
+          "name": "Get budget allocation by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/budget-allocations/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "budget-allocations",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{budgetAllocationId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Retrieve a single budget allocation record by its ID.\n\n**Access:** signed in, and the role needs one of `finance.allocation`, `finance.manage`\n\n**Endpoint:** `GET /api/v1/budget-allocations/:id`"
+          }
+        },
+        {
+          "name": "Create budget allocation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the new budgetAllocation so \"Get\", \"Update\" and other requests can use it.",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('budgetAllocationId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centre\": \"{{centre}}\",\n  \"fy\": \"{{fy}}\",\n  \"amount\": 0,\n  \"isTotal\": false,\n  \"budgetHead\": \"{{budgetHead}}\",\n  \"fundCategory\": \"{{fundCategory}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/budget-allocations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "budget-allocations"
+              ]
+            },
+            "description": "Create a new budget allocation record.\n\n**Access:** signed in, and the role needs one of `finance.allocation`, `finance.manage`\n\n**Endpoint:** `POST /api/v1/budget-allocations`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `centre` | string | yes | ObjectId |  |\n| `fy` | string | yes | ObjectId |  |\n| `amount` | number | no | min 0; default `0` |  |\n| `isTotal` | boolean | no | default `false` |  |\n| `budgetHead` | string | no | ObjectId; nullable |  |\n| `fundCategory` | string | no | ObjectId; nullable |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Bulk save budget allocations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"centre\": \"{{centre}}\",\n    \"fy\": \"{{fy}}\",\n    \"budgetHead\": \"{{budgetHead}}\",\n    \"fundCategory\": \"{{fundCategory}}\",\n    \"amount\": 0,\n    \"isTotal\": false\n  }\n]",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/budget-allocations/bulk",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "budget-allocations",
+                "bulk"
+              ]
+            },
+            "description": "Batch create or update budget allocations for a centre and financial year.\n\n**Access:** signed in, and the role needs one of `finance.allocation`, `finance.manage`\n\n**Endpoint:** `POST /api/v1/budget-allocations/bulk`"
+          }
+        },
+        {
+          "name": "Update budget allocation",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"centre\": \"{{centre}}\",\n  \"fy\": \"{{fy}}\",\n  \"amount\": 0,\n  \"isTotal\": true,\n  \"budgetHead\": \"{{budgetHead}}\",\n  \"fundCategory\": \"{{fundCategory}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/budget-allocations/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "budget-allocations",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{budgetAllocationId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Update an existing budget allocation by ID.\n\n**Access:** signed in, and the role needs one of `finance.allocation`, `finance.manage`\n\n**Endpoint:** `PATCH /api/v1/budget-allocations/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `centre` | string | no | ObjectId |  |\n| `fy` | string | no | ObjectId |  |\n| `amount` | number | no | min 0 |  |\n| `isTotal` | boolean | no | — |  |\n| `budgetHead` | string | no | ObjectId; nullable |  |\n| `fundCategory` | string | no | ObjectId; nullable |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Delete budget allocation",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/budget-allocations/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "budget-allocations",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{budgetAllocationId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Remove a budget allocation record by ID.\n\n**Access:** signed in, and the role needs one of `finance.allocation`, `finance.manage`\n\n**Endpoint:** `DELETE /api/v1/budget-allocations/:id`"
+          }
+        }
+      ]
     }
   ],
   "variable": [
@@ -2265,6 +2468,12 @@
       "value": "",
       "type": "string",
       "description": "Set automatically by \"Create sheet\""
+    },
+    {
+      "key": "budgetAllocationId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by \"Create budgetAllocation\""
     }
   ],
   "event": [
