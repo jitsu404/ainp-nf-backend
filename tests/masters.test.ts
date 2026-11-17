@@ -23,10 +23,8 @@ const xlsx = (rows: Record<string, unknown>[], headers?: string[]) => {
 };
 
 describe('masters', () => {
-  it('lists types and lets the PCU add and edit items; everyone signed in can read', async () => {
+  it('lets the PCU add and edit items; everyone signed in can read', async () => {
     const { agent } = await signedInAgent('pc');
-    const types = await agent.get('/api/v1/masters/types').expect(200);
-    expect(types.body.data.map((t: { id: string }) => t.id)).toContain('season');
 
     const created = await agent
       .post('/api/v1/masters/season')

@@ -8,6 +8,7 @@ export const CAPABILITIES = [
   'research.approve',
   'research.config',
   'finance.manage',
+  'finance.allocation',
   'finance.expenditure',
   'finance.receipt',
   'finance.request',
@@ -42,6 +43,7 @@ export const CAPABILITY_LABELS: Readonly<Record<Capability, string>> = {
   'research.approve': 'Approve or return sheets',
   'research.config': 'Design experiments and assign centres',
   'finance.manage': 'Manage budgets, sanctions and releases',
+  'finance.allocation': 'Allocate and view centre budget heads and total sanctions',
   'finance.expenditure': 'Enter monthly expenditure',
   'finance.receipt': 'Confirm receipt of funds',
   'finance.request': 'Request re-appropriation',
@@ -80,6 +82,7 @@ export const CAPABILITY_MODULES: Readonly<Record<string, string>> = {
   masters: 'Masters',
   centres: 'Centres',
   users: 'Users',
+  // finance : "Finance",
   system: 'System',
 };
 
@@ -118,6 +121,7 @@ export const ROLES: Readonly<Record<RoleId, RoleDefinition>> = {
       'research.config',
       'aucsoe.approve',
       'finance.manage',
+      'finance.allocation',
       'comm.issue',
       'staff.manage',
       'meetings.manage',
@@ -133,6 +137,7 @@ export const ROLES: Readonly<Record<RoleId, RoleDefinition>> = {
     capabilities: [
       'research.enter',
       'research.submit',
+      'finance.allocation',
       'finance.expenditure',
       'finance.receipt',
       'finance.request',

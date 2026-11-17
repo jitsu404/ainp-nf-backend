@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { auditRouter } from './modules/audit/audit.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
+import { budgetAllocationRouter } from './modules/budget-allocation/budget-allocation.routes.js';
 import { centresRouter } from './modules/centres/centres.routes.js';
 import { financialYearsRouter } from './modules/financialYears/financialYears.routes.js';
 import { mastersRouter } from './modules/masters/masters.routes.js';
@@ -106,6 +107,13 @@ export const API_MODULES: readonly ApiModule[] = [
     singular: 'audit',
     description:
       'Who did what, when and from where: every change (with old → new values), sign-ins and sign-outs. `audit.view`: PCU and Super Admin see everything; a Centre PI sees only their own centre.',
+  },
+  {
+    name: 'Budget allocations',
+    prefix: '/budget-allocations',
+    router: budgetAllocationRouter,
+    singular: 'budgetAllocation',
+    description: 'Budget allocations per centre, financial year, budget head, and fund category.',
   },
 ];
 

@@ -56,7 +56,6 @@ export const masterImportRow = z.object({
   isActive: cell.bool().optional(),
 });
 
-export const masterTypesSchemas = {} satisfies RequestSchemas;
 export const listMastersSchemas = { params: typeParam, query: listQuery } satisfies RequestSchemas;
 export const createMasterSchemas = { params: typeParam, body: itemBody } satisfies RequestSchemas;
 export const updateMasterSchemas = {

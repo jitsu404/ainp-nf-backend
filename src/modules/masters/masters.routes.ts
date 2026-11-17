@@ -19,14 +19,6 @@ export const mastersRouter = Router();
 mastersRouter.use(authenticate);
 
 mastersRouter.get(
-  '/types',
-  apiDoc({
-    name: 'List master types',
-    description: 'The lookup lists available, with their allowed groups.',
-  }),
-  controller.types,
-);
-mastersRouter.get(
   '/:type',
   apiDoc({ name: 'List master items' }),
   validate(listMastersSchemas),

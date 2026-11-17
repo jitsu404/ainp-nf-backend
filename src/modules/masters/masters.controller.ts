@@ -12,10 +12,6 @@ import type {
 } from './masters.dto.js';
 import * as mastersService from './masters.service.js';
 
-export const types = (_req: Request, res: Response) => {
-  ok(res, mastersService.masterTypes());
-};
-
 export const list = async (req: Request, res: Response) => {
   const { params, query } = getValidated<typeof listMastersSchemas>(req);
   ok(res, await mastersService.listMasters(params.type, query));
