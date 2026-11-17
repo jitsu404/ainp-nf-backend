@@ -5,6 +5,7 @@
 // Centre codes are ours (the sheet has none). Known issues in the source, kept as given until the
 // PCU confirms: Gangtok repeats Umiam's address and pincode; Bhopal's pincode is Calicut's (673012).
 
+import { trusted } from 'mongoose';
 import { connectDB, disconnectDB } from '../config/db.js';
 import { env } from '../config/env.js';
 import { CentreModel } from '../modules/centres/centres.model.js';
@@ -12,7 +13,7 @@ import { ExperimentModel } from '../modules/experiments/experiments.model.js';
 import { FinancialYearModel, fyCodeFor, fyDates } from '../modules/financialYears/financialYears.model.js';
 import { MasterItemModel } from '../modules/masters/masters.model.js';
 import { MASTER_DEFAULTS, type MasterDefault, type MasterType } from '../modules/masters/masters.types.js';
-import { PARAMETER_DEFAULTS } from '../modules/parameters/parameters.defaults.js';
+import { PARAMETER_DEFAULTS, PARAMETER_FORMULAS } from '../modules/parameters/parameters.defaults.js';
 import { ParameterModel } from '../modules/parameters/parameters.model.js';
 import { passwordSchema } from '../modules/users/users.dto.js';
 import { UserModel } from '../modules/users/users.model.js';
@@ -323,6 +324,15 @@ const seedMasters = async (): Promise<void> => {
     })),
   );
   devLog(`Parameters: ${params.upsertedCount} added`, true);
+
+  // Libraries seeded before formulas existed get the default formulas once. A parameter whose
+  // formula field exists (even if the PCU cleared it) is left alone.
+  const formulas = await ParameterModel.bulkWrite(
+    Object.entries(PARAMETER_FORMULAS).map(([code, formula]) => ({
+      updateOne: { filter: { code, formula: trusted({ $exists: false }) }, update: { $set: { formula } } },
+    })),
+  );
+  if (formulas.modifiedCount) devLog(`Parameters: formulas added to ${formulas.modifiedCount}`, true);
 };
 
 const seedCentres = async (): Promise<void> => {

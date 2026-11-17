@@ -4,6 +4,13 @@ import { AppError } from '../../utils/AppError.js';
 import type { RequestContext } from '../../utils/context.js';
 import { type ExcelColumn, buildWorkbook, readRows } from '../../utils/excel.js';
 import { type ImportResult, validateRows } from '../../utils/importer.js';
+import {
+  type Formula,
+  type FormulaError,
+  findCycle,
+  formulaCodes,
+  parseFormula,
+} from '../../utils/formula.js';
 import { escapeRegex } from '../../utils/validators.js';
 import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
@@ -29,6 +36,88 @@ const assertUnit = async (unitCode: string | null | undefined) => {
   }
 };
 
+// ── Calculated parameters ────────────────────────────────────────────────────
+
+const codesIn = (formula: string | null | undefined): Set<string> => {
+  if (!formula) return new Set<string>();
+  try {
+    return formulaCodes(parseFormula(formula));
+  } catch {
+    return new Set<string>();
+  }
+};
+
+/**
+ * Why a formula can't be used, or null if it's fine. `numeric(code)` says whether a parameter
+ * exists (undefined if not) and holds numbers; `usesOf(code)` gives the codes another calculated
+ * parameter uses, to find loops.
+ */
+const formulaProblem = (
+  code: string,
+  formula: string,
+  numeric: (code: string) => boolean | undefined,
+  usesOf: (code: string) => Set<string>,
+): string | null => {
+  let codes: Set<string>;
+  try {
+    codes = formulaCodes(parseFormula(formula));
+  } catch (err) {
+    return (err as FormulaError).message;
+  }
+  if (codes.has(code)) return 'A formula cannot use its own parameter';
+  for (const used of codes) {
+    const isNumber = numeric(used);
+    if (isNumber === undefined) return `${used} is not in the parameter library`;
+    if (!isNumber) return `${used} is not a number parameter`;
+  }
+  const cycle = findCycle(code, (c) => (c === code ? codes : usesOf(c)));
+  return cycle ? `Formulas refer to each other in a loop: ${cycle.join(' → ')}` : null;
+};
+
+const libraryIndex = async () => {
+  const all = await ParameterModel.find({}, { code: 1, dataType: 1, formula: 1 }).lean();
+  const byCode = new Map(all.map((p) => [p.code, p]));
+  return {
+    numeric: (c: string) => (byCode.has(c) ? byCode.get(c)!.dataType === 'number' : undefined),
+    usesOf: (c: string) => codesIn(byCode.get(c)?.formula),
+  };
+};
+
+/** Throws 400 INVALID_FORMULA when a parameter's formula can't be used. */
+const assertFormula = async (code: string, formula: string | null | undefined, dataType: string) => {
+  if (!formula) return;
+  if (dataType !== 'number') {
+    throw AppError.badRequest('INVALID_FORMULA', 'Only number parameters can be calculated');
+  }
+  const { numeric, usesOf } = await libraryIndex();
+  const problem = formulaProblem(code, formula, numeric, usesOf);
+  if (problem) throw AppError.badRequest('INVALID_FORMULA', problem, { field: 'formula' });
+};
+
+/**
+ * Every calculated parameter in the library, parsed: code → { id, formula }. Other modules use it
+ * to compute values (a formula may use a calculated parameter that isn't in the protocol).
+ */
+export const calculatedParameters = async (): Promise<Map<string, { id: string; formula: Formula }>> => {
+  const items = await ParameterModel.find(
+    { formula: trusted({ $nin: [null, ''] }) },
+    { code: 1, formula: 1 },
+  ).lean();
+  const result = new Map<string, { id: string; formula: Formula }>();
+  for (const p of items) {
+    try {
+      result.set(p.code, { id: String(p._id), formula: parseFormula(p.formula!) });
+    } catch {
+      // Formulas are checked when saved; skip anything unreadable rather than failing every sheet.
+    }
+  }
+  return result;
+};
+
+/** Codes of library parameters by id, for formulas (which refer to codes). */
+export const parameterCodes = async (): Promise<Map<string, string>> =>
+  new Map((await ParameterModel.find({}, { code: 1 }).lean()).map((p) => [String(p._id), p.code]));
+
 export const listParameters = (query: ListParametersQuery) => {
   const filter: QueryFilter<Parameter> = {};
   if (query.category) filter.category = query.category;
@@ -46,6 +135,7 @@ export const parametersByIds = async (ids: string[]) =>
 
 export const createParameter = async (ctx: RequestContext, dto: CreateParameterDto) => {
   await assertUnit(dto.unitCode);
+  await assertFormula(dto.code, dto.formula, dto.dataType ?? 'number');
   return withTransaction(async (session) => {
     const [parameter] = await ParameterModel.create(
       [{ ...dto, createdBy: ctx.user.id, updatedBy: ctx.user.id }],
@@ -73,6 +163,8 @@ export const updateParameter = async (ctx: RequestContext, id: string, dto: Upda
     if (parameter.min !== null && parameter.max !== null && parameter.min > parameter.max) {
       throw AppError.badRequest('INVALID_RANGE', 'min must not be greater than max');
     }
+    // Checked against the result, since the request may change only the data type or the formula.
+    await assertFormula(parameter.code, parameter.formula, parameter.dataType);
     await parameter.save({ session });
     await recordAudit(
       ctx,
@@ -110,6 +202,12 @@ const COLUMNS: ExcelColumn[] = [
   { key: 'max', header: 'Max' },
   { key: 'choices', header: 'Choices', note: 'For choice parameters: values separated by |', width: 30 },
   { key: 'method', header: 'Method', width: 50 },
+  {
+    key: 'formula',
+    header: 'Formula',
+    width: 40,
+    note: 'Only for calculated parameters, e.g. NET_RETURNS / COST_CULTIVATION. Leave empty for entered ones.',
+  },
   { key: 'isActive', header: 'Active', note: 'Yes or No (default Yes).' },
 ];
 
@@ -138,6 +236,20 @@ export const importParameters = async (
       errors.push({ row, field: 'choices', message: 'A choice parameter needs at least one choice' });
     }
   }
+  // A formula may refer to parameters in the library or elsewhere in the same file.
+  const library = await libraryIndex();
+  const inFile = new Map(valid.map(({ data }) => [data.code, data]));
+  const numeric = (c: string) =>
+    inFile.has(c) ? (inFile.get(c)!.dataType ?? 'number') === 'number' : library.numeric(c);
+  const usesOf = (c: string) => (inFile.has(c) ? codesIn(inFile.get(c)!.formula) : library.usesOf(c));
+  for (const { row, data } of valid) {
+    if (!data.formula) continue;
+    const problem =
+      (data.dataType ?? 'number') !== 'number'
+        ? 'Only number parameters can be calculated'
+        : formulaProblem(data.code, data.formula, numeric, usesOf);
+    if (problem) errors.push({ row, field: 'formula', message: problem });
+  }
   const existing = new Set(
     (
       await ParameterModel.find({ code: trusted({ $in: valid.map((v) => v.data.code) }) }, { code: 1 }).lean()
@@ -158,7 +270,12 @@ export const importParameters = async (
         updateOne: {
           filter: { code: data.code },
           update: {
-            $set: { ...data, unitCode: data.unitCode ?? null, updatedBy: ctx.user.id },
+            $set: {
+              ...data,
+              unitCode: data.unitCode ?? null,
+              formula: data.formula ?? null,
+              updatedBy: ctx.user.id,
+            },
             $setOnInsert: { createdBy: ctx.user.id },
           },
           upsert: true,

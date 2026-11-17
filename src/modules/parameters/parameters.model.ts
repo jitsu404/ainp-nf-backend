@@ -38,6 +38,11 @@ export interface Parameter {
   choices: string[];
   /** Measurement method / protocol (the deep-insights sheet gives one per parameter). */
   method: string | null;
+  /**
+   * Set for a calculated parameter (numbers only), e.g. "NET_RETURNS / COST_CULTIVATION".
+   * Its values are computed from the other parameters of the same sheet and never entered.
+   */
+  formula: string | null;
   isActive: boolean;
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
@@ -57,6 +62,7 @@ const parameterSchema = new Schema<Parameter>(
     max: { type: Number, default: null },
     choices: { type: [String], default: [] },
     method: { type: String, trim: true, maxlength: 1000, default: null },
+    formula: { type: String, trim: true, maxlength: 500, default: null },
     isActive: { type: Boolean, default: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },

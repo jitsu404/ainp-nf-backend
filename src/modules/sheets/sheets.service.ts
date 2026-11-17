@@ -14,7 +14,9 @@ import {
 } from '../experiments/experiments.service.js';
 import { assertYearOpen, listFinancialYears } from '../financialYears/financialYears.service.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
+import { calculatedParameters } from '../parameters/parameters.service.js';
 import { getTrial, listTrials } from '../trials/trials.service.js';
+import { type ObsRow, calculatedIds, computeCalculated } from './sheets.calculated.js';
 import { type ParameterAnalysis, analyseParameter } from './sheets.analysis.js';
 import type { CellInput, CreateSheetDto, ListSheetsQuery, SummaryQuery } from './sheets.dto.js';
 import {
@@ -67,9 +69,26 @@ const valuesOf = async (sheetId: string) =>
     value: o.valueNumber ?? o.valueText,
   }));
 
+/**
+ * Entered values plus the computed values of calculated parameters (flagged `calculated`).
+ * Anything stored for a calculated parameter (e.g. typed before it got a formula) is ignored.
+ */
+const withCalculated = async (
+  experiment: ExperimentDetail,
+  entered: ObsRow[],
+): Promise<(ObsRow & { calculated?: true })[]> => {
+  const calcIds = calculatedIds(experiment);
+  if (!calcIds.size) return entered;
+  const computed = computeCalculated(experiment, entered, await calculatedParameters());
+  return [
+    ...entered.filter((row) => !calcIds.has(row.parameterId)),
+    ...computed.map((row) => ({ ...row, calculated: true as const })),
+  ];
+};
+
 export const getSheetDetail = async (ctx: RequestContext, id: string) => {
   const { sheet, experiment } = await loadSheet(ctx, id);
-  return { ...sheet.toJSON(), experiment, values: await valuesOf(id) };
+  return { ...sheet.toJSON(), experiment, values: await withCalculated(experiment, await valuesOf(id)) };
 };
 
 // ── Creating ─────────────────────────────────────────────────────────────────
@@ -139,6 +158,9 @@ const checkCell = (
 ): { ok: true; valueNumber: number | null; valueText: string | null } | { ok: false; message: string } => {
   const param = params.get(cell.parameterId);
   if (!param) return { ok: false, message: 'Parameter is not part of this experiment' };
+  if (param.formula) {
+    return { ok: false, message: `${param.name} is calculated from other values and can't be entered` };
+  }
   if (!experiment.treatments.some((t) => t.code === cell.treatmentCode)) {
     return { ok: false, message: `Unknown treatment ${cell.treatmentCode}` };
   }
@@ -287,7 +309,8 @@ const missingRequired = async (sheetId: string, experiment: ExperimentDetail) =>
     ).map((o) => `${o.treatmentCode}|${o.replication}|${String(o.parameterId)}`),
   );
   const missing: string[] = [];
-  for (const p of experiment.parameters.filter((x) => x.required)) {
+  // Calculated parameters are never entered, so they can't be missing.
+  for (const p of experiment.parameters.filter((x) => x.required && !x.formula)) {
     const reps =
       p.level === 'plot' && experiment.replications
         ? Array.from({ length: experiment.replications }, (_, i) => i + 1)
@@ -372,10 +395,10 @@ const TREATMENT_SHEET = 'Treatment data';
 const paramHeader = (p: ParamDetail) => `${p.name}${p.unitCode ? ` (${p.unitCode})` : ''} [${p.code}]`;
 
 const layoutFor = (experiment: ExperimentDetail) => {
-  const plotParams = experiment.parameters.filter((p) => p.level === 'plot' && experiment.replications);
-  const treatmentParams = experiment.parameters.filter(
-    (p) => !(p.level === 'plot' && experiment.replications),
-  );
+  // Calculated parameters aren't entered, so they have no column in the template.
+  const entered = experiment.parameters.filter((p) => !p.formula);
+  const plotParams = entered.filter((p) => p.level === 'plot' && experiment.replications);
+  const treatmentParams = entered.filter((p) => !(p.level === 'plot' && experiment.replications));
   const paramColumn = (p: ParamDetail): ExcelColumn => ({
     key: p.parameterId,
     header: paramHeader(p),
@@ -509,18 +532,17 @@ export const importSheet = async (ctx: RequestContext, id: string, buffer: Buffe
 
 export const analyseSheet = async (ctx: RequestContext, id: string) => {
   const { sheet, experiment } = await loadSheet(ctx, id);
-  const observations = await ObservationModel.find({
-    sheetId: id,
-    valueNumber: trusted({ $ne: null }),
-  }).lean();
+  const observations = (await withCalculated(experiment, await valuesOf(id))).filter(
+    (o): o is ObsRow & { value: number } => typeof o.value === 'number',
+  );
   const codes = experiment.treatments.map((t) => t.code);
   const parameters = experiment.parameters
     .filter((p) => p.dataType === 'number')
     .map((p) => {
       const byTreatment = new Map<string, Map<number | null, number>>();
-      for (const o of observations.filter((x) => String(x.parameterId) === p.parameterId)) {
+      for (const o of observations.filter((x) => x.parameterId === p.parameterId)) {
         if (!byTreatment.has(o.treatmentCode)) byTreatment.set(o.treatmentCode, new Map());
-        byTreatment.get(o.treatmentCode)!.set(o.replication, o.valueNumber!);
+        byTreatment.get(o.treatmentCode)!.set(o.replication, o.value);
       }
       const replicated = p.level === 'plot' ? experiment.replications : null;
       let analysis: ParameterAnalysis = analyseParameter(byTreatment, codes, replicated);
@@ -570,21 +592,38 @@ export const experimentSummary = async (ctx: RequestContext, query: SummaryQuery
   const sheets = await SheetModel.find(scoped(ctx, where)).populate<{
     centreId: { _id: unknown; code: string; name: string };
   }>('centreId', 'code name');
-  const observations = await ObservationModel.find({
+  const stored = await ObservationModel.find({
     sheetId: trusted({ $in: sheets.map((s) => s.id) }),
-    valueNumber: trusted({ $ne: null }),
   }).lean();
+  // Entered and calculated numeric values, per sheet.
+  const perSheet = new Map<string, (ObsRow & { value: number })[]>();
+  for (const s of sheets) {
+    const entered = stored
+      .filter((o) => String(o.sheetId) === s.id)
+      .map((o) => ({
+        treatmentCode: o.treatmentCode,
+        replication: o.replication,
+        parameterId: String(o.parameterId),
+        value: o.valueNumber ?? o.valueText,
+      }));
+    perSheet.set(
+      s.id,
+      (await withCalculated(experiment, entered)).filter(
+        (o): o is ObsRow & { value: number } => typeof o.value === 'number',
+      ),
+    );
+  }
 
   const numeric = experiment.parameters.filter((p) => p.dataType === 'number');
   const rows = sheets.map((s) => {
-    const mine = observations.filter((o) => String(o.sheetId) === s.id);
+    const mine = perSheet.get(s.id) ?? [];
     const means: Record<string, Record<string, number | null>> = {};
     for (const p of numeric) {
       means[p.parameterId] = {};
       for (const t of experiment.treatments) {
         const xs = mine
-          .filter((o) => o.treatmentCode === t.code && String(o.parameterId) === p.parameterId)
-          .map((o) => o.valueNumber!);
+          .filter((o) => o.treatmentCode === t.code && o.parameterId === p.parameterId)
+          .map((o) => o.value);
         means[p.parameterId]![t.code] = xs.length
           ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 1000) / 1000
           : null;

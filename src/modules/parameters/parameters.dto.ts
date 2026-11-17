@@ -26,6 +26,11 @@ const shape = {
   max: z.number().nullable().optional(),
   choices: z.array(z.string().trim().min(1).max(100)).max(50).optional(),
   method: z.string().trim().max(1000).nullable().optional(),
+  formula: z.string().trim().max(500).nullable().optional().meta({
+    example: null,
+    description:
+      'Makes it a calculated parameter: parameter codes, numbers, + - * /, brackets and IFEMPTY(x, 0), e.g. "NET_RETURNS / COST_CULTIVATION". null clears it.',
+  }),
 };
 
 const rangeOk = (b: { min?: number | null; max?: number | null }) =>
@@ -74,6 +79,7 @@ export const parameterImportRow = z
       )
       .optional(),
     method: cell.text().pipe(z.string().max(1000)).optional(),
+    formula: cell.text().pipe(z.string().max(500)).optional(),
     isActive: cell.bool().optional(),
   })
   .refine(rangeOk, { message: 'min must not be greater than max', path: ['min'] });

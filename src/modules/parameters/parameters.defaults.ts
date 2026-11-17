@@ -37,6 +37,7 @@ const rows: Row[] = [
   ['STRAW_YIELD', 'Straw / residue / by-product yield', 'KG_HA', 'Yield', 0, 0, 300000],
   ['HARVEST_INDEX', 'Harvest index', 'RATIO', 'Yield', 3, 0, 1],
   ['SYSTEM_EQ_YIELD', 'System equivalent yield (base crop)', 'KG_HA', 'Yield', 0, 0, 500000],
+  ['EQ_YIELD', 'Main-crop equivalent yield (season)', 'KG_HA', 'Yield', 0, 0, 500000],
   // Plant nutrient uptake
   ['N_UPTAKE', 'Total N uptake', 'KG_HA', 'Plant nutrient', 2, 0, 2000],
   ['P_UPTAKE', 'Total P uptake', 'KG_HA', 'Plant nutrient', 2, 0, 1000],
@@ -219,6 +220,19 @@ const rows: Row[] = [
   ],
 ];
 
+/**
+ * Calculated parameters, as the NF datasheets define them (2a: "B:C = Total Net Return / Total
+ * cost of cultivation"). Yields are kg/ha and prices Rs/kg, so returns come out in Rs/ha. The
+ * intercrop is optional (IFEMPTY), since not every cropping system has one.
+ * System equivalent yield over a whole year needs all seasons together, so it stays entered.
+ */
+export const PARAMETER_FORMULAS: Record<string, string> = {
+  GROSS_RETURNS: 'GRAIN_YIELD * SALE_PRICE_MAIN + IFEMPTY(INTERCROP_YIELD, 0) * IFEMPTY(SALE_PRICE_INTER, 0)',
+  NET_RETURNS: 'GROSS_RETURNS - COST_CULTIVATION',
+  BC_RATIO: 'NET_RETURNS / COST_CULTIVATION',
+  EQ_YIELD: 'GRAIN_YIELD + IFEMPTY(INTERCROP_YIELD, 0) * IFEMPTY(SALE_PRICE_INTER, 0) / SALE_PRICE_MAIN',
+};
+
 export const PARAMETER_DEFAULTS = rows.map(
   ([code, name, unitCode, category, decimals, min, max, method]) => ({
     code,
@@ -230,5 +244,6 @@ export const PARAMETER_DEFAULTS = rows.map(
     min,
     max,
     method: method ?? null,
+    formula: PARAMETER_FORMULAS[code] ?? null,
   }),
 );

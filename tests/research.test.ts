@@ -391,6 +391,142 @@ describe('observation sheets', () => {
   });
 });
 
+describe('calculated parameters', () => {
+  it('checks formulas in the library: syntax, known number parameters, no loops', async () => {
+    const { pcu } = await setup();
+    const add = (code: string, formula: string, extra = {}) =>
+      pcu
+        .post('/api/v1/parameters')
+        .send({ code, name: `Param ${code}`, category: 'Economics', formula, ...extra });
+    expect((await add('BAD', 'GRAIN_YIELD +').expect(400)).body.error.code).toBe('INVALID_FORMULA');
+    expect((await add('BAD', 'NOPE * 2').expect(400)).body.error.message).toContain(
+      'NOPE is not in the parameter library',
+    );
+    await add('TXT', 'GRAIN_YIELD', { dataType: 'text' }).expect(400);
+    const a = await add('A_CALC', 'GRAIN_YIELD * 2').expect(201);
+    await add('B_CALC', 'A_CALC + 1').expect(201);
+    const loop = await pcu
+      .patch(`/api/v1/parameters/${a.body.data.id}`)
+      .send({ formula: 'B_CALC - 1' })
+      .expect(400);
+    expect(loop.body.error.message).toContain('loop');
+  });
+
+  it('computes values from entered ones (mixing plot and treatment levels) and never lets them be typed', async () => {
+    const { pcu, piA, grain, experimentId, trialAId } = await setup();
+    const make = async (body: Record<string, unknown>) =>
+      (
+        await pcu
+          .post('/api/v1/parameters')
+          .send({ category: 'Economics', ...body })
+          .expect(201)
+      ).body.data;
+    const price = await make({ code: 'SALE_PRICE_MAIN', name: 'Sale price', min: 0 });
+    const cost = await make({ code: 'COST_CULTIVATION', name: 'Cost of cultivation', min: 0 });
+    const net = await make({
+      code: 'NET_CALC',
+      name: 'Net returns (calc)',
+      decimals: 0,
+      formula: 'GRAIN_YIELD * SALE_PRICE_MAIN - COST_CULTIVATION',
+    });
+    const bc = await make({
+      code: 'BC_CALC',
+      name: 'B:C (calc)',
+      decimals: 2,
+      formula: 'NET_CALC / COST_CULTIVATION',
+    });
+
+    const experiment = (await pcu.get(`/api/v1/experiments/${experimentId}`).expect(200)).body.data;
+    const keep = experiment.parameters.map(
+      (p: { parameterId: string; section: string; level: string; required: boolean }) => ({
+        parameterId: p.parameterId,
+        section: p.section,
+        level: p.level,
+        required: p.required,
+      }),
+    );
+    await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({
+        parameters: [
+          ...keep,
+          { parameterId: price.id, section: 'Economics', level: 'treatment' },
+          { parameterId: cost.id, section: 'Economics', level: 'treatment' },
+          { parameterId: net.id, section: 'Economics', level: 'treatment', required: true },
+          { parameterId: bc.id, section: 'Economics', level: 'treatment' },
+        ],
+      })
+      .expect(200);
+
+    const sheet = await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .expect(201);
+    const id = sheet.body.data.id as string;
+    const perTreatment = (parameterId: string, values: number[]) =>
+      ['T1', 'T2', 'T3'].map((t, i) => ({
+        treatmentCode: t,
+        replication: null,
+        parameterId,
+        value: values[i]!,
+      }));
+    await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({
+        values: [
+          ...fullPlotData(grain.id, {
+            T1: [4000, 4200, 4100],
+            T2: [3500, 3600, 3400],
+            T3: [3800, 3900, 3700],
+          }),
+          ...perTreatment(price.id, [20, 25, 22]),
+          ...perTreatment(cost.id, [50000, 40000, 45000]),
+        ],
+      })
+      .expect(200);
+
+    // A calculated value can't be typed in.
+    const typed = await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({ values: [{ treatmentCode: 'T1', replication: null, parameterId: net.id, value: 1 }] })
+      .expect(400);
+    expect(typed.body.error.code).toBe('INVALID_VALUES');
+
+    // T1: mean yield 4100 × 20 − 50000 = 32000; B:C = 32000 / 50000 = 0.64.
+    const detail = await piA.get(`/api/v1/sheets/${id}`).expect(200);
+    const valueOf = (pid: string, t: string) =>
+      detail.body.data.values.find(
+        (v: { parameterId: string; treatmentCode: string }) => v.parameterId === pid && v.treatmentCode === t,
+      );
+    expect(valueOf(net.id, 'T1')).toMatchObject({ value: 32000, calculated: true });
+    expect(valueOf(bc.id, 'T1').value).toBe(0.64);
+    expect(valueOf(net.id, 'T2').value).toBe(3500 * 25 - 40000);
+
+    // Required but calculated: submitting doesn't ask for it to be typed.
+    await piA.post(`/api/v1/sheets/${id}/submit`).send({}).expect(200);
+
+    const analysis = await piA.get(`/api/v1/sheets/${id}/analysis`).expect(200);
+    const bcResult = analysis.body.data.parameters.find((p: { code: string }) => p.code === 'BC_CALC');
+    expect(bcResult.means.map((m: { mean: number }) => m.mean)).toEqual([0.64, 1.19, 0.86]);
+
+    // The Excel template has no column for calculated parameters.
+    const template = await piA
+      .get(`/api/v1/sheets/${id}/template`)
+      .buffer(true)
+      .parse((res, cb) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => cb(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(template.body as ArrayBuffer);
+    const headers = (workbook.getWorksheet('Treatment data')!.getRow(1).values as unknown[]).map(String);
+    expect(headers.some((h) => h.includes('NET_CALC') || h.includes('BC_CALC'))).toBe(false);
+    expect(headers.some((h) => h.includes('SALE_PRICE_MAIN'))).toBe(true);
+  });
+});
+
 describe('reporting status', () => {
   it('lists each assigned centre × year × season with its sheets; a PI sees only their own centre', async () => {
     const { pcu, piA, experimentId, trialAId, centreA } = await setup();

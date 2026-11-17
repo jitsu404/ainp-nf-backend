@@ -76,6 +76,8 @@ export const withParameterDetails = async (experiment: Awaited<ReturnType<typeof
         min: lib?.min ?? null,
         max: lib?.max ?? null,
         choices: lib?.choices ?? [],
+        /** Set for a calculated parameter: its values are computed, never entered. */
+        formula: lib?.formula ?? null,
       };
     }),
   };
