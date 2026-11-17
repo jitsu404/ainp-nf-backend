@@ -23,7 +23,13 @@ const seasonCrop = z
       .regex(/^\d{1,2}:\d{1,2}$/, 'Row ratio like 2:1')
       .nullable()
       .optional(),
-    seedRate: z.number().min(0).max(10000).nullable().optional(),
+    seedRate: z
+      .number()
+      .min(0)
+      .max(10000)
+      .nullable()
+      .optional()
+      .meta({ example: 40, description: 'Seed rate in kg/ha' }),
     sowingDate: z.coerce.date().nullable().optional(),
     harvestDate: z.coerce.date().nullable().optional(),
   })

@@ -15,6 +15,7 @@ export interface SeasonCrop {
   intercropVariety?: string | null;
   /** e.g. "2:1" (main : intercrop rows). */
   rowRatio?: string | null;
+  /** Seed rate in kg/ha (datasheet 2a: "Seed rate (kg/ha)"). */
   seedRate?: number | null;
   sowingDate?: Date | null;
   harvestDate?: Date | null;
