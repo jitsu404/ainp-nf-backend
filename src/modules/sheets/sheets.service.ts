@@ -572,6 +572,7 @@ export const analyseSheet = async (ctx: RequestContext, id: string) => {
       code: experiment.code,
       title: experiment.title,
       design: experiment.design,
+      referenceTreatmentCode: experiment.referenceTreatmentCode ?? null,
     },
     fyCode: sheet.fyCode,
     seasonCode: sheet.seasonCode,

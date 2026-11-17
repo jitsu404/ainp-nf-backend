@@ -57,6 +57,10 @@ const shape = {
     .meta({ example: ['KHARIF', 'RABI'] }),
   startYear: fyCode,
   centreIds: z.array(objectId).max(100).optional(),
+  referenceTreatmentCode: z.string().trim().toUpperCase().max(20).nullable().optional().meta({
+    example: null,
+    description: 'Treatment the others are compared with ("% vs reference"); one of the treatment codes',
+  }),
 };
 
 const checks = <

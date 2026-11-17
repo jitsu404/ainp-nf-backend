@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { FinancialYearModel, fyDates } from '../src/modules/financialYears/financialYears.model.js';
 import { MasterItemModel } from '../src/modules/masters/masters.model.js';
 import { ParameterModel } from '../src/modules/parameters/parameters.model.js';
-import { analyseParameter } from '../src/modules/sheets/sheets.analysis.js';
+import { analyseParameter, dmrtLetters } from '../src/modules/sheets/sheets.analysis.js';
 import { createCentre, signedInAgent } from './helpers.js';
 
 const FY = '2026-27';
@@ -391,6 +391,33 @@ describe('observation sheets', () => {
   });
 });
 
+describe('reference treatment', () => {
+  it('must be one of the experiment’s treatments, also after treatments change', async () => {
+    const { pcu, experimentId } = await setup();
+    const bad = await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({ referenceTreatmentCode: 'T9' })
+      .expect(400);
+    expect(bad.body.error.code).toBe('UNKNOWN_REFERENCE_TREATMENT');
+    const ok = await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({ referenceTreatmentCode: 't3' })
+      .expect(200);
+    expect(ok.body.data.referenceTreatmentCode).toBe('T3');
+    // Removing the reference treatment without changing the reference is refused.
+    await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({
+        treatments: [
+          { code: 'T1', name: 'Control' },
+          { code: 'T2', name: 'Complete NF' },
+        ],
+      })
+      .expect(400);
+    await pcu.patch(`/api/v1/experiments/${experimentId}`).send({ referenceTreatmentCode: null }).expect(200);
+  });
+});
+
 describe('calculated parameters', () => {
   it('checks formulas in the library: syntax, known number parameters, no loops', async () => {
     const { pcu } = await setup();
@@ -724,6 +751,24 @@ describe('RCBD analysis', () => {
     expect(a.sed).toBeCloseTo(0.7454, 3);
     expect(a.cd5).toBeCloseTo(2.0694, 3); // t(0.975, 4) = 2.7764
     expect(a.significant).toBe(true);
+    // DMRT: Duncan's ranges for 4 error df are 3.93 (p = 2) and 4.01 (p = 3), × SEm 0.527 = 2.07 and 2.11.
+    // T2 (15) differs from T1 (11) and T3 (9); T1 − T3 = 2 is within 2.07, so they share a letter.
+    expect(a.groups).toEqual({ T2: 'a', T1: 'b', T3: 'b' });
+  });
+
+  it('gives overlapping DMRT groups (Duncan table, 10 error df)', () => {
+    // r_p for 10 df: 3.15, 3.29, 3.38 (× SEm 1). 20 vs 16.5 (3.5 > 3.29) differ; neighbours don't.
+    const letters = dmrtLetters(
+      [
+        { treatmentCode: 'T1', mean: 14 },
+        { treatmentCode: 'T2', mean: 20 },
+        { treatmentCode: 'T3', mean: 16.5 },
+        { treatmentCode: 'T4', mean: 18 },
+      ],
+      1,
+      10,
+    );
+    expect(letters).toEqual({ T2: 'a', T4: 'ab', T3: 'bc', T1: 'c' });
   });
 
   it('gives means only when data is incomplete or not replicated', () => {

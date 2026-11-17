@@ -138,8 +138,19 @@ const assertCompatibleWithData = (existing: Experiment, dto: UpdateExperimentDto
   }
 };
 
+/** The reference treatment, if set, must be one of the experiment's treatments. */
+const assertReferenceTreatment = (code: string | null | undefined, treatments: { code: string }[]) => {
+  if (code && !treatments.some((t) => t.code === code)) {
+    throw AppError.badRequest(
+      'UNKNOWN_REFERENCE_TREATMENT',
+      `${code} is not one of this experiment's treatments`,
+    );
+  }
+};
+
 export const createExperiment = async (ctx: RequestContext, dto: CreateExperimentDto) => {
   await validateReferences(dto);
+  assertReferenceTreatment(dto.referenceTreatmentCode, dto.treatments ?? []);
   return withTransaction(async (session) => {
     const [experiment] = await ExperimentModel.create(
       [
@@ -180,6 +191,7 @@ export const updateExperiment = async (ctx: RequestContext, id: string, dto: Upd
         `${experiment.design} needs at least 2 replications`,
       );
     }
+    assertReferenceTreatment(experiment.referenceTreatmentCode, experiment.treatments);
     await experiment.save({ session });
     await recordAudit(
       ctx,

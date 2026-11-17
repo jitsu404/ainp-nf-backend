@@ -4,6 +4,8 @@ declare module 'jstat' {
   const jStat: {
     centralF: { cdf(x: number, df1: number, df2: number): number };
     studentt: { inv(p: number, dof: number): number };
+    /** Studentized range: inv(probability, number of means, error df). */
+    tukey: { inv(p: number, nmeans: number, dof: number): number };
   };
   export default jStat;
 }

@@ -62,6 +62,8 @@ export interface Experiment {
   /** Replications for replicated designs; null for non-replicated trials and surveys. */
   replications: number | null;
   treatments: Treatment[];
+  /** The treatment others are compared with ("% vs reference"), e.g. the AI-NPOF package. */
+  referenceTreatmentCode: string | null;
   parameters: ExperimentParameter[];
   /** Season master codes in which data is recorded. */
   seasons: string[];
@@ -107,6 +109,7 @@ const experimentSchema = new Schema<Experiment>(
     design: { type: String, enum: EXPERIMENT_DESIGNS, required: true },
     replications: { type: Number, min: 1, max: 20, default: null },
     treatments: { type: [treatmentSchema], default: [] },
+    referenceTreatmentCode: { type: String, default: null },
     parameters: { type: [experimentParameterSchema], default: [] },
     seasons: { type: [String], default: [] },
     startYear: { type: String, required: true, match: /^\d{4}-\d{2}$/ },

@@ -37,11 +37,45 @@ export interface ParameterAnalysis {
     sed: number;
     cd5: number | null;
     significant: boolean;
+    /** DMRT (5 %) letters per treatment, when treatments differ; same letter = not different. */
+    groups: Record<string, string> | null;
   } | null;
   reason?: string;
 }
 
 const round = (x: number, digits = 4) => Math.round(x * 10 ** digits) / 10 ** digits;
+
+/**
+ * Duncan's multiple range test. Two means differ when their gap is larger than
+ * R_p = r_p × SEm, where p is how many means they span (in ranked order) and r_p is Duncan's
+ * significant studentized range at protection level (1 − α)^(p − 1). Treatments sharing a letter
+ * don't differ significantly; letters go from the highest mean (a) down.
+ */
+export function dmrtLetters(
+  means: { treatmentCode: string; mean: number | null }[],
+  sem: number,
+  dfError: number,
+  alpha = 0.05,
+): Record<string, string> {
+  const ranked = means
+    .filter((m): m is { treatmentCode: string; mean: number } => m.mean !== null)
+    .sort((a, b) => b.mean - a.mean);
+  const range = (p: number) => jStat.tukey.inv((1 - alpha) ** (p - 1), p, dfError) * sem;
+  // For each mean, the run of lower means it doesn't differ from.
+  const runs: [number, number][] = [];
+  for (let i = 0; i < ranked.length; i++) {
+    let j = i;
+    while (j + 1 < ranked.length && ranked[i]!.mean - ranked[j + 1]!.mean <= range(j + 2 - i)) j++;
+    if (!runs.some(([a, b]) => a <= i && j <= b)) runs.push([i, j]);
+  }
+  const letters: Record<string, string> = {};
+  ranked.forEach((m, k) => {
+    letters[m.treatmentCode] = runs
+      .map(([a, b], n) => (a <= k && k <= b ? String.fromCharCode(97 + n) : ''))
+      .join('');
+  });
+  return letters;
+}
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 
 /**
@@ -138,6 +172,7 @@ export function analyseParameter(
       sem: round(sem),
       sed: round(sed),
       cd5: significant ? round(jStat.studentt.inv(0.975, dfErr) * sed) : null,
+      groups: significant ? dmrtLetters(means, sem, dfErr) : null,
       significant,
     },
   };
