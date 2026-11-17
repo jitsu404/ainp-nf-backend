@@ -14,5 +14,10 @@ export const list = async (req: Request, res: Response) => {
 export const exportFile = async (req: Request, res: Response) => {
   const { query } = getValidated<typeof exportAuditSchemas>(req);
   const day = new Date().toISOString().slice(0, 10);
-  sendFile(res, await auditService.exportAudit(contextOf(req), query), `audit-trail-${day}.xlsx`, XLSX_CONTENT_TYPE);
+  sendFile(
+    res,
+    await auditService.exportAudit(contextOf(req), query),
+    `audit-trail-${day}.xlsx`,
+    XLSX_CONTENT_TYPE,
+  );
 };

@@ -75,7 +75,9 @@ export const createCentre = async (ctx: RequestContext, dto: CreateCentreDto) =>
 export const updateCentre = async (ctx: RequestContext, id: string, dto: UpdateCentreDto) => {
   await checkZone(dto.zone ?? undefined);
   return withTransaction(async (session) => {
-    const existing = await CentreModel.findOne(scoped(ctx, { _id: id })).session(session).lean();
+    const existing = await CentreModel.findOne(scoped(ctx, { _id: id }))
+      .session(session)
+      .lean();
     if (!existing) throw AppError.notFound('CENTRE_NOT_FOUND', 'Centre not found');
     const before = snapshot(existing, Object.keys(dto));
     const centre = await CentreModel.findOneAndUpdate(

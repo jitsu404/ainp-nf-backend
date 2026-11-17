@@ -24,9 +24,7 @@ export const createApp = (): Express => {
   app.use(requestId);
   app.use(helmet());
   // Content-Disposition is exposed so a cross-origin client can read download file names.
-  app.use(
-    cors({ origin: env.CLIENT_ORIGIN, credentials: true, exposedHeaders: ['Content-Disposition'] }),
-  );
+  app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true, exposedHeaders: ['Content-Disposition'] }));
 
   app.use(compression());
   app.use(express.json({ limit: '1mb' }));

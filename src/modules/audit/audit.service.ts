@@ -81,7 +81,9 @@ export const recordAuthEvent = async (
 
 /** A JSON-safe copy without database ids, so values compare by content (ObjectIds → strings). */
 const plain = (value: unknown): unknown =>
-  JSON.parse(JSON.stringify(value ?? null, (key, v: unknown) => (key === '_id' || key === 'id' ? undefined : v)));
+  JSON.parse(
+    JSON.stringify(value ?? null, (key, v: unknown) => (key === '_id' || key === 'id' ? undefined : v)),
+  );
 
 /**
  * The given fields of a record as plain values. Take one before changing a document and one
@@ -154,7 +156,9 @@ export const describeChanges = (row: Pick<AuditLog, 'changes' | 'cells' | 'detai
     parts.push(`${field}: ${show(from)} → ${show(to)}`);
   }
   for (const c of row.cells ?? []) {
-    parts.push(`${c.treatmentCode}${c.replication ? ` R${c.replication}` : ''} ${c.parameterCode}: ${show(c.from)} → ${show(c.to)}`);
+    parts.push(
+      `${c.treatmentCode}${c.replication ? ` R${c.replication}` : ''} ${c.parameterCode}: ${show(c.from)} → ${show(c.to)}`,
+    );
   }
   if (row.details?.email) parts.push(`email tried: ${show(row.details.email)}`);
   return parts.join('; ');

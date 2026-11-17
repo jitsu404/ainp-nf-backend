@@ -68,16 +68,24 @@ describe('audit trail: reading it', () => {
 
     const mine = await piA.get('/api/v1/audit?limit=100').expect(200);
     expect(mine.body.data.length).toBeGreaterThan(0);
-    expect(mine.body.data.every((r: { centreId: { id: string } }) => r.centreId?.id === centreA.id)).toBe(true);
+    expect(mine.body.data.every((r: { centreId: { id: string } }) => r.centreId?.id === centreA.id)).toBe(
+      true,
+    );
     // Asking for another centre returns nothing rather than an error.
-    const other = await piA.get(`/api/v1/audit?centreId=${all.body.data.find((r: { centreId: { id: string } | null }) => r.centreId && r.centreId.id !== centreA.id).centreId.id}`).expect(200);
+    const other = await piA
+      .get(
+        `/api/v1/audit?centreId=${all.body.data.find((r: { centreId: { id: string } | null }) => r.centreId && r.centreId.id !== centreA.id).centreId.id}`,
+      )
+      .expect(200);
     expect(other.body.data).toEqual([]);
   });
 
   it('filters by record, person and text, pages newest first, and validates dates', async () => {
     const { centreA, pcu, userA } = await seed();
     const record = await pcu.get(`/api/v1/audit?entityId=${centreA.id}`).expect(200);
-    expect(record.body.data.map((r: { action: string }) => r.action)).toEqual([`Updated centre ${centreA.code}`]);
+    expect(record.body.data.map((r: { action: string }) => r.action)).toEqual([
+      `Updated centre ${centreA.code}`,
+    ]);
     expect(record.body.data[0].changes).toEqual({ city: { from: null, to: 'Alpha' } });
 
     const person = await pcu.get(`/api/v1/audit?userId=${userA.id}`).expect(200);

@@ -121,7 +121,12 @@ describe('roles overview', () => {
     const { agent: pi } = await signedInAgent('pi', centre.id);
     const res = await agent.get('/api/v1/users/roles').expect(200);
     const byId = Object.fromEntries(res.body.data.map((r: { id: string }) => [r.id, r]));
-    expect(byId.pc).toMatchObject({ label: 'PCU', scope: 'national', activeUsers: 1, manages: ['Centre PI'] });
+    expect(byId.pc).toMatchObject({
+      label: 'PCU',
+      scope: 'national',
+      activeUsers: 1,
+      manages: ['Centre PI'],
+    });
     expect(byId.pi.activeUsers).toBe(1);
     expect(byId.pi.capabilities).toContainEqual({
       id: 'research.enter',

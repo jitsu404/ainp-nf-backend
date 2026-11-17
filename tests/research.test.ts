@@ -403,7 +403,9 @@ describe('sheet audit history', () => {
     await piA.put(`/api/v1/sheets/${id}/values`).send({ values }).expect(200);
 
     // Same values again plus one real change: only that cell is recorded.
-    const again = values.map((v) => (v.treatmentCode === 'T2' && v.replication === 3 ? { ...v, value: 17 } : v));
+    const again = values.map((v) =>
+      v.treatmentCode === 'T2' && v.replication === 3 ? { ...v, value: 17 } : v,
+    );
     await piA.put(`/api/v1/sheets/${id}/values`).send({ values: again }).expect(200);
 
     const history = await piA.get(`/api/v1/audit?entityId=${id}&sort=createdAt`).expect(200);
@@ -411,7 +413,13 @@ describe('sheet audit history', () => {
     expect(opened.action).toMatch(/^Opened sheet/);
     expect(first).toMatchObject({ action: 'Saved sheet: 9 values changed', source: 'form' });
     expect(first.centreId.id).toBe(centreA.id);
-    expect(first.cells[0]).toEqual({ treatmentCode: 'T1', replication: 1, parameterCode: 'GRAIN_YIELD', from: null, to: 10 });
+    expect(first.cells[0]).toEqual({
+      treatmentCode: 'T1',
+      replication: 1,
+      parameterCode: 'GRAIN_YIELD',
+      from: null,
+      to: 10,
+    });
     expect(second).toMatchObject({
       action: 'Saved sheet: 1 value changed',
       cells: [{ treatmentCode: 'T2', replication: 3, parameterCode: 'GRAIN_YIELD', from: 15, to: 17 }],
@@ -479,7 +487,10 @@ describe('experiment designs', () => {
     await pcu.patch(`/api/v1/experiments/${stripReps.body.data.id}`).send({ design: 'RBD' }).expect(200);
     await pcu.patch(`/api/v1/experiments/${stripReps.body.data.id}`).send({ replications: 1 }).expect(400);
     // Old names are no longer accepted.
-    await pcu.post('/api/v1/experiments').send({ ...base, code: 'OLD', design: 'RCBD', replications: 3 }).expect(400);
+    await pcu
+      .post('/api/v1/experiments')
+      .send({ ...base, code: 'OLD', design: 'RCBD', replications: 3 })
+      .expect(400);
   });
 
   it('runs the ANOVA only for RBD; a split-plot sheet gets treatment means only', async () => {

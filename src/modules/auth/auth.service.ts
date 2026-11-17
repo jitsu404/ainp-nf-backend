@@ -7,7 +7,12 @@ import { env } from '../../config/env.js';
 import { AppError } from '../../utils/AppError.js';
 import { logger } from '../../utils/logger.js';
 import { recordAuthEvent } from '../audit/audit.service.js';
-import { BCRYPT_COST, findActiveUserById, findUserByEmailWithPassword, markLoggedIn } from '../users/users.service.js';
+import {
+  BCRYPT_COST,
+  findActiveUserById,
+  findUserByEmailWithPassword,
+  markLoggedIn,
+} from '../users/users.service.js';
 import type { User } from '../users/users.model.js';
 import type { LoginDto } from './auth.dto.js';
 

@@ -86,7 +86,10 @@ const checks = <
         // An update that doesn't send replications is checked against the saved value (service).
         (partial && b.replications === undefined) ||
         (b.replications !== undefined && b.replications !== null && b.replications >= 2),
-      { message: `${DESIGNS_NEEDING_REPLICATIONS.join(' and ')} need at least 2 replications`, path: ['replications'] },
+      {
+        message: `${DESIGNS_NEEDING_REPLICATIONS.join(' and ')} need at least 2 replications`,
+        path: ['replications'],
+      },
     );
 
 const createBody = checks(z.object(shape).strict());
