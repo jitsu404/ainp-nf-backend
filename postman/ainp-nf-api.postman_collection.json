@@ -230,6 +230,24 @@
           }
         },
         {
+          "name": "Roles overview",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/roles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "roles"
+              ]
+            },
+            "description": "Every role with its scope, the roles it manages, its capabilities (grouped by module) and its number of active accounts.\n\n**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `GET /api/v1/users/roles`"
+          }
+        },
+        {
           "name": "Get user",
           "request": {
             "method": "GET",
@@ -748,7 +766,7 @@
                 {
                   "key": "type",
                   "value": "{{type}}",
-                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`"
+                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`, `zone`"
                 }
               ]
             },
@@ -801,7 +819,7 @@
                 {
                   "key": "type",
                   "value": "{{type}}",
-                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`"
+                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`, `zone`"
                 }
               ]
             },
@@ -841,7 +859,7 @@
                 {
                   "key": "type",
                   "value": "{{type}}",
-                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`"
+                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`, `zone`"
                 },
                 {
                   "key": "id",
@@ -872,7 +890,7 @@
                 {
                   "key": "type",
                   "value": "{{type}}",
-                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`"
+                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`, `zone`"
                 }
               ]
             },
@@ -906,7 +924,7 @@
                 {
                   "key": "type",
                   "value": "{{type}}",
-                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`"
+                  "description": "one of `season`, `unit`, `crop`, `nfInput`, `programme`, `budgetHead`, `fundCategory`, `staffPost`, `zone`"
                 }
               ]
             },

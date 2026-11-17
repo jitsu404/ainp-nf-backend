@@ -1,6 +1,14 @@
 import bcrypt from 'bcryptjs';
 import { type ClientSession, type QueryFilter, trusted } from 'mongoose';
-import { ASSIGNABLE_ROLES, ROLES, type RoleId, canAssignRole } from '../../config/constants.js';
+import {
+  ASSIGNABLE_ROLES,
+  CAPABILITY_LABELS,
+  CAPABILITY_MODULES,
+  ROLES,
+  ROLE_IDS,
+  type RoleId,
+  canAssignRole,
+} from '../../config/constants.js';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
 import type { RequestContext } from '../../utils/context.js';
@@ -126,6 +134,31 @@ export const getOwnProfile = async (id: string) => {
 };
 
 /** Every Centre PI a centre has had: the active one first, then past PIs, newest first. */
+/**
+ * Every role with its scope, what it may do (grouped by module) and how many active accounts it
+ * has. Read-only overview for the PCU and Super Admin; built from config/constants.ts, so it can't
+ * drift from what the server enforces.
+ */
+export const roleSummary = async () => {
+  const counts = await UserModel.aggregate<{ _id: RoleId; n: number }>([
+    { $match: { isActive: true } },
+    { $group: { _id: '$roleId', n: { $sum: 1 } } },
+  ]);
+  const activeUsers = new Map(counts.map((c) => [c._id, c.n]));
+  return ROLE_IDS.map((id) => ({
+    id,
+    label: ROLES[id].label,
+    scope: ROLES[id].scope,
+    activeUsers: activeUsers.get(id) ?? 0,
+    manages: ASSIGNABLE_ROLES[id].map((r) => ROLES[r].label),
+    capabilities: ROLES[id].capabilities.map((cap) => ({
+      id: cap,
+      label: CAPABILITY_LABELS[cap],
+      module: CAPABILITY_MODULES[cap.split('.')[0]!] ?? 'Other',
+    })),
+  }));
+};
+
 export const listCentrePis = (centreId: string) =>
   UserModel.find({ centreId, roleId: 'pi' }).sort({ isActive: -1, createdAt: -1 });
 

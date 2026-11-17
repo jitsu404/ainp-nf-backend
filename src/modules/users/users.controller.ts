@@ -13,6 +13,10 @@ import type {
 } from './users.dto.js';
 import * as usersService from './users.service.js';
 
+export const roles = async (_req: Request, res: Response) => {
+  ok(res, await usersService.roleSummary());
+};
+
 export const list = async (req: Request, res: Response) => {
   const { query } = getValidated<typeof listUsersSchemas>(req);
   const { items, meta } = await usersService.listUsers(contextOf(req), query);

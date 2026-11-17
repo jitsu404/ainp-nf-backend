@@ -46,6 +46,10 @@ export const listMasters = async (type: MasterType, query: ListMastersQuery) => 
   return MasterItemModel.find(filter).sort({ sortOrder: 1, name: 1 }).limit(1000);
 };
 
+/** Names of active items of a type, for fields stored by name (a centre's agro-climatic zone). */
+export const activeMasterNames = async (type: MasterType): Promise<Set<string>> =>
+  new Set((await MasterItemModel.find({ type, isActive: true }, { name: 1 }).lean()).map((m) => m.name));
+
 /** Codes of active items of a type, for other modules to validate references (e.g. seasons). */
 export const activeMasterCodes = async (type: MasterType): Promise<Set<string>> =>
   new Set((await MasterItemModel.find({ type, isActive: true }, { code: 1 }).lean()).map((m) => m.code));

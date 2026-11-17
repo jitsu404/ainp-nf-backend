@@ -21,6 +21,16 @@ export const usersRouter = Router();
 usersRouter.use(authenticate, authorize('users.manage'));
 
 usersRouter.get('/', validate(listUsersSchemas), controller.list);
+// Before '/:id', so "roles" isn't read as a user id.
+usersRouter.get(
+  '/roles',
+  apiDoc({
+    name: 'Roles overview',
+    description:
+      'Every role with its scope, the roles it manages, its capabilities (grouped by module) and its number of active accounts.',
+  }),
+  controller.roles,
+);
 usersRouter.get('/:id', validate(getUserSchemas), controller.getById);
 usersRouter.post(
   '/',

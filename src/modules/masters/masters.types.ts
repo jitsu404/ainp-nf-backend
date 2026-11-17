@@ -64,6 +64,10 @@ export const MASTER_TYPES = {
     groups: ['Scientific', 'Research fellow', 'Technical', 'Administrative', 'Other'],
     groupLabel: 'Category',
   },
+  zone: {
+    label: 'Agro-climatic zones',
+    description: 'Planning Commission agro-climatic zones; each centre is in one (PCU master table).',
+  },
 } as const satisfies Record<string, MasterTypeConfig>;
 
 export type MasterType = keyof typeof MASTER_TYPES;
@@ -261,4 +265,23 @@ export const MASTER_DEFAULTS: Record<MasterType, MasterDefault[]> = {
     ['STO', 'Senior Technical Officer', 'Technical'],
     ['TA', 'Technical Assistant', 'Technical'],
   ].map(([code, name, group]) => ({ code: code!, name: name!, group: group! })),
+  // The 15 Planning Commission zones, numbered as in the Planning Commission list. Names follow the
+  // wording of the PCU master table, which the seeded centres use.
+  zone: [
+    ['Z01', 'Western Himalaya'],
+    ['Z02', 'Eastern Himalaya'],
+    ['Z03', 'Lower Gangetic Plains'],
+    ['Z04', 'Middle Gangetic Plains'],
+    ['Z05', 'Upper Gangetic Plains'],
+    ['Z06', 'Trans Gangetic Plains'],
+    ['Z07', 'Eastern Plateau and Hills'],
+    ['Z08', 'Central Plateau and Hills'],
+    ['Z09', 'Western Plateau and Hills'],
+    ['Z10', 'Southern Plateau and Hills'],
+    ['Z11', 'East Coast Plains and Hills'],
+    ['Z12', 'West Coast Plains and Ghat'],
+    ['Z13', 'Gujarat Plains and Hills'],
+    ['Z14', 'Western Dry Region'],
+    ['Z15', 'Island Region'],
+  ].map(([code, name]) => ({ code: code!, name: name! })),
 };

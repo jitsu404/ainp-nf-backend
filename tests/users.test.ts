@@ -114,6 +114,24 @@ describe('user accounts', () => {
   });
 });
 
+describe('roles overview', () => {
+  it('lists each role with its capabilities and active accounts; Centre PIs cannot see it', async () => {
+    const centre = await createCentre();
+    const { agent } = await signedInAgent('pc');
+    const { agent: pi } = await signedInAgent('pi', centre.id);
+    const res = await agent.get('/api/v1/users/roles').expect(200);
+    const byId = Object.fromEntries(res.body.data.map((r: { id: string }) => [r.id, r]));
+    expect(byId.pc).toMatchObject({ label: 'PCU', scope: 'national', activeUsers: 1, manages: ['Centre PI'] });
+    expect(byId.pi.activeUsers).toBe(1);
+    expect(byId.pi.capabilities).toContainEqual({
+      id: 'research.enter',
+      label: 'Enter observation data and set up trials',
+      module: 'Research',
+    });
+    await pi.get('/api/v1/users/roles').expect(403);
+  });
+});
+
 describe('Centre PI assignment', () => {
   it('assigns a PI to a centre with no PI, and shows them on the centre', async () => {
     const centre = await createCentre();

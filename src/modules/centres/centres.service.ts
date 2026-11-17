@@ -5,6 +5,7 @@ import { type RequestContext, withScope } from '../../utils/context.js';
 import { type PageMeta, pageMeta } from '../../utils/response.js';
 import { skipFor } from '../../utils/validators.js';
 import { recordAudit } from '../audit/audit.service.js';
+import { activeMasterNames } from '../masters/masters.service.js';
 import { type Centre, CentreModel } from './centres.model.js';
 import type { CreateCentreDto, ListCentresQuery, UpdateCentreDto } from './centres.dto.js';
 
@@ -47,8 +48,17 @@ export const getCentre = async (ctx: RequestContext, id: string) => {
   return centre;
 };
 
-export const createCentre = (ctx: RequestContext, dto: CreateCentreDto) =>
-  withTransaction(async (session) => {
+/** The zone is stored by name and must be an active item of the agro-climatic zones master. */
+const checkZone = async (zone: string | undefined): Promise<void> => {
+  if (zone === undefined || zone === '') return;
+  if (!(await activeMasterNames('zone')).has(zone)) {
+    throw AppError.badRequest('UNKNOWN_ZONE', `"${zone}" is not in the agro-climatic zones list`);
+  }
+};
+
+export const createCentre = async (ctx: RequestContext, dto: CreateCentreDto) => {
+  await checkZone(dto.zone);
+  return withTransaction(async (session) => {
     const [centre] = await CentreModel.create([{ ...dto, createdBy: ctx.user.id, updatedBy: ctx.user.id }], {
       session,
     });
@@ -60,9 +70,11 @@ export const createCentre = (ctx: RequestContext, dto: CreateCentreDto) =>
     );
     return centre;
   });
+};
 
-export const updateCentre = (ctx: RequestContext, id: string, dto: UpdateCentreDto) =>
-  withTransaction(async (session) => {
+export const updateCentre = async (ctx: RequestContext, id: string, dto: UpdateCentreDto) => {
+  await checkZone(dto.zone ?? undefined);
+  return withTransaction(async (session) => {
     const centre = await CentreModel.findOneAndUpdate(
       scoped(ctx, { _id: id }),
       { ...dto, updatedBy: ctx.user.id },
@@ -82,6 +94,7 @@ export const updateCentre = (ctx: RequestContext, id: string, dto: UpdateCentreD
     );
     return centre;
   });
+};
 
 /** For other modules that need to check a centre id (they must not import CentreModel). */
 export const centreExists = async (id: string): Promise<boolean> =>
