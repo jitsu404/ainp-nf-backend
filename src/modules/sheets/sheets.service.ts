@@ -555,6 +555,10 @@ export const analyseSheet = async (ctx: RequestContext, id: string) => {
           reason: `Analysis of variance for ${experiment.design.toLowerCase()} design is not available yet; treatment means only`,
         };
       }
+      // The design is replicated, but this parameter is recorded once per treatment.
+      if (!replicated && experiment.replications) {
+        analysis = { ...analysis, reason: 'Recorded once per treatment, so there is no ANOVA; means only' };
+      }
       return {
         parameterId: p.parameterId,
         code: p.code,

@@ -855,7 +855,11 @@ describe('RCBD analysis', () => {
     expect(result.sem).toBeCloseTo(0.4194, 3);
     expect(result.sed).toBeCloseTo(0.5932, 3);
     expect(result.cd5).toBeCloseTo(2.5523, 3); // t(0.975, 2) = 4.3027
-    expect(result).toMatchObject({ significant: true, interactionSignificant: false });
+    expect(result).toMatchObject({
+      significant: true,
+      interactionSignificant: false,
+      treatmentsTestedAgainst: 'interaction',
+    });
     expect(result.groups).toEqual({ T2: 'a', T1: 'b', T3: 'b' });
     expect(result.bartlett.chiSquare).toBeCloseTo(3.6325, 3);
     expect(result.bartlett.homogeneous).toBe(true);
@@ -876,6 +880,39 @@ describe('RCBD analysis', () => {
     ).toEqual({
       reason: 'Needs complete data from at least 2 locations',
     });
+  });
+
+  it('tests treatments against the pooled error when there is no interaction at all', () => {
+    // Location B = A + 300 everywhere, so treatments × locations is exactly 0. Found in the
+    // browser check: the treatment F-test used to be skipped and reported "no difference".
+    const additive = pooledAnalysis(
+      [
+        {
+          label: 'A',
+          grid: [
+            [2600, 2750, 2680],
+            [3350, 3420, 3290],
+            [3800, 3950, 3870],
+          ],
+        },
+        {
+          label: 'B',
+          grid: [
+            [2900, 3050, 2980],
+            [3650, 3720, 3590],
+            [4100, 4250, 4170],
+          ],
+        },
+      ],
+      ['T1', 'T2', 'T3'],
+    );
+    if ('reason' in additive) throw new Error(additive.reason);
+    expect(additive.table.find((r) => r.source === 'Treatments × Locations')!.ss).toBeCloseTo(0, 6);
+    expect(additive.table.find((r) => r.source === 'Treatments')!.f).toBeGreaterThan(100);
+    expect(additive.significant).toBe(true);
+    expect(additive.treatmentsTestedAgainst).toBe('pooled error');
+    expect(additive.cd5).not.toBeNull();
+    expect(additive.groups).toEqual({ T3: 'a', T2: 'b', T1: 'c' });
   });
 
   it('gives overlapping DMRT groups (Duncan table, 10 error df)', () => {

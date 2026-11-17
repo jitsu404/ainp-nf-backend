@@ -208,6 +208,8 @@ export interface PooledAnalysis {
   significant: boolean;
   /** Treatments behaved differently at different locations. */
   interactionSignificant: boolean;
+  /** What treatments were tested against: the T × L interaction, or the pooled error when there is no interaction. */
+  treatmentsTestedAgainst: 'interaction' | 'pooled error';
   groups: Record<string, string> | null;
   /** Bartlett's test that the locations' error variances can be pooled. */
   bartlett: { chiSquare: number; df: number; p: number; homogeneous: boolean };
@@ -263,8 +265,13 @@ export function pooledAnalysis(
   const fp = (num: number, den: number, d1: number, d2: number) =>
     den > 0 ? { f: num / den, p: 1 - jStat.centralF.cdf(num / den, d1, d2) } : { f: null, p: null };
   const fLoc = fp(ms.loc, ms.rep, df.loc, df.rep);
-  const fTrt = fp(ms.trt, ms.tl, df.trt, df.tl);
   const fTL = fp(ms.tl, ms.err, df.tl, df.err);
+  // Treatments are tested against the interaction; when there is none at all (every treatment
+  // moved by the same amount between locations), against the pooled error instead. The same
+  // mean square gives the standard errors and CD.
+  const basis = ms.tl > 1e-9 * ms.err ? ms.tl : ms.err;
+  const basisDf = basis === ms.tl ? df.tl : df.err;
+  const fTrt = fp(ms.trt, basis, df.trt, basisDf);
 
   // Bartlett: each location's own error mean square, all with (t − 1)(r − 1) df.
   const dfi = (t - 1) * (r - 1);
@@ -288,8 +295,6 @@ export function pooledAnalysis(
     treatmentCode: code,
     mean: round(trtTotals[k]! / (l * r)),
   }));
-  const basis = ms.tl > 0 ? ms.tl : ms.err;
-  const basisDf = ms.tl > 0 ? df.tl : df.err;
   const sem = Math.sqrt(basis / (l * r));
   const sed = Math.sqrt((2 * basis) / (l * r));
   const significant = fTrt.p !== null && fTrt.p < 0.05;
@@ -325,6 +330,7 @@ export function pooledAnalysis(
     cd5: significant ? round(jStat.studentt.inv(0.975, basisDf) * sed) : null,
     significant,
     interactionSignificant: fTL.p !== null && fTL.p < 0.05,
+    treatmentsTestedAgainst: basis === ms.tl ? 'interaction' : 'pooled error',
     groups: significant ? dmrtLetters(means, sem, basisDf) : null,
     bartlett: {
       chiSquare: Number.isFinite(chi) ? round(chi) : chi,
