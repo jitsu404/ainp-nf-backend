@@ -8,6 +8,7 @@ export interface MasterTypeConfig {
   /** If set, `group` must be one of these (e.g. budget head → Salaries / General / Capital). */
   groups?: readonly string[];
   groupLabel?: string;
+  linkedTo?:string;
 }
 
 export const MASTER_TYPES = {
@@ -53,6 +54,7 @@ export const MASTER_TYPES = {
     description: 'ICAR budget heads used in BE, releases, expenditure and AUC.',
     groups: ['Salaries', 'General', 'Capital'],
     groupLabel: 'Grant-in-Aid',
+    linkedTo : "fundCategory"
   },
   fundCategory: {
     label: 'Fund categories',

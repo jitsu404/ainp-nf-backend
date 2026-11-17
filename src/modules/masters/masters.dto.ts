@@ -23,6 +23,9 @@ const itemBody = z
       .max(60)
       .optional()
       .meta({ description: 'Allowed values depend on the type (see /masters/types)' }),
+    linkedTo: z
+      .preprocess((val) => (val === '' ? null : val), objectId.nullable().optional())
+      .meta({ description: 'Optional ID of linked master item (e.g. fundCategory for budgetHead)' }),
     description: z.string().trim().max(500).optional(),
     sortOrder: z.number().int().min(0).max(9999).optional(),
   })
@@ -38,6 +41,9 @@ const listQuery = z.object({
   search: z.string().trim().max(100).optional(),
   group: z.string().trim().max(60).optional(),
   isActive: z.stringbool().optional(),
+  linkedTo: z
+    .preprocess((val) => (val === '' ? undefined : val), objectId.optional())
+    .meta({ description: 'Filter by linked master item ID' }),
 });
 
 /** One spreadsheet row of a masters import. */

@@ -1,4 +1,4 @@
-import { type QueryFilter, trusted } from 'mongoose';
+import { type QueryFilter, Types, trusted } from 'mongoose';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
 import type { RequestContext } from '../../utils/context.js';
@@ -39,11 +39,15 @@ export const listMasters = async (type: MasterType, query: ListMastersQuery) => 
   const filter: QueryFilter<MasterItem> = { type };
   if (query.group) filter.group = query.group;
   if (query.isActive !== undefined) filter.isActive = query.isActive;
+  if (query.linkedTo) filter.linkedTo = new Types.ObjectId(query.linkedTo);
   if (query.search) {
     const pattern = new RegExp(escapeRegex(query.search), 'i');
     filter.$or = [{ code: pattern }, { name: pattern }];
   }
-  return MasterItemModel.find(filter).sort({ sortOrder: 1, name: 1 }).limit(1000);
+  return MasterItemModel.find(filter)
+    .populate('linkedTo', 'name code type')
+    .sort({ sortOrder: 1, name: 1 })
+    .limit(1000);
 };
 
 /** Codes of active items of a type, for other modules to validate references (e.g. seasons). */
@@ -53,10 +57,20 @@ export const activeMasterCodes = async (type: MasterType): Promise<Set<string>> 
 export const createMaster = (ctx: RequestContext, type: MasterType, dto: CreateMasterDto) =>
   withTransaction(async (session) => {
     const [item] = await MasterItemModel.create(
-      [{ ...dto, type, group: checkGroup(type, dto.group), createdBy: ctx.user.id, updatedBy: ctx.user.id }],
+      [
+        {
+          ...dto,
+          type,
+          group: checkGroup(type, dto.group),
+          linkedTo: dto.linkedTo ? new Types.ObjectId(dto.linkedTo) : null,
+          createdBy: ctx.user.id,
+          updatedBy: ctx.user.id,
+        },
+      ],
       { session },
     );
     if (!item) throw new Error('Master item was not created');
+    await item.populate('linkedTo', 'name code type');
     await recordAudit(
       ctx,
       { action: `Added ${MASTER_TYPES[type].label}: ${item.code}`, module: MODULE, entityId: item.id },
@@ -72,9 +86,13 @@ export const updateMaster = (ctx: RequestContext, type: MasterType, id: string, 
     item.set({
       ...dto,
       ...(dto.group !== undefined && { group: checkGroup(type, dto.group) }),
+      ...(dto.linkedTo !== undefined && {
+        linkedTo: dto.linkedTo ? new Types.ObjectId(dto.linkedTo) : null,
+      }),
       updatedBy: ctx.user.id,
     });
     await item.save({ session });
+    await item.populate('linkedTo', 'name code type');
     await recordAudit(
       ctx,
       {

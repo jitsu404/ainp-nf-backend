@@ -14,6 +14,8 @@ export interface MasterItem {
   updatedBy?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
+  linkedTo: Types.ObjectId | null;
+  metaData?: Record<string, unknown> | null;
 }
 
 const masterItemSchema = new Schema<MasterItem>(
@@ -27,6 +29,8 @@ const masterItemSchema = new Schema<MasterItem>(
     isActive: { type: Boolean, default: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    linkedTo: {type : Schema.Types.ObjectId, ref: "MasterItem", default : null},
+    metaData : {type : Schema.Types.Mixed}
   },
   { timestamps: true },
 );
