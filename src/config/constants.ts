@@ -25,6 +25,7 @@ export const CAPABILITIES = [
   'admin.approve',
   'admin.request',
   'docs.upload',
+  'audit.view',
   'masters.edit',
   'centres.manage',
   'users.manage',
@@ -32,6 +33,55 @@ export const CAPABILITIES = [
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
+
+/** Plain-language description of each capability, shown in the Roles overview (Masters). */
+export const CAPABILITY_LABELS: Readonly<Record<Capability, string>> = {
+  'research.enter': 'Enter observation data and set up trials',
+  'research.submit': 'Submit observation sheets',
+  'research.review': 'Review sheets and return them',
+  'research.approve': 'Approve or return sheets',
+  'research.config': 'Design experiments and assign centres',
+  'finance.manage': 'Manage budgets, sanctions and releases',
+  'finance.expenditure': 'Enter monthly expenditure',
+  'finance.receipt': 'Confirm receipt of funds',
+  'finance.request': 'Request re-appropriation',
+  'aucsoe.enter': 'Prepare AUC / SoE',
+  'aucsoe.submit': 'Submit AUC / SoE',
+  'aucsoe.review': 'Scrutinise AUC / SoE',
+  'aucsoe.approve': 'Approve AUC / SoE',
+  'comm.issue': 'Issue circulars and reminders',
+  'comm.ack': 'Acknowledge and reply to communications',
+  'staff.manage': 'Manage project staff',
+  'staff.propose': 'Report staff joining or relieving',
+  'meetings.manage': 'Schedule meetings and action points',
+  'meetings.update': 'Update own action points',
+  'admin.manage': 'Manage programmes and office orders',
+  'admin.approve': 'Approve administrative requests',
+  'admin.request': 'Make administrative requests',
+  'docs.upload': 'Upload documents',
+  'audit.view': 'See the audit trail (Centre PI: own centre only)',
+  'masters.edit': 'Edit master lists and the parameter library',
+  'centres.manage': 'Add centres and assign Centre PIs',
+  'users.manage': 'Manage user accounts',
+  'system.manage': 'System settings',
+};
+
+/** Module of each capability prefix, for grouping in the Roles overview. */
+export const CAPABILITY_MODULES: Readonly<Record<string, string>> = {
+  research: 'Research',
+  finance: 'Finance',
+  aucsoe: 'AUC / SoE',
+  comm: 'Communication',
+  staff: 'Staff',
+  meetings: 'Meetings',
+  admin: 'Administration',
+  docs: 'Documents',
+  audit: 'Audit trail',
+  masters: 'Masters',
+  centres: 'Centres',
+  users: 'Users',
+  system: 'System',
+};
 
 export const ROLE_IDS = ['superadmin', 'pc', 'pi'] as const;
 export type RoleId = (typeof ROLE_IDS)[number];
@@ -74,6 +124,7 @@ export const ROLES: Readonly<Record<RoleId, RoleDefinition>> = {
       'admin.manage',
       'admin.approve',
       'docs.upload',
+      'audit.view',
     ],
   },
   pi: {
@@ -92,6 +143,7 @@ export const ROLES: Readonly<Record<RoleId, RoleDefinition>> = {
       'meetings.update',
       'admin.request',
       'docs.upload',
+      'audit.view',
     ],
   },
 };

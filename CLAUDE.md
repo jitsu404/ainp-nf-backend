@@ -74,7 +74,7 @@ src/
 │   ├── seed.ts               # npm run seed
 │   └── generate-postman.ts   # npm run postman
 └── modules/
-    ├── audit/                # audit.model.ts, audit.service.ts (recordAudit). No routes yet
+    ├── audit/                # recordAudit / recordAuthEvent (the only writers) + read-only GET /audit, /audit/export
     ├── auth/                 # login / logout / me
     ├── users/                # user administration (users.manage)
     └── centres/              # reference implementation of a full CRUD module. Copy its shape
@@ -224,7 +224,11 @@ export type CreateCentreDto = z.output<typeof centreBody>;
 - User-supplied search text goes through `escapeRegex` before it becomes a `RegExp`.
 - Use `findOneAndUpdate(..., { returnDocument: 'after', runValidators: true })`. The `new: true` option is deprecated in Mongoose 9.
 - Multi-document writes run in **`withTransaction(async (session) => …)`** from `config/db.ts`, passing `session` to every query, e.g. a record plus its audit row, or a fund release plus its balance update. This needs a replica set: `docker compose up -d` locally, Atlas or an equivalent in production.
-- **Audit:** every create/update calls `recordAudit(ctx, { action, module, entityId, centreId, changes? }, session)` inside the same transaction. Only `modules/audit/audit.service.ts` writes `auditlogs`. Workflow history will follow the same pattern.
+- **Audit:** every create/update calls `recordAudit(ctx, { action, module, entityId, centreId, changes? }, session)` inside the same transaction. Only `modules/audit/audit.service.ts` writes `auditlogs`; rows are never updated or deleted.
+  - **Edits store old → new values, only for fields that changed:** take `const before = snapshot(doc, Object.keys(dto))` before changing the document, then pass `changes: fieldChanges(before, snapshot(doc, Object.keys(dto)))`. Never pass the DTO itself as `changes`.
+  - **Always set `centreId`** when the record belongs to a centre: the audit list is centre-scoped, so a row without it is invisible to that centre's PI.
+  - Sheet saves store `cells` (old → new per changed cell) and `source` (`form` / `excel`). Sign-in, failed sign-in (with the email tried) and sign-out use `recordAuthEvent` (module `auth`).
+  - Reading: `GET /audit` (filters: person, role, centre, module, record via `entityId`, IST date range, text; paged, newest first) and `GET /audit/export` (Excel, up to 10,000 rows), both `audit.view`. A Centre PI sees only their own centre's rows.
 
 ## Postman collection (generated)
 

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { auditRouter } from './modules/audit/audit.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { centresRouter } from './modules/centres/centres.routes.js';
 import { financialYearsRouter } from './modules/financialYears/financialYears.routes.js';
@@ -97,6 +98,14 @@ export const API_MODULES: readonly ApiModule[] = [
     singular: 'sheet',
     description:
       'Data recording per trial × year × season: cell entry or Excel import, Draft → Submitted → Returned/Approved workflow, analysis (means, RCBD ANOVA) and cross-centre summary.',
+  },
+  {
+    name: 'Audit trail',
+    prefix: '/audit',
+    router: auditRouter,
+    singular: 'audit',
+    description:
+      'Who did what, when and from where: every change (with old → new values), sign-ins and sign-outs. `audit.view`: PCU and Super Admin see everything; a Centre PI sees only their own centre.',
   },
 ];
 

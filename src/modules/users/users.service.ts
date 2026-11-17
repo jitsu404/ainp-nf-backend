@@ -1,12 +1,20 @@
 import bcrypt from 'bcryptjs';
 import { type ClientSession, type QueryFilter, trusted } from 'mongoose';
-import { ASSIGNABLE_ROLES, ROLES, type RoleId, canAssignRole } from '../../config/constants.js';
+import {
+  ASSIGNABLE_ROLES,
+  CAPABILITY_LABELS,
+  CAPABILITY_MODULES,
+  ROLES,
+  ROLE_IDS,
+  type RoleId,
+  canAssignRole,
+} from '../../config/constants.js';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
 import type { RequestContext } from '../../utils/context.js';
 import { pageMeta } from '../../utils/response.js';
 import { skipFor } from '../../utils/validators.js';
-import { recordAudit } from '../audit/audit.service.js';
+import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { centreExists } from '../centres/centres.service.js';
 import { type User, UserModel } from './users.model.js';
 import type { AssignCentrePiDto, CreateUserDto, ListUsersQuery, UpdateUserDto } from './users.dto.js';
@@ -126,6 +134,31 @@ export const getOwnProfile = async (id: string) => {
 };
 
 /** Every Centre PI a centre has had: the active one first, then past PIs, newest first. */
+/**
+ * Every role with its scope, what it may do (grouped by module) and how many active accounts it
+ * has. Read-only overview for the PCU and Super Admin; built from config/constants.ts, so it can't
+ * drift from what the server enforces.
+ */
+export const roleSummary = async () => {
+  const counts = await UserModel.aggregate<{ _id: RoleId; n: number }>([
+    { $match: { isActive: true } },
+    { $group: { _id: '$roleId', n: { $sum: 1 } } },
+  ]);
+  const activeUsers = new Map(counts.map((c) => [c._id, c.n]));
+  return ROLE_IDS.map((id) => ({
+    id,
+    label: ROLES[id].label,
+    scope: ROLES[id].scope,
+    activeUsers: activeUsers.get(id) ?? 0,
+    manages: ASSIGNABLE_ROLES[id].map((r) => ROLES[r].label),
+    capabilities: ROLES[id].capabilities.map((cap) => ({
+      id: cap,
+      label: CAPABILITY_LABELS[cap],
+      module: CAPABILITY_MODULES[cap.split('.')[0]!] ?? 'Other',
+    })),
+  }));
+};
+
 export const listCentrePis = (centreId: string) =>
   UserModel.find({ centreId, roleId: 'pi' }).sort({ isActive: -1, createdAt: -1 });
 
@@ -193,6 +226,9 @@ export const updateUser = async (ctx: RequestContext, id: string, dto: UpdateUse
     // Load-and-save (not findOneAndUpdate) so the model rebuilds `name` from the name parts.
     const user = await UserModel.findById(existing.id).session(session);
     if (!user) throw AppError.notFound('USER_NOT_FOUND', 'User not found');
+    // `name` is rebuilt from the parts, so record it too.
+    const keys = [...Object.keys(dto), 'name'];
+    const before = snapshot(user, keys);
     user.set({ ...dto, updatedBy: ctx.user.id });
     await user.save({ session });
     await recordAudit(
@@ -202,7 +238,7 @@ export const updateUser = async (ctx: RequestContext, id: string, dto: UpdateUse
         module: MODULE,
         entityId: user.id,
         centreId: user.centreId?.toString() ?? null,
-        changes: dto,
+        changes: fieldChanges(before, snapshot(user, keys)),
       },
       session,
     );

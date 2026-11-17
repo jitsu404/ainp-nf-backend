@@ -167,6 +167,24 @@ describe('master defaults (seed)', () => {
   });
 });
 
+describe('agro-climatic zones', () => {
+  it('a centre’s zone must be an active zone from the master list', async () => {
+    const { agent } = await signedInAgent('superadmin');
+    await MasterItemModel.create({ type: 'zone', code: 'Z05', name: 'Upper Gangetic Plains' });
+    const base = { code: 'MDP', name: 'Modipuram', host: 'ICAR-IIFSR', state: 'Uttar Pradesh' };
+    const bad = await agent.post('/api/v1/centres').send({ ...base, zone: 'Somewhere' }).expect(400);
+    expect(bad.body.error.code).toBe('UNKNOWN_ZONE');
+    const ok = await agent
+      .post('/api/v1/centres')
+      .send({ ...base, zone: 'Upper Gangetic Plains' })
+      .expect(201);
+    await agent.patch(`/api/v1/centres/${ok.body.data.id}`).send({ zone: 'Nowhere' }).expect(400);
+    // Editing other fields doesn't re-check the zone, and a centre without a zone is allowed.
+    await agent.patch(`/api/v1/centres/${ok.body.data.id}`).send({ name: 'Modipuram (PCU)' }).expect(200);
+    await agent.post('/api/v1/centres').send({ ...base, code: 'NOZ' }).expect(201);
+  });
+});
+
 describe('financial years', () => {
   it('derives dates from the code, keeps one current year, and can close a year', async () => {
     const { agent } = await signedInAgent('pc');

@@ -5,7 +5,7 @@ import type { RequestContext } from '../../utils/context.js';
 import { type ExcelColumn, buildWorkbook, readRows } from '../../utils/excel.js';
 import { type ImportResult, type RowError, validateRows } from '../../utils/importer.js';
 import { escapeRegex } from '../../utils/validators.js';
-import { recordAudit } from '../audit/audit.service.js';
+import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import {
   masterImportRow,
   type CreateMasterDto,
@@ -50,6 +50,10 @@ export const listMasters = async (type: MasterType, query: ListMastersQuery) => 
     .limit(1000);
 };
 
+/** Names of active items of a type, for fields stored by name (a centre's agro-climatic zone). */
+export const activeMasterNames = async (type: MasterType): Promise<Set<string>> =>
+  new Set((await MasterItemModel.find({ type, isActive: true }, { name: 1 }).lean()).map((m) => m.name));
+
 /** Codes of active items of a type, for other modules to validate references (e.g. seasons). */
 export const activeMasterCodes = async (type: MasterType): Promise<Set<string>> =>
   new Set((await MasterItemModel.find({ type, isActive: true }, { code: 1 }).lean()).map((m) => m.code));
@@ -83,6 +87,7 @@ export const updateMaster = (ctx: RequestContext, type: MasterType, id: string, 
   withTransaction(async (session) => {
     const item = await MasterItemModel.findOne({ _id: id, type }).session(session);
     if (!item) throw AppError.notFound('MASTER_NOT_FOUND', `${MASTER_TYPES[type].label}: item not found`);
+    const before = snapshot(item, Object.keys(dto));
     item.set({
       ...dto,
       ...(dto.group !== undefined && { group: checkGroup(type, dto.group) }),
@@ -99,7 +104,7 @@ export const updateMaster = (ctx: RequestContext, type: MasterType, id: string, 
         action: `Updated ${MASTER_TYPES[type].label}: ${item.code}`,
         module: MODULE,
         entityId: item.id,
-        changes: dto,
+        changes: fieldChanges(before, snapshot(item, Object.keys(dto))),
       },
       session,
     );

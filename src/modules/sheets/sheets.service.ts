@@ -4,7 +4,7 @@ import { AppError } from '../../utils/AppError.js';
 import { type RequestContext, withScope } from '../../utils/context.js';
 import { type ExcelColumn, buildMultiSheetWorkbook, readRows } from '../../utils/excel.js';
 import type { RowError } from '../../utils/importer.js';
-import { recordAudit } from '../audit/audit.service.js';
+import { type CellChange, recordAudit } from '../audit/audit.service.js';
 import { findExperiment, markDataLocked, withParameterDetails } from '../experiments/experiments.service.js';
 import { DESIGNS_WITH_ANOVA } from '../experiments/experiments.model.js';
 import { assertYearOpen } from '../financialYears/financialYears.service.js';
@@ -186,13 +186,38 @@ const assertEditable = async (sheet: Sheet) => {
 };
 
 /** Applies validated cells: values are upserted; null clears the cell. */
+const cellKey = (c: { treatmentCode: string; replication: number | null; parameterId: string }) =>
+  `${c.treatmentCode}|${c.replication}|${c.parameterId}`;
+
+/**
+ * Writes checked cells and records, in the same transaction, every cell whose value changed
+ * (old → new), how the data came in (form or Excel) and the sheet's centre.
+ */
 const writeCells = async (
   ctx: RequestContext,
-  sheetId: string,
-  experimentId: string,
+  sheet: { id: string; centreId: unknown; experimentId: unknown },
+  experiment: ExperimentDetail,
   cells: (CellInput & { valueNumber: number | null; valueText: string | null })[],
-) =>
-  withTransaction(async (session) => {
+  source: 'form' | 'excel',
+) => {
+  const sheetId = sheet.id;
+  const codes = new Map(experiment.parameters.map((p) => [p.parameterId, p.code ?? p.parameterId]));
+  return withTransaction(async (session) => {
+    const existing = new Map(
+      (await ObservationModel.find({ sheetId }).session(session).lean()).map((o) => [
+        cellKey({ ...o, parameterId: String(o.parameterId) }),
+        o.valueNumber ?? o.valueText ?? null,
+      ]),
+    );
+    const changed: CellChange[] = cells
+      .map((c) => ({
+        treatmentCode: c.treatmentCode,
+        replication: c.replication,
+        parameterCode: codes.get(c.parameterId) ?? c.parameterId,
+        from: existing.get(cellKey(c)) ?? null,
+        to: c.valueNumber ?? c.valueText ?? null,
+      }))
+      .filter((c) => c.from !== c.to);
     const ops = cells.map((c) => {
       const filter = {
         sheetId,
@@ -214,12 +239,21 @@ const writeCells = async (
     });
     if (ops.length) await ObservationModel.bulkWrite(ops, { session });
     await SheetModel.updateOne({ _id: sheetId }, { updatedBy: ctx.user.id }, { session });
+    const what = `${changed.length} value${changed.length === 1 ? '' : 's'} changed`;
     await recordAudit(
       ctx,
-      { action: `Saved ${cells.length} value(s)`, module: MODULE, entityId: sheetId },
+      {
+        action: source === 'excel' ? `Imported Excel: ${what}` : `Saved sheet: ${what}`,
+        module: MODULE,
+        entityId: sheetId,
+        centreId: String(sheet.centreId),
+        cells: changed,
+        source,
+      },
       session,
     );
-  }).then(() => markDataLocked(experimentId));
+  }).then(() => markDataLocked(String(sheet.experimentId)));
+};
 
 export const saveValues = async (ctx: RequestContext, id: string, cells: CellInput[]) => {
   const { sheet, experiment } = await loadSheet(ctx, id);
@@ -234,7 +268,7 @@ export const saveValues = async (ctx: RequestContext, id: string, cells: CellInp
   });
   if (errors.length)
     throw AppError.badRequest('INVALID_VALUES', 'Some values are not valid', { cells: errors });
-  await writeCells(ctx, id, String(sheet.experimentId), ready);
+  await writeCells(ctx, sheet, experiment, ready, 'form');
   return getSheetDetail(ctx, id);
 };
 
@@ -462,7 +496,7 @@ export const importSheet = async (ctx: RequestContext, id: string, buffer: Buffe
     errors,
   };
   if (result.dryRun) return result;
-  await writeCells(ctx, id, String(sheet.experimentId), cells);
+  await writeCells(ctx, sheet, experiment, cells, 'excel');
   return result;
 };
 
