@@ -613,6 +613,32 @@ describe('trend and Excel exports', () => {
   });
 });
 
+describe('opening a sheet', () => {
+  it('needs an active experiment and a year from its start year on', async () => {
+    const { pcu, piA, experimentId, trialAId } = await setup(); // starts in FY (2026-27)
+    await FinancialYearModel.create({ code: '2025-26', ...fyDates('2025-26'), isOpen: true });
+
+    const before = await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: '2025-26', seasonCode: 'KHARIF' })
+      .expect(400);
+    expect(before.body.error.code).toBe('YEAR_BEFORE_START');
+
+    await pcu.patch(`/api/v1/experiments/${experimentId}`).send({ status: 'Draft' }).expect(200);
+    const draft = await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .expect(409);
+    expect(draft.body.error.code).toBe('EXPERIMENT_NOT_ACTIVE');
+
+    await pcu.patch(`/api/v1/experiments/${experimentId}`).send({ status: 'Active' }).expect(200);
+    await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .expect(201);
+  });
+});
+
 describe('reporting status', () => {
   it('lists each assigned centre × year × season with its sheets; a PI sees only their own centre', async () => {
     const { pcu, piA, experimentId, trialAId, centreA } = await setup();

@@ -99,6 +99,14 @@ export const createSheet = async (ctx: RequestContext, dto: CreateSheetDto) => {
   if (experiment.status !== 'Active') {
     throw AppError.conflict('EXPERIMENT_NOT_ACTIVE', 'Data can only be recorded for active experiments');
   }
+  // Year codes ('2025-26') sort in time order. Earlier years are outside the experiment, and the
+  // reporting grid and trend start from the start year, so such a sheet would never be seen.
+  if (dto.fyCode < experiment.startYear) {
+    throw AppError.badRequest(
+      'YEAR_BEFORE_START',
+      `This experiment started in ${experiment.startYear}; data can't be recorded for ${dto.fyCode}`,
+    );
+  }
   await assertYearOpen(dto.fyCode);
   if (experiment.seasons.length && !experiment.seasons.includes(dto.seasonCode)) {
     throw AppError.badRequest(
