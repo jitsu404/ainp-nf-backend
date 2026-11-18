@@ -135,3 +135,6 @@ export const updateTrial = async (ctx: RequestContext, id: string, dto: UpdateTr
 /** For other modules: trials by id. */
 export const trialsByIds = async (ids: string[]) =>
   new Map((await TrialModel.find({ _id: trusted({ $in: ids }) })).map((t) => [t.id as string, t]));
+
+/** For other modules: every trial of an experiment (unscoped; callers check access to the experiment). */
+export const trialsOfExperiment = (experimentId: string) => TrialModel.find({ experimentId });

@@ -10,6 +10,8 @@ import { parametersByIds } from '../parameters/parameters.service.js';
 import type { CreateExperimentDto, ListExperimentsQuery, UpdateExperimentDto } from './experiments.dto.js';
 export { DESIGNS_WITH_ANOVA } from './experiments.model.js';
 import {
+  EXPERIMENT_METADATA_KEYS,
+  type ExperimentMetadata,
   DESIGNS_NEEDING_REPLICATIONS,
   DESIGNS_WITHOUT_REPLICATIONS,
   type Experiment,
@@ -206,6 +208,33 @@ export const updateExperiment = async (ctx: RequestContext, id: string, dto: Upd
     return experiment;
   });
 };
+
+/** The PCU's common metadata fields (modules/metadata checks access and values). */
+export const updateExperimentMetadata = async (
+  ctx: RequestContext,
+  id: string,
+  dto: Partial<ExperimentMetadata>,
+) =>
+  withTransaction(async (session) => {
+    const experiment = await ExperimentModel.findById(id).session(session);
+    if (!experiment) throw AppError.notFound('EXPERIMENT_NOT_FOUND', 'Experiment not found');
+    const keys = EXPERIMENT_METADATA_KEYS.filter((k) => k in dto);
+    const before = snapshot(experiment.metadata ?? {}, keys);
+    for (const key of keys) experiment.set(`metadata.${key}`, dto[key] ?? null);
+    experiment.set('updatedBy', ctx.user.id);
+    await experiment.save({ session });
+    await recordAudit(
+      ctx,
+      {
+        action: `Updated metadata of experiment ${experiment.code}`,
+        module: MODULE,
+        entityId: experiment.id,
+        changes: fieldChanges(before, snapshot(experiment.metadata, keys)),
+      },
+      session,
+    );
+    return experiment;
+  });
 
 /** Called by the sheets module when the first data is recorded. */
 export const markDataLocked = async (experimentId: string): Promise<void> => {

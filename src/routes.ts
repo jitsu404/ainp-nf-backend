@@ -4,6 +4,7 @@ import { authRouter } from './modules/auth/auth.routes.js';
 import { budgetAllocationRouter } from './modules/budget-allocation/budget-allocation.routes.js';
 import { centresRouter } from './modules/centres/centres.routes.js';
 import { financialYearsRouter } from './modules/financialYears/financialYears.routes.js';
+import { metadataRouter } from './modules/metadata/metadata.routes.js';
 import { mastersRouter } from './modules/masters/masters.routes.js';
 import { parametersRouter } from './modules/parameters/parameters.routes.js';
 import { experimentsRouter } from './modules/experiments/experiments.routes.js';
@@ -99,6 +100,14 @@ export const API_MODULES: readonly ApiModule[] = [
     singular: 'sheet',
     description:
       'Data recording per trial × year × season: cell entry or Excel import, Draft → Submitted → Returned/Approved workflow, analysis (means, RCBD ANOVA) and cross-centre summary.',
+  },
+  {
+    name: 'Metadata',
+    prefix: '/metadata',
+    router: metadataRouter,
+    singular: 'metadata',
+    description:
+      "ICAR research-data metadata. Each centre fills its own part for its trial (`research.enter`, submit with `research.submit`); the PCU sets the fields common to the experiment (`research.config`) and returns or approves (`research.review` / `research.approve`). Every centre assigned to the experiment can read the others' metadata, but not change it.",
   },
   {
     name: 'Audit trail',

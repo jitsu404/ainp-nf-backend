@@ -1,4 +1,4 @@
-import type { QueryFilter } from 'mongoose';
+import { type QueryFilter, trusted } from 'mongoose';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
 import { type RequestContext, withScope } from '../../utils/context.js';
@@ -104,3 +104,7 @@ export const updateCentre = async (ctx: RequestContext, id: string, dto: UpdateC
 /** For other modules that need to check a centre id (they must not import CentreModel). */
 export const centreExists = async (id: string): Promise<boolean> =>
   (await CentreModel.exists({ _id: id })) !== null;
+
+/** For other modules: centres by id (unscoped; callers check access another way). */
+export const centresByIds = async (ids: string[]) =>
+  new Map((await CentreModel.find({ _id: trusted({ $in: ids }) })).map((c) => [c.id as string, c]));

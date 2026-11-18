@@ -2022,6 +2022,295 @@
       ]
     },
     {
+      "name": "Metadata",
+      "description": "ICAR research-data metadata. Each centre fills its own part for its trial (`research.enter`, submit with `research.submit`); the PCU sets the fields common to the experiment (`research.config`) and returns or approves (`research.review` / `research.approve`). Every centre assigned to the experiment can read the others' metadata, but not change it.",
+      "item": [
+        {
+          "name": "Experiment metadata",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/metadata/experiments/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "metadata",
+                "experiments",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{metadataId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "The common fields (PCU) and each assigned centre's metadata status and completeness.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/metadata/experiments/:id`"
+          }
+        },
+        {
+          "name": "Save common metadata",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"smdName\": \"Sample smdName\",\n  \"instituteName\": \"Sample instituteName\",\n  \"unitType\": \"Division\",\n  \"unitName\": \"Sample unitName\",\n  \"projectCode\": \"Sample projectCode\",\n  \"fundingType\": \"Internal\",\n  \"fundingSource\": \"Sample fundingSource\",\n  \"subject\": \"Sample subject\",\n  \"keywords\": \"Sample keywords\",\n  \"dataCategory\": \"Experimental\",\n  \"dataType\": \"Numerical data (tables)\",\n  \"methodology\": \"Sample methodology\",\n  \"dataScale\": \"Raw\",\n  \"language\": \"Sample language\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/metadata/experiments/:id/common",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "metadata",
+                "experiments",
+                ":id",
+                "common"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{metadataId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Fields that are the same for every centre (institute, funding, keywords …). Empty clears to the default.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PUT /api/v1/metadata/experiments/:id/common`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `smdName` | string | no | 0–500 chars; nullable |  |\n| `instituteName` | string | no | 0–500 chars; nullable |  |\n| `unitType` | any | no | nullable |  |\n| `unitName` | string | no | 0–500 chars; nullable |  |\n| `projectCode` | string | no | 0–500 chars; nullable |  |\n| `fundingType` | any | no | nullable |  |\n| `fundingSource` | string | no | 0–500 chars; nullable |  |\n| `subject` | string | no | 0–500 chars; nullable |  |\n| `keywords` | string | no | 0–500 chars; nullable |  |\n| `dataCategory` | any | no | nullable |  |\n| `dataType` | any | no | nullable |  |\n| `methodology` | string | no | 0–4000 chars; nullable |  |\n| `dataScale` | any | no | nullable |  |\n| `language` | string | no | 0–500 chars; nullable |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Export metadata",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/metadata/experiments/:id/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "metadata",
+                "experiments",
+                ":id",
+                "export"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{metadataId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Excel in the ICAR metadata format: one row per centre, fields 1–38 in order.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/metadata/experiments/:id/export`"
+          }
+        },
+        {
+          "name": "Trial metadata",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/metadata/trials/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "metadata",
+                "trials",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{metadataId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "All ICAR fields for one centre: common (experiment), automatic (protocol, trial, PI, sheets) and the centre's own, with status, completeness and what the caller may do.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/metadata/trials/:id`"
+          }
+        },
+        {
+          "name": "Save trial metadata",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"datasetTitle\": \"Sample datasetTitle\",\n  \"description\": \"Sample description\",\n  \"coPis\": [\n    {\n      \"name\": \"Dr. A. Kumar\",\n      \"designation\": \"Sample designation\",\n      \"email\": \"user@example.com\"\n    }\n  ],\n  \"completionDate\": \"2026-04-01\",\n  \"plotSize\": \"Sample plotSize\",\n  \"dataFormat\": [\n    \"Digital\"\n  ],\n  \"instruments\": \"Sample instruments\",\n  \"availabilityLocation\": \"AINP-NF data management system\",\n  \"embargoYears\": 0,\n  \"source\": \"Sample source\",\n  \"relation\": \"Sample relation\",\n  \"citation\": \"Sample citation\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/metadata/trials/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "metadata",
+                "trials",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{metadataId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "The centre's own fields. Only Draft or Returned metadata can change.\n\n**Access:** signed in, and the role needs `research.enter`\n\n**Endpoint:** `PUT /api/v1/metadata/trials/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `datasetTitle` | string | no | 0–300 chars; nullable |  |\n| `description` | string | no | 0–2000 chars; nullable |  |\n| `coPis` | object[] | no | — |  |\n| `completionDate` | any | no | — |  |\n| `plotSize` | string | no | 0–200 chars; nullable |  |\n| `dataFormat` | string[] | no | — |  |\n| `instruments` | string | no | 0–2000 chars; nullable |  |\n| `availabilityLocation` | any | no | nullable |  |\n| `embargoYears` | integer | no | min 0; max 20; nullable |  |\n| `source` | string | no | 0–500 chars; nullable |  |\n| `relation` | string | no | 0–1000 chars; nullable |  |\n| `citation` | string | no | 0–2000 chars; nullable |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Submit trial metadata",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"remark\": \"Sample remark\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/metadata/trials/:id/submit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "metadata",
+                "trials",
+                ":id",
+                "submit"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{metadataId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Fails with INCOMPLETE_METADATA listing the required fields still empty.\n\n**Access:** signed in, and the role needs `research.submit`\n\n**Endpoint:** `POST /api/v1/metadata/trials/:id/submit`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `remark` | string | no | 0–2000 chars |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Return trial metadata",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"remark\": \"Add the plot size\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/metadata/trials/:id/return",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "metadata",
+                "trials",
+                ":id",
+                "return"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{metadataId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Back to the centre with a remark (also reopens approved metadata).\n\n**Access:** signed in, and the role needs one of `research.review`, `research.approve`\n\n**Endpoint:** `POST /api/v1/metadata/trials/:id/return`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `remark` | string | yes | 3–2000 chars |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Approve trial metadata",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"remark\": \"Sample remark\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/metadata/trials/:id/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "metadata",
+                "trials",
+                ":id",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{metadataId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs `research.approve`\n\n**Endpoint:** `POST /api/v1/metadata/trials/:id/approve`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `remark` | string | no | 0–2000 chars |  |\n\nUnknown fields are rejected."
+          }
+        }
+      ]
+    },
+    {
       "name": "Audit trail",
       "description": "Who did what, when and from where: every change (with old → new values), sign-ins and sign-outs. `audit.view`: PCU and Super Admin see everything; a Centre PI sees only their own centre.",
       "item": [

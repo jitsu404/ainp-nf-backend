@@ -769,3 +769,22 @@ export const reportingStatus = async (ctx: RequestContext, experimentId: string)
     centres,
   };
 };
+
+/** For other modules: per trial, the financial years with a sheet and how many sheets are approved. */
+export const sheetCoverageByTrial = async (trialIds: string[]) => {
+  const sheets = await SheetModel.find(
+    { trialId: trusted({ $in: trialIds }) },
+    { trialId: 1, fyCode: 1, status: 1 },
+  ).lean();
+  const coverage = new Map<string, { years: string[]; sheets: number; approved: number }>();
+  for (const s of sheets) {
+    const key = String(s.trialId);
+    const c = coverage.get(key) ?? { years: [], sheets: 0, approved: 0 };
+    if (!c.years.includes(s.fyCode)) c.years.push(s.fyCode);
+    c.sheets += 1;
+    if (s.status === 'Approved') c.approved += 1;
+    coverage.set(key, c);
+  }
+  for (const c of coverage.values()) c.years.sort();
+  return coverage;
+};

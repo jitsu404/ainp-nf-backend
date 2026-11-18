@@ -52,6 +52,43 @@ export interface ExperimentParameter {
   required: boolean;
 }
 
+/**
+ * ICAR metadata fields that are the same for every centre running the experiment (the PCU fills
+ * them once). Centre-specific fields live in modules/metadata; null means "use the default".
+ */
+export interface ExperimentMetadata {
+  smdName: string | null;
+  instituteName: string | null;
+  unitType: string | null;
+  unitName: string | null;
+  projectCode: string | null;
+  fundingType: string | null;
+  fundingSource: string | null;
+  subject: string | null;
+  keywords: string | null;
+  dataCategory: string | null;
+  dataType: string | null;
+  methodology: string | null;
+  dataScale: string | null;
+  language: string | null;
+}
+export const EXPERIMENT_METADATA_KEYS = [
+  'smdName',
+  'instituteName',
+  'unitType',
+  'unitName',
+  'projectCode',
+  'fundingType',
+  'fundingSource',
+  'subject',
+  'keywords',
+  'dataCategory',
+  'dataType',
+  'methodology',
+  'dataScale',
+  'language',
+] as const satisfies readonly (keyof ExperimentMetadata)[];
+
 export interface Experiment {
   code: string;
   title: string;
@@ -75,6 +112,7 @@ export interface Experiment {
    * treatments/parameters are frozen (new ones can still be added), so recorded data stays valid.
    */
   dataLocked: boolean;
+  metadata: ExperimentMetadata;
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
   createdAt: Date;
@@ -100,6 +138,16 @@ const experimentParameterSchema = new Schema<ExperimentParameter>(
   { _id: false },
 );
 
+const experimentMetadataSchema = new Schema<ExperimentMetadata>(
+  Object.fromEntries(
+    EXPERIMENT_METADATA_KEYS.map((key) => [
+      key,
+      { type: String, trim: true, maxlength: key === 'methodology' ? 4000 : 500, default: null },
+    ]),
+  ),
+  { _id: false },
+);
+
 const experimentSchema = new Schema<Experiment>(
   {
     code: { type: String, required: true, unique: true, uppercase: true, trim: true, maxlength: 30 },
@@ -116,6 +164,7 @@ const experimentSchema = new Schema<Experiment>(
     status: { type: String, enum: EXPERIMENT_STATUSES, default: 'Draft' },
     centreIds: { type: [{ type: Schema.Types.ObjectId, ref: 'Centre' }], default: [] },
     dataLocked: { type: Boolean, default: false },
+    metadata: { type: experimentMetadataSchema, default: () => ({}) },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
