@@ -1230,9 +1230,21 @@
                   "disabled": true
                 },
                 {
-                  "key": "centreId",
+                  "key": "assignedTo",
                   "value": "",
                   "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "startYear",
+                  "value": "",
+                  "description": "number",
+                  "disabled": true
+                },
+                {
+                  "key": "endYear",
+                  "value": "",
+                  "description": "number",
                   "disabled": true
                 },
                 {
@@ -1243,7 +1255,7 @@
                 }
               ]
             },
-            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/experiments`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n| `centreId` | string | no | ObjectId |  |\n| `search` | string | no | 0–100 chars |  |"
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/experiments`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n| `assignedTo` | string | no | ObjectId |  |\n| `startYear` | number | no | — |  |\n| `endYear` | number | no | — |  |\n| `search` | string | no | 0–100 chars |  |"
           }
         },
         {
@@ -1297,7 +1309,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"NF-LTE\",\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\"\n    }\n  ],\n  \"parameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": [\n    \"KHARIF\",\n    \"RABI\"\n  ],\n  \"startYear\": \"2026-27\",\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"referenceTreatmentCode\": null\n}",
+              "raw": "{\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"mainPlotCount\": 0,\n  \"subPlotCount\": 0,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\"\n    }\n  ],\n  \"defaultParameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"parameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": {},\n  \"startYear\": 2024,\n  \"endYear\": 2027,\n  \"assignedTo\": \"{{assignedTo}}\",\n  \"referenceTreatmentCode\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1313,7 +1325,7 @@
                 "experiments"
               ]
             },
-            "description": "The PCU protocol: design, replications, common treatments, the parameters to record (plot- or treatment-level) and seasons. Assigning centres creates their trials.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `POST /api/v1/experiments`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `title` | string | yes | 5–300 chars |  |\n| `programmeCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | yes | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `treatments` | object[] | no | — |  |\n| `parameters` | object[] | no | — |  |\n| `seasons` | string[] | no | — |  |\n| `startYear` | string | yes | pattern `^\\d{4}-\\d{2}$` |  |\n| `centreIds` | string[] | no | — |  |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n\nUnknown fields are rejected."
+            "description": "The PCU protocol: design, replications, common treatments, the parameters to record (plot- or treatment-level) and seasons. Assigning centres creates their trials.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `POST /api/v1/experiments`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | 5–300 chars |  |\n| `programmeCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | yes | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0; default `0` |  |\n| `subPlotCount` | integer | no | min 0; default `0` |  |\n| `treatments` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `parameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | yes | min 1900; max 2100 |  |\n| `endYear` | integer | yes | min 1900; max 2100 |  |\n| `assignedTo` | string | no | ObjectId; nullable |  |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -1328,7 +1340,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"NF-LTE\",\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\"\n    }\n  ],\n  \"parameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": [\n    \"KHARIF\",\n    \"RABI\"\n  ],\n  \"startYear\": \"2026-27\",\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"referenceTreatmentCode\": null,\n  \"status\": \"Draft\"\n}",
+              "raw": "{\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"mainPlotCount\": 0,\n  \"subPlotCount\": 0,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\"\n    }\n  ],\n  \"defaultParameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"parameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": {},\n  \"startYear\": 2024,\n  \"endYear\": 2027,\n  \"assignedTo\": \"{{assignedTo}}\",\n  \"referenceTreatmentCode\": null,\n  \"status\": \"Draft\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1352,7 +1364,222 @@
                 }
               ]
             },
-            "description": "Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `title` | string | no | 5–300 chars |  |\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | no | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `treatments` | object[] | no | — |  |\n| `parameters` | object[] | no | — |  |\n| `seasons` | string[] | no | — |  |\n| `startYear` | string | no | pattern `^\\d{4}-\\d{2}$` |  |\n| `centreIds` | string[] | no | — |  |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n\nUnknown fields are rejected."
+            "description": "Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | no | 5–300 chars |  |\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | no | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0 |  |\n| `subPlotCount` | integer | no | min 0 |  |\n| `treatments` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `parameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | no | min 1900; max 2100 |  |\n| `endYear` | integer | no | min 1900; max 2100 |  |\n| `assignedTo` | string | no | ObjectId; nullable |  |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n\nUnknown fields are rejected."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Experiments Assignment",
+      "description": "Experiment assignments linking experiments to centres with seasons and metadata.",
+      "item": [
+        {
+          "name": "List experiment assignments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/experiments-assignment",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiments-assignment"
+              ],
+              "query": [
+                {
+                  "key": "experiment",
+                  "value": "",
+                  "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "centre",
+                  "value": "",
+                  "description": "string · ObjectId",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "string · one of `In progress`, `completed`, `inactive`, `partial completed`",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "string · 0–100 chars",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/experiments-assignment`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experiment` | string | no | ObjectId |  |\n| `centre` | string | no | ObjectId |  |\n| `status` | string | no | one of `In progress`, `completed`, `inactive`, `partial completed` |  |\n| `search` | string | no | 0–100 chars |  |"
+          }
+        },
+        {
+          "name": "Bulk assign experiment to centres",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"experiment\": \"{{experiment}}\",\n  \"assignments\": [\n    {\n      \"centre\": \"{{centre}}\",\n      \"seasons\": {},\n      \"status\": \"In progress\",\n      \"metaData\": {\n        \"code\": \"Sample code\",\n        \"title\": \"Sample title\",\n        \"smdName\": \"Sample smdName\",\n        \"instituteName\": \"Sample instituteName\",\n        \"unitType\": \"Sample unitType\",\n        \"unitName\": \"Sample unitName\",\n        \"projectCode\": \"Sample projectCode\",\n        \"fundingType\": \"Sample fundingType\",\n        \"fundingSource\": \"Sample fundingSource\",\n        \"subject\": \"Sample subject\",\n        \"keywords\": \"Sample keywords\",\n        \"dataCategory\": \"Sample dataCategory\",\n        \"dataType\": \"Sample dataType\",\n        \"methodology\": \"Sample methodology\",\n        \"dataScale\": \"Sample dataScale\",\n        \"language\": \"Sample language\"\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/experiments-assignment/bulk",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiments-assignment",
+                "bulk"
+              ]
+            },
+            "description": "Assigns centres to an experiment, setting seasons/crops per centre and creating trials.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `POST /api/v1/experiments-assignment/bulk`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experiment` | string | yes | ObjectId |  |\n| `assignments` | object[] | yes | — |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Get experiment assignment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/experiments-assignment/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiments-assignment",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{experimentAssignmentId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/experiments-assignment/:id`"
+          }
+        },
+        {
+          "name": "Create experiment assignment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the new experimentAssignment so \"Get\", \"Update\" and other requests can use it.",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('experimentAssignmentId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"experiment\": \"{{experiment}}\",\n  \"centre\": \"{{centre}}\",\n  \"status\": \"In progress\",\n  \"seasons\": {},\n  \"metaData\": {\n    \"code\": \"Sample code\",\n    \"title\": \"Sample title\",\n    \"smdName\": \"Sample smdName\",\n    \"instituteName\": \"Sample instituteName\",\n    \"unitType\": \"Sample unitType\",\n    \"unitName\": \"Sample unitName\",\n    \"projectCode\": \"Sample projectCode\",\n    \"fundingType\": \"Sample fundingType\",\n    \"fundingSource\": \"Sample fundingSource\",\n    \"subject\": \"Sample subject\",\n    \"keywords\": \"Sample keywords\",\n    \"dataCategory\": \"Sample dataCategory\",\n    \"dataType\": \"Sample dataType\",\n    \"methodology\": \"Sample methodology\",\n    \"dataScale\": \"Sample dataScale\",\n    \"language\": \"Sample language\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/experiments-assignment",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiments-assignment"
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `POST /api/v1/experiments-assignment`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experiment` | string | yes | ObjectId |  |\n| `centre` | string | yes | ObjectId |  |\n| `status` | string | no | one of `In progress`, `completed`, `inactive`, `partial completed`; default `\"In progress\"` |  |\n| `seasons` | object | no | — |  |\n| `metaData` | object | no | — |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Update experiment assignment",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"experiment\": \"{{experiment}}\",\n  \"centre\": \"{{centre}}\",\n  \"status\": \"In progress\",\n  \"seasons\": {},\n  \"metaData\": {\n    \"code\": \"Sample code\",\n    \"title\": \"Sample title\",\n    \"smdName\": \"Sample smdName\",\n    \"instituteName\": \"Sample instituteName\",\n    \"unitType\": \"Sample unitType\",\n    \"unitName\": \"Sample unitName\",\n    \"projectCode\": \"Sample projectCode\",\n    \"fundingType\": \"Sample fundingType\",\n    \"fundingSource\": \"Sample fundingSource\",\n    \"subject\": \"Sample subject\",\n    \"keywords\": \"Sample keywords\",\n    \"dataCategory\": \"Sample dataCategory\",\n    \"dataType\": \"Sample dataType\",\n    \"methodology\": \"Sample methodology\",\n    \"dataScale\": \"Sample dataScale\",\n    \"language\": \"Sample language\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/experiments-assignment/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiments-assignment",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{experimentAssignmentId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments-assignment/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experiment` | string | no | ObjectId |  |\n| `centre` | string | no | ObjectId |  |\n| `status` | string | no | one of `In progress`, `completed`, `inactive`, `partial completed` |  |\n| `seasons` | object | no | — |  |\n| `metaData` | object | no | — |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Delete experiment assignment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/experiments-assignment/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiments-assignment",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{experimentAssignmentId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `DELETE /api/v1/experiments-assignment/:id`"
           }
         }
       ]
@@ -2405,7 +2632,7 @@
   "variable": [
     {
       "key": "host",
-      "value": "http://localhost:5000",
+      "value": "http://localhost:8081",
       "type": "string",
       "description": "Server origin"
     },
@@ -2462,6 +2689,12 @@
       "value": "",
       "type": "string",
       "description": "Set automatically by \"Create experiment\""
+    },
+    {
+      "key": "experimentAssignmentId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by \"Create experimentAssignment\""
     },
     {
       "key": "sheetId",

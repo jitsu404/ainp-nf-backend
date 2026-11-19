@@ -7,6 +7,7 @@ import { financialYearsRouter } from './modules/financialYears/financialYears.ro
 import { mastersRouter } from './modules/masters/masters.routes.js';
 import { parametersRouter } from './modules/parameters/parameters.routes.js';
 import { experimentsRouter } from './modules/experiments/experiments.routes.js';
+import { experimentsAssignmentRouter } from './modules/experiments-assignment/experiments-assignment.routes.js';
 import { sheetsRouter } from './modules/sheets/sheets.routes.js';
 import { trialsRouter } from './modules/trials/trials.routes.js';
 import { usersRouter } from './modules/users/users.routes.js';
@@ -83,6 +84,13 @@ export const API_MODULES: readonly ApiModule[] = [
     singular: 'experiment',
     description:
       'PCU experiment protocols: programme, design, replications, common treatments, parameters to record and seasons, assigned to centres. Centre users see the experiments assigned to them.',
+  },
+  {
+    name: 'Experiments Assignment',
+    prefix: '/experiments-assignment',
+    router: experimentsAssignmentRouter,
+    singular: 'experimentAssignment',
+    description: 'Experiment assignments linking experiments to centres with seasons and metadata.',
   },
   {
     name: 'Trials',
