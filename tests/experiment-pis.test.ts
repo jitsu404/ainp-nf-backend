@@ -103,6 +103,7 @@ describe('Experiment PI accounts', () => {
       email: next.email,
       experiment: { code: 'NF-A' },
     });
+    expect(replaced.body.data.lastLoginAt).toBeNull();
     expect(replaced.body.data.history).toHaveLength(1);
     expect(replaced.body.data.history[0]).toMatchObject({ name: seat.body.data.name, reason: 'Retired' });
 

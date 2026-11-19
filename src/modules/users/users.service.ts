@@ -217,11 +217,17 @@ export const seatSummary = (u: HydratedDocument<User>) => ({
   loginEmail: u.email,
   seatNumber: u.seatNumber ?? null,
   name: u.name,
+  // The parts too, so edit forms can be pre-filled.
+  title: u.title ?? null,
+  firstName: u.firstName ?? null,
+  middleName: u.middleName ?? null,
+  surname: u.surname ?? null,
   designation: u.designation ?? null,
   email: contactEmailOf(u),
   mobile: u.mobile ?? null,
   organization: u.organization ?? null,
-  occupiedSince: u.occupiedSince ?? null,
+  occupiedSince: u.occupiedSince ?? u.createdAt,
+  lastLoginAt: u.lastLoginAt ?? null,
   isActive: u.isActive,
 });
 
@@ -291,6 +297,8 @@ const giveSeatTo = async (
     passwordChangedAt: new Date(),
     mustChangePassword: false,
     occupiedSince: new Date(),
+    // The new holder hasn't signed in yet; the old holder's last sign-in isn't theirs.
+    lastLoginAt: null,
     isActive: true,
     deactivatedAt: null,
     deactivatedBy: null,
