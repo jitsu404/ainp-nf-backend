@@ -107,6 +107,8 @@ export interface Experiment {
   startYear: string;
   status: ExperimentStatus;
   centreIds: Types.ObjectId[];
+  /** The Experiment PI seat (users, role epi) that owns the definition; set by the PCU. */
+  piUserId: Types.ObjectId | null;
   /**
    * Set once any centre has recorded data. From then on the design, replications and existing
    * treatments/parameters are frozen (new ones can still be added), so recorded data stays valid.
@@ -163,6 +165,7 @@ const experimentSchema = new Schema<Experiment>(
     startYear: { type: String, required: true, match: /^\d{4}-\d{2}$/ },
     status: { type: String, enum: EXPERIMENT_STATUSES, default: 'Draft' },
     centreIds: { type: [{ type: Schema.Types.ObjectId, ref: 'Centre' }], default: [] },
+    piUserId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     dataLocked: { type: Boolean, default: false },
     metadata: { type: experimentMetadataSchema, default: () => ({}) },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -173,5 +176,14 @@ const experimentSchema = new Schema<Experiment>(
 
 experimentSchema.index({ programmeCode: 1, code: 1 });
 experimentSchema.index({ centreIds: 1 });
+// An Experiment PI seat leads one experiment at a time.
+experimentSchema.index(
+  { piUserId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { piUserId: { $type: 'objectId' } },
+    name: 'one_experiment_per_pi',
+  },
+);
 
 export const ExperimentModel = model<Experiment>('Experiment', experimentSchema);

@@ -5,6 +5,8 @@ import { type RequestContext, withScope } from '../../utils/context.js';
 import { escapeRegex } from '../../utils/validators.js';
 import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { centreExists } from '../centres/centres.service.js';
+import { findExperimentPi } from '../users/users.service.js';
+import { hasCapability } from '../../config/constants.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
 import { parametersByIds } from '../parameters/parameters.service.js';
 import type { CreateExperimentDto, ListExperimentsQuery, UpdateExperimentDto } from './experiments.dto.js';
@@ -22,7 +24,7 @@ const MODULE = 'experiments';
 
 /** Centre users only see experiments assigned to their centre. */
 const scoped = (ctx: RequestContext, filter: QueryFilter<Experiment>) =>
-  withScope(ctx.user, filter, 'centreIds');
+  withScope(ctx.user, filter, 'centreIds', '_id');
 
 export const listExperiments = (ctx: RequestContext, query: ListExperimentsQuery) => {
   const where: QueryFilter<Experiment> = {};
@@ -150,7 +152,41 @@ const assertReferenceTreatment = (code: string | null | undefined, treatments: {
   }
 };
 
+/** Only `research.assign` (PCU) may change which centres run it and who leads it. */
+const assertAssignment = async (
+  ctx: RequestContext,
+  dto: { centreIds?: unknown; piUserId?: string | null },
+  experimentId?: string,
+) => {
+  const assigning = dto.centreIds !== undefined || dto.piUserId !== undefined;
+  if (assigning && !hasCapability(ctx.user.roleId, 'research.assign')) {
+    throw AppError.forbidden('ASSIGNMENT_NOT_ALLOWED', 'Only the PCU assigns centres and the Experiment PI');
+  }
+  if (!dto.piUserId) return;
+  const pi = await findExperimentPi(dto.piUserId);
+  const other = await ExperimentModel.findOne(
+    experimentId ? { piUserId: pi.id, _id: trusted({ $ne: experimentId }) } : { piUserId: pi.id },
+    { code: 1 },
+  );
+  if (other) {
+    throw AppError.conflict('PI_ALREADY_LINKED', `${pi.email} already leads ${other.code}`);
+  }
+};
+
+/** For authenticate: the experiments an Experiment PI seat leads (its scope). */
+export const experimentIdsOfPi = async (userId: string): Promise<string[]> =>
+  (await ExperimentModel.find({ piUserId: userId }, { _id: 1 }).lean()).map((e) => String(e._id));
+
+/** For the PI accounts list: which experiment each seat leads. */
+export const experimentsByPi = async (userIds: string[]) =>
+  new Map(
+    (
+      await ExperimentModel.find({ piUserId: trusted({ $in: userIds }) }, { code: 1, title: 1, piUserId: 1 })
+    ).map((e) => [String(e.piUserId), { id: e.id as string, code: e.code, title: e.title }]),
+  );
+
 export const createExperiment = async (ctx: RequestContext, dto: CreateExperimentDto) => {
+  await assertAssignment(ctx, dto);
   await validateReferences(dto);
   assertReferenceTreatment(dto.referenceTreatmentCode, dto.treatments ?? []);
   return withTransaction(async (session) => {
@@ -176,6 +212,9 @@ export const createExperiment = async (ctx: RequestContext, dto: CreateExperimen
 };
 
 export const updateExperiment = async (ctx: RequestContext, id: string, dto: UpdateExperimentDto) => {
+  // An Experiment PI may edit only the experiment they lead (others: 404).
+  await getExperiment(ctx, id);
+  await assertAssignment(ctx, dto, id);
   await validateReferences(dto);
   return withTransaction(async (session) => {
     const experiment = await ExperimentModel.findById(id).session(session);

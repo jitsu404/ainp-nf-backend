@@ -25,7 +25,7 @@ trialsRouter.patch(
     description:
       'The centre sets its cropping systems (crops and varieties per season), the practice details of each treatment, the in-charge, layout notes and status. Seasons, crops and treatments are checked against the masters and the protocol.',
   }),
-  authorize('research.enter', 'research.config'),
+  authorize('research.enter', 'research.assign'),
   validate(updateTrialSchemas),
   controller.update,
 );

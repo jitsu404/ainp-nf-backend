@@ -15,7 +15,7 @@ const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]
 
 /** Centre users only ever see their own centre (matched on _id here, not centreId). */
 const scoped = (ctx: RequestContext, filter: QueryFilter<Centre>): QueryFilter<Centre> =>
-  withScope(ctx.user, filter, '_id');
+  withScope(ctx.user, filter, '_id', null);
 
 export const listCentres = async (ctx: RequestContext, query: ListCentresQuery) => {
   const { page, limit, sort, search, state, type, isActive } = query;

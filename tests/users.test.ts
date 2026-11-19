@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AuditLogModel } from '../src/modules/audit/audit.model.js';
+import { UserModel } from '../src/modules/users/users.model.js';
 import { createCentre, createUser, newPerson, signIn, signedInAgent } from './helpers.js';
 
 describe('user accounts', () => {
@@ -18,7 +19,14 @@ describe('user accounts', () => {
       .post('/api/v1/users')
       .send(newPerson({ roleId: 'pi', centreId: centre.id }))
       .expect(201);
-    expect(pi.body.data).toMatchObject({ roleId: 'pi', centreId: centre.id, mustChangePassword: true });
+    // Centre PIs are seats: a generated login, and the password the creator set stays.
+    expect(pi.body.data).toMatchObject({
+      roleId: 'pi',
+      centreId: centre.id,
+      seatKind: 'centre',
+      email: `${centre.code.toLowerCase()}.pi.npnf@icar.org.in`,
+      mustChangePassword: false,
+    });
     expect(pi.body.data.passwordHash).toBeUndefined();
   });
 
@@ -125,7 +133,7 @@ describe('roles overview', () => {
       label: 'PCU',
       scope: 'national',
       activeUsers: 1,
-      manages: ['Centre PI'],
+      manages: ['Experiment PI', 'Centre PI'],
     });
     expect(byId.pi.activeUsers).toBe(1);
     expect(byId.pi.capabilities).toContainEqual({
@@ -143,11 +151,23 @@ describe('Centre PI assignment', () => {
     const { agent } = await signedInAgent('pc');
     const person = newPerson();
     const res = await agent.post(`/api/v1/centres/${centre.id}/pi`).send(person).expect(201);
-    expect(res.body.data).toMatchObject({ roleId: 'pi', centreId: centre.id, email: person.email });
+    const login = `${centre.code.toLowerCase()}.pi.npnf@icar.org.in`;
+    expect(res.body.data).toMatchObject({
+      roleId: 'pi',
+      centreId: centre.id,
+      email: login,
+      contactEmail: person.email,
+    });
+    // The holder signs in with the seat login and the password the PCU set; no forced change.
+    const { agent: pi, res: login1 } = await signIn(login, person.temporaryPassword);
+    expect(login1.status).toBe(200);
+    await pi.get('/api/v1/trials').expect(200);
 
     const detail = await agent.get(`/api/v1/centres/${centre.id}`).expect(200);
     expect(detail.body.data.currentPi).toMatchObject({
       id: res.body.data.id,
+      loginEmail: login,
+      email: person.email,
       name: `Dr. Person ${person.surname}`,
       mobile: person.mobile,
       organization: person.organization,
@@ -156,12 +176,15 @@ describe('Centre PI assignment', () => {
     expect(list.body.data.find((c: { id: string }) => c.id === centre.id).currentPi.email).toBe(person.email);
   });
 
-  it('replaces the current PI in one step, keeping the history', async () => {
+  it('replaces the holder of the PI seat in one step, keeping the login and the history', async () => {
     const centre = await createCentre();
     const { agent } = await signedInAgent('superadmin');
     const first = newPerson();
-    const second = newPerson();
+    const second = newPerson({ temporaryPassword: 'SecondPerson123' });
     const old = await agent.post(`/api/v1/centres/${centre.id}/pi`).send(first).expect(201);
+    const { agent: oldSession } = await signIn(old.body.data.email, first.temporaryPassword);
+    await oldSession.get('/api/v1/auth/me').expect(200);
+    await new Promise((resolve) => setTimeout(resolve, 1100)); // let the clock pass the token's issue second
 
     const noReason = await agent.post(`/api/v1/centres/${centre.id}/pi`).send(second).expect(400);
     expect(noReason.body.error.code).toBe('REASON_REQUIRED');
@@ -171,16 +194,27 @@ describe('Centre PI assignment', () => {
       .send({ ...second, reason: 'Transferred to another institute' })
       .expect(201);
 
-    const history = await agent.get(`/api/v1/centres/${centre.id}/pis`).expect(200);
-    expect(history.body.data.map((u: { id: string; isActive: boolean }) => [u.id, u.isActive])).toEqual([
-      [replacement.body.data.id, true],
-      [old.body.data.id, false],
-    ]);
-    expect(history.body.data[1].deactivationReason).toContain('Transferred to another institute');
+    // Same account and login; the new holder's details and password.
+    expect(replacement.body.data.id).toBe(old.body.data.id);
+    expect(replacement.body.data.email).toBe(old.body.data.email);
+    expect(replacement.body.data.contactEmail).toBe(second.email);
 
-    // The previous PI can no longer sign in; their audit trail is intact.
-    const { res } = await signIn(first.email, first.temporaryPassword);
-    expect(res.status).toBe(401);
+    const history = await agent.get(`/api/v1/centres/${centre.id}/pis`).expect(200);
+    expect(
+      history.body.data.map((h: { email: string; isCurrent: boolean; reason: string | null }) => [
+        h.email,
+        h.isCurrent,
+        h.reason,
+      ]),
+    ).toEqual([
+      [second.email, true, null],
+      [first.email, false, 'Transferred to another institute'],
+    ]);
+
+    // The previous holder's session ends and their password no longer works; the new one's does.
+    expect((await oldSession.get('/api/v1/auth/me').expect(401)).body.error.code).toBe('SESSION_EXPIRED');
+    expect((await signIn(old.body.data.email, first.temporaryPassword)).res.status).toBe(401);
+    expect((await signIn(old.body.data.email, 'SecondPerson123')).res.status).toBe(200);
     expect(await AuditLogModel.countDocuments({ entityId: old.body.data.id })).toBeGreaterThanOrEqual(2);
   });
 
@@ -199,9 +233,8 @@ describe('Centre PI assignment', () => {
       .post(`/api/v1/centres/${centre.id}/pi`)
       .send(newPerson({ reason: 'Replacement' }))
       .expect(201);
-    expect(second.body.data.id).not.toBe(first.body.data.id);
-    const reactivate = await agent.post(`/api/v1/users/${first.body.data.id}/activate`).expect(409);
-    expect(reactivate.body.error.code).toBe('CENTRE_HAS_PI');
+    expect(second.body.data.id).toBe(first.body.data.id);
+    expect(await UserModel.countDocuments({ centreId: centre.id, roleId: 'pi', isActive: true })).toBe(1);
   });
 
   it('is limited to the PCU and Super Admin', async () => {

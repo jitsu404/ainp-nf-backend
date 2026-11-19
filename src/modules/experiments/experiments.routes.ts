@@ -33,9 +33,9 @@ experimentsRouter.post(
   apiDoc({
     name: 'Create experiment',
     description:
-      'The PCU protocol: design, replications, common treatments, the parameters to record (plot- or treatment-level) and seasons. Assigning centres creates their trials.',
+      'The PCU protocol: design, replications, common treatments, the parameters to record (plot- or treatment-level) and seasons. Assigning centres creates their trials; `piUserId` links an Experiment PI seat (optional).',
   }),
-  authorize('research.config'),
+  authorize('research.assign'),
   validate(createExperimentSchemas),
   controller.create,
 );
@@ -44,7 +44,7 @@ experimentsRouter.patch(
   apiDoc({
     name: 'Update experiment',
     description:
-      'Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added.',
+      'Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added. The Experiment PI edits only their own experiment; centres and the PI (`centreIds`, `piUserId`) need `research.assign`.',
   }),
   authorize('research.config'),
   validate(updateExperimentSchemas),

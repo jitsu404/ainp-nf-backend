@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { type ClientSession, type QueryFilter, trusted } from 'mongoose';
+import { type ClientSession, type HydratedDocument, type QueryFilter, Types, trusted } from 'mongoose';
 import {
   ASSIGNABLE_ROLES,
   CAPABILITY_LABELS,
@@ -8,6 +8,8 @@ import {
   ROLE_IDS,
   type RoleId,
   canAssignRole,
+  centrePiEmail,
+  experimentPiEmail,
 } from '../../config/constants.js';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
@@ -15,9 +17,17 @@ import type { RequestContext } from '../../utils/context.js';
 import { pageMeta } from '../../utils/response.js';
 import { skipFor } from '../../utils/validators.js';
 import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
-import { centreExists } from '../centres/centres.service.js';
+import { centresByIds } from '../centres/centres.service.js';
 import { type User, UserModel } from './users.model.js';
-import type { AssignCentrePiDto, CreateUserDto, ListUsersQuery, UpdateUserDto } from './users.dto.js';
+import type {
+  AssignCentrePiDto,
+  CreateExperimentPiDto,
+  CreateUserDto,
+  ListUsersQuery,
+  PersonDto,
+  ReplaceSeatHolderDto,
+  UpdateUserDto,
+} from './users.dto.js';
 
 export const BCRYPT_COST = 12;
 const MODULE = 'users';
@@ -159,8 +169,65 @@ export const roleSummary = async () => {
   }));
 };
 
-export const listCentrePis = (centreId: string) =>
-  UserModel.find({ centreId, roleId: 'pi' }).sort({ isActive: -1, createdAt: -1 });
+/**
+ * Everyone who has led a centre, current holder first, then past ones by when they left.
+ * Centre PIs are seats (one login, several holders over time); accounts from before seats
+ * existed are one person each.
+ */
+export const listCentrePis = async (centreId: string) => {
+  const accounts = await UserModel.find({ centreId, roleId: 'pi' });
+  return accounts
+    .flatMap((a) => seatHistory(a))
+    .sort((x, y) => Number(y.isCurrent) - Number(x.isCurrent) || +(y.to ?? 0) - +(x.to ?? 0));
+};
+
+/** One entry per person who held the account: the current holder (if active) and past ones. */
+export const seatHistory = (a: HydratedDocument<User>) => [
+  {
+    accountId: a.id as string,
+    loginEmail: a.email,
+    name: a.name,
+    designation: a.designation ?? null,
+    email: contactEmailOf(a),
+    mobile: a.mobile ?? null,
+    organization: a.organization ?? null,
+    from: a.occupiedSince ?? a.createdAt,
+    to: a.isActive ? null : (a.deactivatedAt ?? null),
+    reason: a.isActive ? null : (a.deactivationReason ?? null),
+    isCurrent: a.isActive,
+  },
+  ...a.pastOccupants.map((o) => ({
+    accountId: a.id as string,
+    loginEmail: a.email,
+    name: o.name,
+    designation: o.designation ?? null,
+    email: o.contactEmail ?? null,
+    mobile: o.mobile ?? null,
+    organization: o.organization ?? null,
+    from: o.from ?? null,
+    to: o.to as Date | null,
+    reason: o.reason as string | null,
+    isCurrent: false,
+  })),
+];
+
+/** What other modules show about a PI: the seat's login and its current holder. */
+export const seatSummary = (u: HydratedDocument<User>) => ({
+  id: u.id as string,
+  loginEmail: u.email,
+  seatNumber: u.seatNumber ?? null,
+  name: u.name,
+  designation: u.designation ?? null,
+  email: contactEmailOf(u),
+  mobile: u.mobile ?? null,
+  organization: u.organization ?? null,
+  occupiedSince: u.occupiedSince ?? null,
+  isActive: u.isActive,
+});
+
+/** The holder's own email: `contactEmail` on seats, the login otherwise. */
+export const contactEmailOf = (u: { email: string; contactEmail?: string | null }) =>
+  u.contactEmail ?? u.email;
 
 /** The active PI of each given centre, for showing on centre lists. */
 export const activePisForCentres = async (centreIds: string[]) => {
@@ -170,22 +237,177 @@ export const activePisForCentres = async (centreIds: string[]) => {
 
 // ── Changes ──────────────────────────────────────────────────────────────────
 
+// ── Seats (PI accounts) ──────────────────────────────────────────────────────
+
+/** A person's details as stored on a seat: their own email becomes `contactEmail`. */
+const holderFields = (p: PersonDto) => ({
+  title: p.title,
+  firstName: p.firstName,
+  middleName: p.middleName ?? null,
+  surname: p.surname ?? null,
+  designation: p.designation,
+  contactEmail: p.email,
+  mobile: p.mobile,
+  organization: p.organization,
+});
+
+/** Moves the seat's current holder into its history (before a new one takes it). */
+const archiveHolder = (ctx: RequestContext, seat: HydratedDocument<User>, reason: string) => {
+  seat.pastOccupants.push({
+    name: seat.name,
+    title: seat.title ?? null,
+    firstName: seat.firstName,
+    middleName: seat.middleName ?? null,
+    surname: seat.surname ?? null,
+    designation: seat.designation,
+    contactEmail: contactEmailOf(seat),
+    mobile: seat.mobile,
+    organization: seat.organization,
+    from: seat.occupiedSince ?? seat.createdAt,
+    to: new Date(),
+    reason,
+    replacedBy: new Types.ObjectId(ctx.user.id),
+    replacedByName: ctx.user.name,
+  });
+};
+
+/**
+ * A new person takes the seat: the old holder goes into the history, the password is replaced
+ * (which also ends the old holder's sessions) and the login stays the same.
+ */
+const giveSeatTo = async (
+  ctx: RequestContext,
+  seat: HydratedDocument<User>,
+  person: PersonDto,
+  password: string,
+  reason: string,
+  session: ClientSession,
+) => {
+  const previous = seat.name;
+  archiveHolder(ctx, seat, reason);
+  seat.set({
+    ...holderFields(person),
+    passwordHash: await hashPassword(password),
+    passwordChangedAt: new Date(),
+    mustChangePassword: false,
+    occupiedSince: new Date(),
+    isActive: true,
+    deactivatedAt: null,
+    deactivatedBy: null,
+    deactivationReason: null,
+    updatedBy: ctx.user.id,
+  });
+  await seat.save({ session });
+  await recordAudit(
+    ctx,
+    {
+      action: `${seat.email}: ${previous} replaced by ${seat.name} (${reason})`,
+      module: MODULE,
+      entityId: seat.id,
+      centreId: seat.centreId?.toString() ?? null,
+      changes: { holder: { from: previous, to: seat.name } },
+    },
+    session,
+  );
+  return seat;
+};
+
+/** Creates the next Experiment PI seat, pi<n>.npnf@…, held by the given person. */
+export const createExperimentPi = async (ctx: RequestContext, dto: CreateExperimentPiDto) => {
+  assertCanManage(ctx, 'epi');
+  const { password, ...person } = dto;
+  const passwordHash = await hashPassword(password);
+  return withTransaction(async (session) => {
+    const last = await UserModel.findOne({ seatKind: 'experiment' }, { seatNumber: 1 })
+      .sort({ seatNumber: -1 })
+      .session(session);
+    const seatNumber = (last?.seatNumber ?? 0) + 1;
+    const [seat] = await UserModel.create(
+      [
+        {
+          ...holderFields(person),
+          email: experimentPiEmail(seatNumber),
+          roleId: 'epi',
+          centreId: null,
+          seatKind: 'experiment',
+          seatNumber,
+          occupiedSince: new Date(),
+          passwordHash,
+          mustChangePassword: false,
+          createdBy: ctx.user.id,
+          updatedBy: ctx.user.id,
+        },
+      ],
+      { session },
+    );
+    if (!seat) throw new Error('Experiment PI was not created');
+    await recordAudit(
+      ctx,
+      { action: `Created Experiment PI ${seat.email} for ${seat.name}`, module: MODULE, entityId: seat.id },
+      session,
+    );
+    return seat;
+  });
+};
+
+/** A new person takes over an Experiment PI seat (same login, new password). */
+export const replaceExperimentPi = async (ctx: RequestContext, id: string, dto: ReplaceSeatHolderDto) => {
+  const seat = await findManageableUser(ctx, id);
+  if (seat.seatKind !== 'experiment') throw AppError.notFound('USER_NOT_FOUND', 'Experiment PI not found');
+  const { password, reason, ...person } = dto;
+  return withTransaction(async (session) => {
+    const doc = await UserModel.findById(id).session(session);
+    if (!doc) throw AppError.notFound('USER_NOT_FOUND', 'Experiment PI not found');
+    return giveSeatTo(ctx, doc, person, password, reason, session);
+  });
+};
+
+/** Every Experiment PI seat, by number. */
+export const listExperimentPis = (ctx: RequestContext) => {
+  assertCanManage(ctx, 'epi');
+  return UserModel.find({ seatKind: 'experiment' }).sort({ seatNumber: 1 });
+};
+
+/** One Experiment PI seat the caller may manage. */
+export const getExperimentPi = async (ctx: RequestContext, id: string) => {
+  const seat = await findManageableUser(ctx, id);
+  if (seat.seatKind !== 'experiment') throw AppError.notFound('USER_NOT_FOUND', 'Experiment PI not found');
+  return seat;
+};
+
+/** For the experiments module: a seat must be an active Experiment PI to be linked. */
+export const findExperimentPi = async (id: string) => {
+  const seat = await UserModel.findOne({ _id: id, roleId: 'epi', isActive: true });
+  if (!seat) throw AppError.badRequest('UNKNOWN_EXPERIMENT_PI', 'Choose an active Experiment PI');
+  return seat;
+};
+
+/** For other modules: users by id (PI summaries on experiments). */
+export const usersByIds = async (ids: string[]) =>
+  new Map((await UserModel.find({ _id: trusted({ $in: ids }) })).map((u) => [u.id as string, u]));
+
 export const createUser = async (ctx: RequestContext, dto: CreateUserDto) => {
   const { temporaryPassword, ...rest } = dto;
-  const centreScoped = ROLES[dto.roleId].scope === 'centre';
+  const { roleId, centreId, ...person } = rest;
+  const centreScoped = ROLES[roleId].scope === 'centre';
 
-  assertCanManage(ctx, dto.roleId);
+  assertCanManage(ctx, roleId);
+  // PI accounts are seats with generated logins.
+  if (dto.roleId === 'epi') return createExperimentPi(ctx, { ...person, password: temporaryPassword });
   if (centreScoped && !dto.centreId) {
     throw AppError.badRequest('CENTRE_REQUIRED', `${ROLES[dto.roleId].label} must be linked to a centre`);
   }
-  if (centreScoped && dto.centreId && !(await centreExists(dto.centreId))) {
+  if (centreScoped && dto.centreId && !(await centresByIds([dto.centreId])).size) {
     throw AppError.badRequest('CENTRE_NOT_FOUND', 'Centre not found');
   }
-  if (dto.roleId === 'pi' && dto.centreId && (await activePiOf(dto.centreId))) {
-    throw AppError.conflict(
-      'CENTRE_HAS_PI',
-      'This centre already has an active Centre PI. Use "Assign Centre PI" to replace them.',
-    );
+  if (dto.roleId === 'pi' && dto.centreId) {
+    if (await activePiOf(dto.centreId)) {
+      throw AppError.conflict(
+        'CENTRE_HAS_PI',
+        'This centre already has an active Centre PI. Use "Assign Centre PI" to replace them.',
+      );
+    }
+    return assignCentrePi(ctx, dto.centreId, { ...person, temporaryPassword });
   }
 
   const passwordHash = await hashPassword(temporaryPassword);
@@ -194,9 +416,10 @@ export const createUser = async (ctx: RequestContext, dto: CreateUserDto) => {
     const [user] = await UserModel.create(
       [
         {
-          ...rest,
+          ...person,
+          roleId,
           // National roles are never tied to one centre.
-          centreId: centreScoped ? dto.centreId : null,
+          centreId: centreScoped ? centreId : null,
           passwordHash,
           mustChangePassword: true,
           createdBy: ctx.user.id,
@@ -227,9 +450,12 @@ export const updateUser = async (ctx: RequestContext, id: string, dto: UpdateUse
     const user = await UserModel.findById(existing.id).session(session);
     if (!user) throw AppError.notFound('USER_NOT_FOUND', 'User not found');
     // `name` is rebuilt from the parts, so record it too.
-    const keys = [...Object.keys(dto), 'name'];
+    // A seat's login never changes; the "email" sent is the holder's own (contactEmail).
+    const { email, ...fields } = dto;
+    const changes = user.seatKind && email !== undefined ? { ...fields, contactEmail: email } : dto;
+    const keys = [...Object.keys(changes), 'name'];
     const before = snapshot(user, keys);
-    user.set({ ...dto, updatedBy: ctx.user.id });
+    user.set({ ...changes, updatedBy: ctx.user.id });
     await user.save({ session });
     await recordAudit(
       ctx,
@@ -328,7 +554,13 @@ export const resetPassword = async (ctx: RequestContext, id: string, temporaryPa
   await withTransaction(async (session) => {
     await UserModel.updateOne(
       { _id: user.id },
-      { passwordHash, mustChangePassword: true, passwordChangedAt: new Date(), updatedBy: ctx.user.id },
+      {
+        passwordHash,
+        // PI seats keep the password the PCU sets until the holder chooses to change it.
+        mustChangePassword: !user.seatKind,
+        passwordChangedAt: new Date(),
+        updatedBy: ctx.user.id,
+      },
       { session },
     );
     await recordAudit(
@@ -345,53 +577,59 @@ export const resetPassword = async (ctx: RequestContext, id: string, temporaryPa
 };
 
 /**
- * Makes `dto` the centre's PI. If the centre already has one, they are deactivated in the same
- * transaction (with the reason), so a centre is never left with zero or two active PIs and the
- * history of who led the centre is kept.
+ * Gives the centre's PI seat (<centre code>.pi.npnf@…) to the person in `dto`. If someone holds it
+ * they move to the seat's history (a reason is required); a Centre PI account from before seats
+ * existed is deactivated instead. Either way the centre never has zero or two active PIs.
  */
 export const assignCentrePi = async (ctx: RequestContext, centreId: string, dto: AssignCentrePiDto) => {
   assertCanManage(ctx, 'pi');
-  if (!(await centreExists(centreId))) throw AppError.notFound('CENTRE_NOT_FOUND', 'Centre not found');
+  const centre = (await centresByIds([centreId])).get(centreId);
+  if (!centre) throw AppError.notFound('CENTRE_NOT_FOUND', 'Centre not found');
 
-  const { temporaryPassword, reason, ...person } = dto;
-  const passwordHash = await hashPassword(temporaryPassword);
+  const { temporaryPassword: password, reason, ...person } = dto;
 
   return withTransaction(async (session) => {
     const current = await activePiOf(centreId, session);
-    if (current) {
-      if (!reason) {
-        throw AppError.badRequest('REASON_REQUIRED', 'Give a reason for replacing the current Centre PI');
-      }
-      await deactivate(ctx, current, `Replaced as Centre PI: ${reason}`, session);
+    if (current && !reason) {
+      throw AppError.badRequest('REASON_REQUIRED', 'Give a reason for replacing the current Centre PI');
     }
+    if (current?.seatKind === 'centre') return giveSeatTo(ctx, current, person, password, reason!, session);
+    if (current) await deactivate(ctx, current, `Replaced as Centre PI: ${reason}`, session);
 
-    const [pi] = await UserModel.create(
+    // A seat closed earlier (deactivated) is reopened for the new person.
+    const closed = await UserModel.findOne({ centreId, roleId: 'pi', seatKind: 'centre' }).session(session);
+    if (closed) return giveSeatTo(ctx, closed, person, password, reason ?? 'Seat reopened', session);
+
+    const [seat] = await UserModel.create(
       [
         {
-          ...person,
+          ...holderFields(person),
+          email: centrePiEmail(centre.code),
           roleId: 'pi',
           centreId,
-          passwordHash,
-          mustChangePassword: true,
+          seatKind: 'centre',
+          occupiedSince: new Date(),
+          passwordHash: await hashPassword(password),
+          mustChangePassword: false,
           createdBy: ctx.user.id,
           updatedBy: ctx.user.id,
         },
       ],
       { session },
     );
-    if (!pi) throw new Error('Centre PI was not created');
+    if (!seat) throw new Error('Centre PI was not created');
     await recordAudit(
       ctx,
       {
         action: current
-          ? `Assigned ${pi.email} as Centre PI, replacing ${current.email}`
-          : `Assigned ${pi.email} as Centre PI`,
+          ? `${seat.email} given to ${seat.name}, replacing ${current.email}`
+          : `${seat.email} given to ${seat.name}`,
         module: MODULE,
-        entityId: pi.id,
+        entityId: seat.id,
         centreId,
       },
       session,
     );
-    return pi;
+    return seat;
   });
 };

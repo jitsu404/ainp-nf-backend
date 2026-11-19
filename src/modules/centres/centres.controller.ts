@@ -4,6 +4,7 @@ import { contextOf } from '../../utils/context.js';
 import { created, ok } from '../../utils/response.js';
 import type { assignCentrePiSchemas, centrePisSchemas } from '../users/users.dto.js';
 import * as usersService from '../users/users.service.js';
+import { seatSummary } from '../users/users.service.js';
 import type {
   createCentreSchemas,
   getCentreSchemas,
@@ -16,26 +17,8 @@ import * as centresService from './centres.service.js';
 // Centre responses include `currentPi` (or null), composed here from the users service so the
 // two modules don't import each other's models.
 
-type PiSummary = {
-  id: string;
-  name: string;
-  designation?: string;
-  email: string;
-  mobile?: string;
-  organization?: string;
-};
-
-const summarise = (pi: PiSummary | undefined | null) =>
-  pi
-    ? {
-        id: pi.id,
-        name: pi.name,
-        designation: pi.designation,
-        email: pi.email,
-        mobile: pi.mobile,
-        organization: pi.organization,
-      }
-    : null;
+/** The seat login and its current holder (see users.seatSummary). */
+const summarise = (pi: Parameters<typeof seatSummary>[0] | undefined | null) => (pi ? seatSummary(pi) : null);
 
 export const list = async (req: Request, res: Response) => {
   const { query } = getValidated<typeof listCentresSchemas>(req);

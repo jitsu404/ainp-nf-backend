@@ -2,7 +2,9 @@ import type { RequestHandler } from 'express';
 import { AUTH_COOKIE } from '../config/constants.js';
 import { tagHandler } from '../docs/routeMeta.js';
 import { verifyToken } from '../modules/auth/auth.service.js';
+import { experimentIdsOfPi } from '../modules/experiments/experiments.service.js';
 import { findActiveUserById } from '../modules/users/users.service.js';
+import { ROLES } from '../config/constants.js';
 import { AppError } from '../utils/AppError.js';
 
 /** Allowed clock skew between issuing a token and recording a password change. */
@@ -33,6 +35,8 @@ const loadUser =
       id: user.id,
       roleId: user.roleId,
       centreId: user.centreId ? user.centreId.toString() : null,
+      // Read on every request, like the user, so linking or unlinking takes effect at once.
+      experimentIds: ROLES[user.roleId].scope === 'experiment' ? await experimentIdsOfPi(user.id) : [],
       name: user.name,
       mustChangePassword: user.mustChangePassword,
     };

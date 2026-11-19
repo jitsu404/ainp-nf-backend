@@ -7,6 +7,7 @@ export const CAPABILITIES = [
   'research.review',
   'research.approve',
   'research.config',
+  'research.assign',
   'finance.manage',
   'finance.allocation',
   'finance.expenditure',
@@ -41,7 +42,8 @@ export const CAPABILITY_LABELS: Readonly<Record<Capability, string>> = {
   'research.submit': 'Submit observation sheets',
   'research.review': 'Review sheets and return them',
   'research.approve': 'Approve or return sheets',
-  'research.config': 'Design experiments and assign centres',
+  'research.config': 'Edit experiment definitions (Experiment PI: own experiment only)',
+  'research.assign': 'Create experiments, assign centres and Experiment PIs',
   'finance.manage': 'Manage budgets, sanctions and releases',
   'finance.allocation': 'Allocate and view centre budget heads and total sanctions',
   'finance.expenditure': 'Enter monthly expenditure',
@@ -86,11 +88,15 @@ export const CAPABILITY_MODULES: Readonly<Record<string, string>> = {
   system: 'System',
 };
 
-export const ROLE_IDS = ['superadmin', 'pc', 'pi'] as const;
+export const ROLE_IDS = ['superadmin', 'pc', 'epi', 'pi'] as const;
 export type RoleId = (typeof ROLE_IDS)[number];
 
-/** national = sees every centre; centre = limited to the user's own centre. */
-export type RoleScope = 'national' | 'centre';
+/**
+ * national = sees every centre;
+ * experiment = limited to the experiment(s) linked to the account (Experiment PI);
+ * centre = limited to the user's own centre.
+ */
+export type RoleScope = 'national' | 'experiment' | 'centre';
 
 export interface RoleDefinition {
   label: string;
@@ -119,6 +125,7 @@ export const ROLES: Readonly<Record<RoleId, RoleDefinition>> = {
       'users.manage',
       'research.approve',
       'research.config',
+      'research.assign',
       'aucsoe.approve',
       'finance.manage',
       'finance.allocation',
@@ -130,6 +137,11 @@ export const ROLES: Readonly<Record<RoleId, RoleDefinition>> = {
       'docs.upload',
       'audit.view',
     ],
+  },
+  epi: {
+    label: 'Experiment PI',
+    scope: 'experiment',
+    capabilities: ['research.config'],
   },
   pi: {
     label: 'Centre PI',
@@ -162,8 +174,9 @@ export const hasCapability = (roleId: RoleId, capability: Capability): boolean =
  * accounts, so PCU users can't grant themselves or each other access.
  */
 export const ASSIGNABLE_ROLES: Readonly<Record<RoleId, readonly RoleId[]>> = {
-  superadmin: ['superadmin', 'pc', 'pi'],
-  pc: ['pi'],
+  superadmin: ['superadmin', 'pc', 'epi', 'pi'],
+  pc: ['epi', 'pi'],
+  epi: [],
   pi: [],
 };
 
@@ -184,3 +197,12 @@ export const CENTRE_TYPES = ['Network Centre', 'Voluntary Centre'] as const;
 export type CentreType = (typeof CENTRE_TYPES)[number];
 
 export const AUTH_COOKIE = 'nf_session';
+
+/**
+ * PI accounts are seats: a permanent login whose email never changes, held by one person at a
+ * time (users.service). Experiment PIs are numbered (pi1, pi2 …); Centre PIs use the centre code.
+ */
+export const SEAT_EMAIL_DOMAIN = 'icar.org.in';
+export const experimentPiEmail = (seatNumber: number) => `pi${seatNumber}.npnf@${SEAT_EMAIL_DOMAIN}`;
+export const centrePiEmail = (centreCode: string) =>
+  `${centreCode.toLowerCase()}.pi.npnf@${SEAT_EMAIL_DOMAIN}`;

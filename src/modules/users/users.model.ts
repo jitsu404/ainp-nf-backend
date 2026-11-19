@@ -2,6 +2,27 @@ import { Schema, type Types, model } from 'mongoose';
 import { ROLE_IDS, ROLES, type RoleId } from '../../config/constants.js';
 import { TITLES, type Title, composeName } from './users.names.js';
 
+export const SEAT_KINDS = ['experiment', 'centre'] as const;
+export type SeatKind = (typeof SEAT_KINDS)[number];
+
+/** Someone who held a seat before its current holder (see `seatKind`). */
+export interface PastOccupant {
+  name: string;
+  title?: Title | null;
+  firstName?: string;
+  middleName?: string | null;
+  surname?: string | null;
+  designation?: string;
+  contactEmail?: string | null;
+  mobile?: string;
+  organization?: string;
+  from?: Date | null;
+  to: Date;
+  reason: string;
+  replacedBy: Types.ObjectId;
+  replacedByName: string;
+}
+
 export interface User {
   /** Display name, always derived from the parts below ("Dr. Sujit Kumar"). Never set it directly. */
   name: string;
@@ -17,6 +38,20 @@ export interface User {
   mobile?: string;
   /** e.g. the host institution of the PI's centre, or ICAR-IIFSR for the PCU. */
   organization?: string;
+  /**
+   * Seat accounts (Experiment PI, Centre PI): `email` is the seat's permanent login
+   * (pi1.npnf@…, pau.pi.npnf@…) and the name, contact fields and `contactEmail` belong to whoever
+   * holds the seat now. Replacing the holder changes those and the password, never the login,
+   * so everything recorded under the seat stays with it. null for personal accounts.
+   */
+  seatKind: SeatKind | null;
+  /** Experiment PI seats only: the n in pi<n>.npnf@… (never reused). */
+  seatNumber: number | null;
+  /** The current holder's own email (seat accounts); personal accounts use `email`. */
+  contactEmail: string | null;
+  /** When the current holder took the seat. */
+  occupiedSince: Date | null;
+  pastOccupants: PastOccupant[];
   isActive: boolean;
   /** Set when someone else chose the password; the user must replace it before doing anything else. */
   mustChangePassword: boolean;
@@ -30,6 +65,26 @@ export interface User {
   createdAt: Date;
   updatedAt: Date;
 }
+
+const pastOccupantSchema = new Schema<PastOccupant>(
+  {
+    name: { type: String, required: true },
+    title: { type: String, default: null },
+    firstName: String,
+    middleName: { type: String, default: null },
+    surname: { type: String, default: null },
+    designation: String,
+    contactEmail: { type: String, default: null },
+    mobile: String,
+    organization: String,
+    from: { type: Date, default: null },
+    to: { type: Date, required: true },
+    reason: { type: String, required: true, maxlength: 300 },
+    replacedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    replacedByName: { type: String, required: true },
+  },
+  { _id: false },
+);
 
 const userSchema = new Schema<User>(
   {
@@ -56,6 +111,11 @@ const userSchema = new Schema<User>(
     designation: { type: String, trim: true, maxlength: 120 },
     mobile: { type: String, trim: true, maxlength: 20 },
     organization: { type: String, trim: true, maxlength: 200 },
+    seatKind: { type: String, enum: [...SEAT_KINDS, null], default: null },
+    seatNumber: { type: Number, min: 1, default: null },
+    contactEmail: { type: String, lowercase: true, trim: true, maxlength: 200, default: null },
+    occupiedSince: { type: Date, default: null },
+    pastOccupants: { type: [pastOccupantSchema], default: [] },
     isActive: { type: Boolean, default: true },
     mustChangePassword: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
@@ -97,6 +157,12 @@ userSchema.index(
     partialFilterExpression: { roleId: 'pi', isActive: true },
     name: 'one_active_pi_per_centre',
   },
+);
+
+// Experiment PI numbers are never reused, so pi<n>.npnf@… always means the same seat.
+userSchema.index(
+  { seatNumber: 1 },
+  { unique: true, partialFilterExpression: { seatKind: 'experiment' }, name: 'unique_experiment_pi_number' },
 );
 
 export const UserModel = model<User>('User', userSchema);

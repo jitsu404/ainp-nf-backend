@@ -14,7 +14,12 @@ export const passwordSchema = z
 
 const temporaryPassword = passwordSchema.meta({
   description:
-    'Temporary password you share with the person. They must change it at first sign-in. At least 10 characters with a letter and a digit.',
+    'Password you share with the person. Personal accounts must change it at first sign-in; PI seats keep it until the holder changes it. At least 10 characters with a letter and a digit.',
+});
+
+const seatPassword = passwordSchema.meta({
+  description:
+    'Password for the seat, shared with the person who holds it. They can change it later. At least 10 characters with a letter and a digit.',
 });
 
 const namePart = (label: string) =>
@@ -114,6 +119,21 @@ const assignCentrePiBody = z
   })
   .strict();
 
+/** A new Experiment PI seat (pi<n>.npnf@…): the person who holds it and its password. */
+const createExperimentPiBody = z.object({ ...personFields, password: seatPassword }).strict();
+
+/** A new person takes over a PI seat; the login stays, the password is replaced. */
+const replaceSeatHolderBody = z
+  .object({
+    ...personFields,
+    password: seatPassword,
+    reason: z.string().trim().min(3).max(300).meta({ example: 'Transferred to another institute' }),
+  })
+  .strict();
+
+/** The person's details alone (for seat holders). */
+export const personSchema = z.object(personFields);
+
 export const listUsersSchemas = { query: listUsersQuery } satisfies RequestSchemas;
 export const getUserSchemas = { params: idParams } satisfies RequestSchemas;
 export const createUserSchemas = { body: createUserBody } satisfies RequestSchemas;
@@ -124,6 +144,16 @@ export const resetPasswordSchemas = { params: idParams, body: resetPasswordBody 
 export const centrePisSchemas = { params: idParams } satisfies RequestSchemas;
 export const assignCentrePiSchemas = { params: idParams, body: assignCentrePiBody } satisfies RequestSchemas;
 
+export const createExperimentPiSchemas = { body: createExperimentPiBody } satisfies RequestSchemas;
+export const replaceSeatHolderSchemas = {
+  params: idParams,
+  body: replaceSeatHolderBody,
+} satisfies RequestSchemas;
+export const experimentPiSchemas = { params: idParams } satisfies RequestSchemas;
+
+export type PersonDto = z.output<typeof personSchema>;
+export type CreateExperimentPiDto = z.output<typeof createExperimentPiBody>;
+export type ReplaceSeatHolderDto = z.output<typeof replaceSeatHolderBody>;
 export type CreateUserDto = z.output<typeof createUserBody>;
 export type UpdateUserDto = z.output<typeof updateUserBody>;
 export type ListUsersQuery = z.output<typeof listUsersQuery>;

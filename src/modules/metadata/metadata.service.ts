@@ -2,7 +2,7 @@ import { type QueryFilter, trusted } from 'mongoose';
 import { hasCapability } from '../../config/constants.js';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
-import { type RequestContext, isCentreScoped, withScope } from '../../utils/context.js';
+import { type RequestContext, isCentreScoped, isNational, withScope } from '../../utils/context.js';
 import { buildWorkbook } from '../../utils/excel.js';
 import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { centresByIds } from '../centres/centres.service.js';
@@ -14,7 +14,7 @@ import {
 import { masterNames } from '../masters/masters.service.js';
 import { sheetCoverageByTrial } from '../sheets/sheets.service.js';
 import { getTrial, trialsByIds, trialsOfExperiment } from '../trials/trials.service.js';
-import { activePisForCentres } from '../users/users.service.js';
+import { activePisForCentres, contactEmailOf } from '../users/users.service.js';
 import type { SaveCommonMetadataDto, SaveTrialMetadataDto } from './metadata.dto.js';
 import { CENTRE_FIELD_KEYS, COMMON_DEFAULTS, type FieldDef, METADATA_FIELDS } from './metadata.fields.js';
 import {
@@ -113,7 +113,7 @@ const autoValues = (
     projectTitle: experiment.title,
     piNames: joined([pi?.name, ...coPis.map((c) => c.name)]) || null,
     piDesignations: joined([pi?.designation, ...coPis.map((c) => c.designation)]) || null,
-    piEmails: joined([pi?.email, ...coPis.map((c) => c.email)]) || null,
+    piEmails: joined([pi ? contactEmailOf(pi) : null, ...coPis.map((c) => c.email)]) || null,
     commodity: cropCodes.map((c) => src.crops.get(c) ?? c).join(', ') || null,
     design: [
       experiment.design,
@@ -127,7 +127,7 @@ const autoValues = (
     spatialExtent: centre
       ? `Site-specific: ${centre.name}, ${centre.state}${centre.zone ? ` (${centre.zone})` : ''}`
       : null,
-    custodian: pi ? joined([pi.name, pi.designation, pi.email]) : null,
+    custodian: pi ? joined([pi.name, pi.designation, contactEmailOf(pi)]) : null,
     attributes:
       src.parameters
         .map((p) => `${p.name}${p.unitCode ? ` (${src.units.get(p.unitCode) ?? p.unitCode})` : ''}`)
@@ -216,8 +216,9 @@ const readableTrial = async (ctx: RequestContext, trialId: string) => {
   return { trial, experiment };
 };
 
+/** National users act for every centre; a Centre PI for their own; an Experiment PI for none. */
 const ownsTrial = (ctx: RequestContext, trial: TrialDoc) =>
-  !isCentreScoped(ctx.user) || ctx.user.centreId === String(trial.centreId);
+  isNational(ctx.user) || (isCentreScoped(ctx.user) && ctx.user.centreId === String(trial.centreId));
 
 const permissionsFor = (ctx: RequestContext, trial: TrialDoc, status: MetadataStatus) => {
   const can = (c: Parameters<typeof hasCapability>[1]) => hasCapability(ctx.user.roleId, c);
@@ -277,7 +278,7 @@ export const getExperimentMetadata = async (ctx: RequestContext, experimentId: s
       status: r.status,
       updatedAt: r.updatedAt,
       completeness: r.completeness,
-      isOwnCentre: !isCentreScoped(ctx.user) || ctx.user.centreId === r.centre?.id,
+      isOwnCentre: isNational(ctx.user) || (isCentreScoped(ctx.user) && ctx.user.centreId === r.centre?.id),
     })),
   };
 };

@@ -18,7 +18,10 @@ describe('auth', () => {
     expect(res.body.data).toMatchObject({
       user: { id: user.id, email: user.email, roleId: 'pc' },
       role: { id: 'pc', label: 'PCU', scope: 'national' },
-      assignableRoles: [{ id: 'pi', label: 'Centre PI' }],
+      assignableRoles: [
+        { id: 'epi', label: 'Experiment PI' },
+        { id: 'pi', label: 'Centre PI' },
+      ],
       mustChangePassword: false,
     });
     expect(res.body.data.capabilities).toContain('centres.manage');
@@ -126,7 +129,7 @@ describe('temporary passwords', () => {
     const person = newPerson();
     const pi = await pcu.post(`/api/v1/centres/${centre.body.data.id}/pi`).send(person).expect(201);
 
-    const { agent: piAgent } = await signIn(person.email, person.temporaryPassword);
+    const { agent: piAgent } = await signIn(pi.body.data.email, person.temporaryPassword);
     await piAgent
       .post('/api/v1/auth/change-password')
       .send({ currentPassword: person.temporaryPassword, newPassword })

@@ -7,6 +7,7 @@ import { financialYearsRouter } from './modules/financialYears/financialYears.ro
 import { metadataRouter } from './modules/metadata/metadata.routes.js';
 import { mastersRouter } from './modules/masters/masters.routes.js';
 import { parametersRouter } from './modules/parameters/parameters.routes.js';
+import { experimentPisRouter } from './modules/experimentPis/experimentPis.routes.js';
 import { experimentsRouter } from './modules/experiments/experiments.routes.js';
 import { sheetsRouter } from './modules/sheets/sheets.routes.js';
 import { trialsRouter } from './modules/trials/trials.routes.js';
@@ -84,6 +85,14 @@ export const API_MODULES: readonly ApiModule[] = [
     singular: 'experiment',
     description:
       'PCU experiment protocols: programme, design, replications, common treatments, parameters to record and seasons, assigned to centres. Centre users see the experiments assigned to them.',
+  },
+  {
+    name: 'Experiment PIs',
+    prefix: '/experiment-pis',
+    router: experimentPisRouter,
+    singular: 'experiment PI',
+    description:
+      'Experiment PI seats: permanent logins pi1.npnf@icar.org.in, pi2… created by the PCU (`research.assign` and `users.manage`), each held by one person at a time. Replacing the holder keeps the login and everything recorded under it. An Experiment PI sees and edits only the experiment linked to their seat.',
   },
   {
     name: 'Trials',

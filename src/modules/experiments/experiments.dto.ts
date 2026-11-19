@@ -57,6 +57,9 @@ const shape = {
     .meta({ example: ['KHARIF', 'RABI'] }),
   startYear: fyCode,
   centreIds: z.array(objectId).max(100).optional(),
+  piUserId: objectId.nullable().optional().meta({
+    description: 'Experiment PI seat to link (PCU only, `research.assign`); null unlinks',
+  }),
   referenceTreatmentCode: z.string().trim().toUpperCase().max(20).nullable().optional().meta({
     example: null,
     description: 'Treatment the others are compared with ("% vs reference"); one of the treatment codes',

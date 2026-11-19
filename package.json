@@ -19,6 +19,7 @@
     "seed": "tsx src/scripts/seed.ts",
     "postman": "tsx src/scripts/generate-postman.ts",
     "migrate:user-fields": "tsx src/scripts/migrate-user-fields.ts",
+    "migrate:pi-seats": "tsx src/scripts/migrate-pi-seats.ts",
     "format": "prettier --write .",
     "prepare": "husky",
     "format:check": "prettier --check ."

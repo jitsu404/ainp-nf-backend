@@ -3,6 +3,7 @@ import { getValidated } from '../../middlewares/validate.js';
 import { contextOf } from '../../utils/context.js';
 import { created, ok } from '../../utils/response.js';
 import { ensureTrials } from '../trials/trials.service.js';
+import { seatSummary, usersByIds } from '../users/users.service.js';
 import type {
   createExperimentSchemas,
   getExperimentSchemas,
@@ -14,14 +15,31 @@ import * as experimentsService from './experiments.service.js';
 // Assigning an experiment to centres creates their trials, composed here so the experiments
 // service doesn't depend on the trials module.
 
+/** Adds `pi`: the linked Experiment PI seat and its current holder (or null). */
+const withPi = async <T extends { piUserId?: unknown }>(experiments: T[]) => {
+  const ids = experiments
+    .map((e) => e.piUserId)
+    .filter(Boolean)
+    .map(String);
+  const pis = ids.length ? await usersByIds(ids) : new Map();
+  return experiments.map((e) => {
+    const pi = e.piUserId ? pis.get(String(e.piUserId)) : undefined;
+    return { ...e, pi: pi ? seatSummary(pi) : null };
+  });
+};
+
+const detail = async (ctx: ReturnType<typeof contextOf>, id: string) =>
+  (await withPi([await experimentsService.getExperimentWithParameters(ctx, id)]))[0];
+
 export const list = async (req: Request, res: Response) => {
   const { query } = getValidated<typeof listExperimentsSchemas>(req);
-  ok(res, await experimentsService.listExperiments(contextOf(req), query));
+  const items = await experimentsService.listExperiments(contextOf(req), query);
+  ok(res, await withPi(items.map((e) => e.toJSON())));
 };
 
 export const getById = async (req: Request, res: Response) => {
   const { params } = getValidated<typeof getExperimentSchemas>(req);
-  ok(res, await experimentsService.getExperimentWithParameters(contextOf(req), params.id));
+  ok(res, await detail(contextOf(req), params.id));
 };
 
 export const create = async (req: Request, res: Response) => {
@@ -29,7 +47,7 @@ export const create = async (req: Request, res: Response) => {
   const ctx = contextOf(req);
   const experiment = await experimentsService.createExperiment(ctx, body);
   await ensureTrials(ctx, experiment);
-  created(res, await experimentsService.getExperimentWithParameters(ctx, experiment.id as string));
+  created(res, await detail(ctx, experiment.id as string));
 };
 
 export const update = async (req: Request, res: Response) => {
@@ -37,5 +55,5 @@ export const update = async (req: Request, res: Response) => {
   const ctx = contextOf(req);
   const experiment = await experimentsService.updateExperiment(ctx, params.id, body);
   await ensureTrials(ctx, experiment);
-  ok(res, await experimentsService.getExperimentWithParameters(ctx, experiment.id as string));
+  ok(res, await detail(ctx, experiment.id as string));
 };

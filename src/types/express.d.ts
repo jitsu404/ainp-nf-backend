@@ -5,6 +5,8 @@ export interface AuthUser {
   id: string;
   roleId: RoleId;
   centreId: string | null;
+  /** Experiments linked to an Experiment PI account (experiment scope); empty for other roles. */
+  experimentIds: string[];
   name: string;
   mustChangePassword: boolean;
 }

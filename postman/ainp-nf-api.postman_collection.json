@@ -203,7 +203,7 @@
                 {
                   "key": "roleId",
                   "value": "",
-                  "description": "string · one of `superadmin`, `pc`, `pi`",
+                  "description": "string · one of `superadmin`, `pc`, `epi`, `pi`",
                   "disabled": true
                 },
                 {
@@ -226,7 +226,7 @@
                 }
               ]
             },
-            "description": "**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `GET /api/v1/users`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `page` | integer | no | min 1; default `1` |  |\n| `limit` | integer | no | min 1; max 100; default `20` |  |\n| `sort` | string | no | — | Sort by one of: name, email, roleId, createdAt (prefix with - for descending) |\n| `roleId` | string | no | one of `superadmin`, `pc`, `pi` |  |\n| `centreId` | string | no | ObjectId |  |\n| `isActive` | string | no | — | true or false |\n| `search` | string | no | 0–100 chars | Matches name, email, designation, mobile or organization |"
+            "description": "**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `GET /api/v1/users`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `page` | integer | no | min 1; default `1` |  |\n| `limit` | integer | no | min 1; max 100; default `20` |  |\n| `sort` | string | no | — | Sort by one of: name, email, roleId, createdAt (prefix with - for descending) |\n| `roleId` | string | no | one of `superadmin`, `pc`, `epi`, `pi` |  |\n| `centreId` | string | no | ObjectId |  |\n| `isActive` | string | no | — | true or false |\n| `search` | string | no | 0–100 chars | Matches name, email, designation, mobile or organization |"
           }
         },
         {
@@ -314,7 +314,7 @@
                 "users"
               ]
             },
-            "description": "Creates an account with a temporary password the person must change at first sign-in. For a Centre PI, prefer **Centres → Assign Centre PI**, which also handles replacing the current PI.\n\n**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `POST /api/v1/users`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | one of `Dr`, `Prof`, `Mr`, `Mrs`, `Ms` |  |\n| `firstName` | string | yes | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `middleName` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `surname` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` | Leave empty if the person has no surname |\n| `designation` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `mobile` | string | yes | pattern `^(?:\\+91[\\s-]?|0)?[6-9]\\d{4}[\\s-]?\\d{5}$` |  |\n| `organization` | string | yes | 2–200 chars | Organization name |\n| `temporaryPassword` | string | yes | 10–128 chars | Temporary password you share with the person. They must change it at first sign-in. At least 10 characters with a letter and a digit. |\n| `roleId` | string | yes | one of `superadmin`, `pc`, `pi` |  |\n| `centreId` | string | no | ObjectId; default `null`; nullable | Required for Centre PI; ignored for national roles |\n\nUnknown fields are rejected."
+            "description": "Creates an account with a temporary password the person must change at first sign-in. For a Centre PI, prefer **Centres → Assign Centre PI**, which also handles replacing the current PI.\n\n**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `POST /api/v1/users`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | one of `Dr`, `Prof`, `Mr`, `Mrs`, `Ms` |  |\n| `firstName` | string | yes | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `middleName` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `surname` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` | Leave empty if the person has no surname |\n| `designation` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `mobile` | string | yes | pattern `^(?:\\+91[\\s-]?|0)?[6-9]\\d{4}[\\s-]?\\d{5}$` |  |\n| `organization` | string | yes | 2–200 chars | Organization name |\n| `temporaryPassword` | string | yes | 10–128 chars | Password you share with the person. Personal accounts must change it at first sign-in; PI seats keep it until the holder changes it. At least 10 characters with a letter and a digit. |\n| `roleId` | string | yes | one of `superadmin`, `pc`, `epi`, `pi` |  |\n| `centreId` | string | no | ObjectId; default `null`; nullable | Required for Centre PI; ignored for national roles |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -459,7 +459,7 @@
                 }
               ]
             },
-            "description": "Sets a new temporary password; the person must change it at their next sign-in. Returns 204.\n\n**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `POST /api/v1/users/:id/reset-password`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `temporaryPassword` | string | yes | 10–128 chars | Temporary password you share with the person. They must change it at first sign-in. At least 10 characters with a letter and a digit. |\n\nUnknown fields are rejected."
+            "description": "Sets a new temporary password; the person must change it at their next sign-in. Returns 204.\n\n**Access:** signed in, and the role needs `users.manage`\n\n**Endpoint:** `POST /api/v1/users/:id/reset-password`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `temporaryPassword` | string | yes | 10–128 chars | Password you share with the person. Personal accounts must change it at first sign-in; PI seats keep it until the holder changes it. At least 10 characters with a letter and a digit. |\n\nUnknown fields are rejected."
           }
         }
       ]
@@ -701,7 +701,7 @@
                 }
               ]
             },
-            "description": "Creates the agronomist's account as this centre's PI, with a temporary password they must change at first sign-in. If the centre already has a PI, they are deactivated in the same step (send `reason`), so the centre always has exactly one.\n\n**Access:** signed in, and the role needs `centres.manage` and `users.manage`\n\n**Endpoint:** `POST /api/v1/centres/:id/pi`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | one of `Dr`, `Prof`, `Mr`, `Mrs`, `Ms` |  |\n| `firstName` | string | yes | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `middleName` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `surname` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` | Leave empty if the person has no surname |\n| `designation` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `mobile` | string | yes | pattern `^(?:\\+91[\\s-]?|0)?[6-9]\\d{4}[\\s-]?\\d{5}$` |  |\n| `organization` | string | yes | 2–200 chars | Organization name |\n| `temporaryPassword` | string | yes | 10–128 chars | Temporary password you share with the person. They must change it at first sign-in. At least 10 characters with a letter and a digit. |\n| `reason` | string | no | 3–300 chars | Why the current PI is being replaced (required when there is one) |\n\nUnknown fields are rejected."
+            "description": "Creates the agronomist's account as this centre's PI, with a temporary password they must change at first sign-in. If the centre already has a PI, they are deactivated in the same step (send `reason`), so the centre always has exactly one.\n\n**Access:** signed in, and the role needs `centres.manage` and `users.manage`\n\n**Endpoint:** `POST /api/v1/centres/:id/pi`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | one of `Dr`, `Prof`, `Mr`, `Mrs`, `Ms` |  |\n| `firstName` | string | yes | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `middleName` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `surname` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` | Leave empty if the person has no surname |\n| `designation` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `mobile` | string | yes | pattern `^(?:\\+91[\\s-]?|0)?[6-9]\\d{4}[\\s-]?\\d{5}$` |  |\n| `organization` | string | yes | 2–200 chars | Organization name |\n| `temporaryPassword` | string | yes | 10–128 chars | Password you share with the person. Personal accounts must change it at first sign-in; PI seats keep it until the holder changes it. At least 10 characters with a letter and a digit. |\n| `reason` | string | no | 3–300 chars | Why the current PI is being replaced (required when there is one) |\n\nUnknown fields are rejected."
           }
         }
       ]
@@ -1297,7 +1297,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"NF-LTE\",\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\"\n    }\n  ],\n  \"parameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": [\n    \"KHARIF\",\n    \"RABI\"\n  ],\n  \"startYear\": \"2026-27\",\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"referenceTreatmentCode\": null\n}",
+              "raw": "{\n  \"code\": \"NF-LTE\",\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\"\n    }\n  ],\n  \"parameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": [\n    \"KHARIF\",\n    \"RABI\"\n  ],\n  \"startYear\": \"2026-27\",\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"piUserId\": \"{{piUserId}}\",\n  \"referenceTreatmentCode\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1313,7 +1313,7 @@
                 "experiments"
               ]
             },
-            "description": "The PCU protocol: design, replications, common treatments, the parameters to record (plot- or treatment-level) and seasons. Assigning centres creates their trials.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `POST /api/v1/experiments`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `title` | string | yes | 5–300 chars |  |\n| `programmeCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | yes | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `treatments` | object[] | no | — |  |\n| `parameters` | object[] | no | — |  |\n| `seasons` | string[] | no | — |  |\n| `startYear` | string | yes | pattern `^\\d{4}-\\d{2}$` |  |\n| `centreIds` | string[] | no | — |  |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n\nUnknown fields are rejected."
+            "description": "The PCU protocol: design, replications, common treatments, the parameters to record (plot- or treatment-level) and seasons. Assigning centres creates their trials; `piUserId` links an Experiment PI seat (optional).\n\n**Access:** signed in, and the role needs `research.assign`\n\n**Endpoint:** `POST /api/v1/experiments`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `title` | string | yes | 5–300 chars |  |\n| `programmeCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | yes | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `treatments` | object[] | no | — |  |\n| `parameters` | object[] | no | — |  |\n| `seasons` | string[] | no | — |  |\n| `startYear` | string | yes | pattern `^\\d{4}-\\d{2}$` |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -1328,7 +1328,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"NF-LTE\",\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\"\n    }\n  ],\n  \"parameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": [\n    \"KHARIF\",\n    \"RABI\"\n  ],\n  \"startYear\": \"2026-27\",\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"referenceTreatmentCode\": null,\n  \"status\": \"Draft\"\n}",
+              "raw": "{\n  \"code\": \"NF-LTE\",\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\"\n    }\n  ],\n  \"parameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": [\n    \"KHARIF\",\n    \"RABI\"\n  ],\n  \"startYear\": \"2026-27\",\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"piUserId\": \"{{piUserId}}\",\n  \"referenceTreatmentCode\": null,\n  \"status\": \"Draft\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1352,7 +1352,179 @@
                 }
               ]
             },
-            "description": "Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `title` | string | no | 5–300 chars |  |\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | no | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `treatments` | object[] | no | — |  |\n| `parameters` | object[] | no | — |  |\n| `seasons` | string[] | no | — |  |\n| `startYear` | string | no | pattern `^\\d{4}-\\d{2}$` |  |\n| `centreIds` | string[] | no | — |  |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n\nUnknown fields are rejected."
+            "description": "Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added. The Experiment PI edits only their own experiment; centres and the PI (`centreIds`, `piUserId`) need `research.assign`.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `title` | string | no | 5–300 chars |  |\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | no | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `treatments` | object[] | no | — |  |\n| `parameters` | object[] | no | — |  |\n| `seasons` | string[] | no | — |  |\n| `startYear` | string | no | pattern `^\\d{4}-\\d{2}$` |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n\nUnknown fields are rejected."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Experiment PIs",
+      "description": "Experiment PI seats: permanent logins pi1.npnf@icar.org.in, pi2… created by the PCU (`research.assign` and `users.manage`), each held by one person at a time. Replacing the holder keeps the login and everything recorded under it. An Experiment PI sees and edits only the experiment linked to their seat.",
+      "item": [
+        {
+          "name": "List experiment PIs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/experiment-pis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiment-pis"
+              ]
+            },
+            "description": "Every Experiment PI seat with its current holder, the experiment it leads and past holders.\n\n**Access:** signed in, and the role needs `research.assign` and `users.manage`\n\n**Endpoint:** `GET /api/v1/experiment-pis`"
+          }
+        },
+        {
+          "name": "Get experiment PI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/experiment-pis/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiment-pis",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{experiment PIId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs `research.assign` and `users.manage`\n\n**Endpoint:** `GET /api/v1/experiment-pis/:id`"
+          }
+        },
+        {
+          "name": "Create experiment PI",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the new experiment PI so \"Get\", \"Update\" and other requests can use it.",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('experiment PIId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Dr\",\n  \"firstName\": \"Sujit\",\n  \"middleName\": \"Kumar\",\n  \"surname\": \"Singh\",\n  \"designation\": \"Chief Agronomist\",\n  \"email\": \"agronomist.knp@example.com\",\n  \"mobile\": \"+91 98765 43210\",\n  \"organization\": \"CSK Himachal Pradesh Krishi Vishwavidyalaya, Palampur\",\n  \"password\": \"ChangeMe12345\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/experiment-pis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiment-pis"
+              ]
+            },
+            "description": "Creates the next seat, pi<n>.npnf@icar.org.in, held by this person with the password you set (no forced change). Link it to an experiment from the experiment.\n\n**Access:** signed in, and the role needs `research.assign` and `users.manage`\n\n**Endpoint:** `POST /api/v1/experiment-pis`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | one of `Dr`, `Prof`, `Mr`, `Mrs`, `Ms` |  |\n| `firstName` | string | yes | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `middleName` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `surname` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` | Leave empty if the person has no surname |\n| `designation` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `mobile` | string | yes | pattern `^(?:\\+91[\\s-]?|0)?[6-9]\\d{4}[\\s-]?\\d{5}$` |  |\n| `organization` | string | yes | 2–200 chars | Organization name |\n| `password` | string | yes | 10–128 chars | Password for the seat, shared with the person who holds it. They can change it later. At least 10 characters with a letter and a digit. |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Update experiment PI holder",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Dr\",\n  \"firstName\": \"Sujit\",\n  \"middleName\": \"Sample middleName\",\n  \"surname\": \"Sample surname\",\n  \"designation\": \"Chief Agronomist\",\n  \"email\": \"agronomist.knp@example.com\",\n  \"mobile\": \"+91 98765 43210\",\n  \"organization\": \"CSK Himachal Pradesh Krishi Vishwavidyalaya, Palampur\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/experiment-pis/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiment-pis",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{experiment PIId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Corrects the current holder's details; `email` is their own email, not the seat login.\n\n**Access:** signed in, and the role needs `research.assign` and `users.manage`\n\n**Endpoint:** `PATCH /api/v1/experiment-pis/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | no | one of `Dr`, `Prof`, `Mr`, `Mrs`, `Ms` |  |\n| `firstName` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `middleName` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$`; nullable |  |\n| `surname` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$`; nullable |  |\n| `designation` | string | no | 2–120 chars |  |\n| `email` | string | no | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `mobile` | string | no | pattern `^(?:\\+91[\\s-]?|0)?[6-9]\\d{4}[\\s-]?\\d{5}$` |  |\n| `organization` | string | no | 2–200 chars | Organization name |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Replace experiment PI holder",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Dr\",\n  \"firstName\": \"Sujit\",\n  \"middleName\": \"Kumar\",\n  \"surname\": \"Singh\",\n  \"designation\": \"Chief Agronomist\",\n  \"email\": \"agronomist.knp@example.com\",\n  \"mobile\": \"+91 98765 43210\",\n  \"organization\": \"CSK Himachal Pradesh Krishi Vishwavidyalaya, Palampur\",\n  \"password\": \"ChangeMe12345\",\n  \"reason\": \"Transferred to another institute\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/experiment-pis/:id/replace",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "experiment-pis",
+                ":id",
+                "replace"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{experiment PIId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "A new person takes the seat: same login, new password; the previous holder moves to the history and is signed out.\n\n**Access:** signed in, and the role needs `research.assign` and `users.manage`\n\n**Endpoint:** `POST /api/v1/experiment-pis/:id/replace`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | one of `Dr`, `Prof`, `Mr`, `Mrs`, `Ms` |  |\n| `firstName` | string | yes | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `middleName` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` |  |\n| `surname` | string | no | 1–60 chars; pattern `^[\\p{L}][\\p{L}\\p{M}.' -]*$` | Leave empty if the person has no surname |\n| `designation` | string | yes | 2–120 chars |  |\n| `email` | string | yes | email; pattern `^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$` |  |\n| `mobile` | string | yes | pattern `^(?:\\+91[\\s-]?|0)?[6-9]\\d{4}[\\s-]?\\d{5}$` |  |\n| `organization` | string | yes | 2–200 chars | Organization name |\n| `password` | string | yes | 10–128 chars | Password for the seat, shared with the person who holds it. They can change it later. At least 10 characters with a letter and a digit. |\n| `reason` | string | yes | 3–300 chars |  |\n\nUnknown fields are rejected."
           }
         }
       ]
@@ -1459,7 +1631,7 @@
                 }
               ]
             },
-            "description": "The centre sets its cropping systems (crops and varieties per season), the practice details of each treatment, the in-charge, layout notes and status. Seasons, crops and treatments are checked against the masters and the protocol.\n\n**Access:** signed in, and the role needs one of `research.enter`, `research.config`\n\n**Endpoint:** `PATCH /api/v1/trials/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `croppingSystems` | object[] | no | — |  |\n| `practices` | object[] | no | — |  |\n| `inChargeUserId` | string | no | ObjectId; nullable |  |\n| `layoutNotes` | string | no | 0–4000 chars; nullable |  |\n| `status` | string | no | one of `Setup`, `Running`, `Completed` |  |\n\nUnknown fields are rejected."
+            "description": "The centre sets its cropping systems (crops and varieties per season), the practice details of each treatment, the in-charge, layout notes and status. Seasons, crops and treatments are checked against the masters and the protocol.\n\n**Access:** signed in, and the role needs one of `research.enter`, `research.assign`\n\n**Endpoint:** `PATCH /api/v1/trials/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `croppingSystems` | object[] | no | — |  |\n| `practices` | object[] | no | — |  |\n| `inChargeUserId` | string | no | ObjectId; nullable |  |\n| `layoutNotes` | string | no | 0–4000 chars; nullable |  |\n| `status` | string | no | one of `Setup`, `Running`, `Completed` |  |\n\nUnknown fields are rejected."
           }
         }
       ]
@@ -2361,7 +2533,7 @@
                 {
                   "key": "roleId",
                   "value": "",
-                  "description": "string · one of `superadmin`, `pc`, `pi`",
+                  "description": "string · one of `superadmin`, `pc`, `epi`, `pi`",
                   "disabled": true
                 },
                 {
@@ -2396,7 +2568,7 @@
                 }
               ]
             },
-            "description": "Newest first. Filter by person, role, centre, module, record (`entityId`, e.g. one sheet’s history), date range or text. Edits carry `changes` (old → new per field); sheet saves carry `cells` (old → new per cell) and `source` (form or excel).\n\n**Access:** signed in, and the role needs `audit.view`\n\n**Endpoint:** `GET /api/v1/audit`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `page` | integer | no | min 1; default `1` |  |\n| `limit` | integer | no | min 1; max 100; default `20` |  |\n| `sort` | string | no | — | Sort by one of: createdAt (prefix with - for descending) |\n| `search` | string | no | 0–100 chars | Matches the action text or the person’s name |\n| `module` | string | no | 0–40 chars |  |\n| `roleId` | string | no | one of `superadmin`, `pc`, `pi` |  |\n| `userId` | string | no | ObjectId |  |\n| `centreId` | string | no | ObjectId |  |\n| `entityId` | string | no | ObjectId | One record’s history, e.g. a sheet id |\n| `from` | string | no | pattern `^\\d{4}-\\d{2}-\\d{2}$` | From this date (inclusive) |\n| `to` | string | no | pattern `^\\d{4}-\\d{2}-\\d{2}$` | Up to this date (inclusive) |"
+            "description": "Newest first. Filter by person, role, centre, module, record (`entityId`, e.g. one sheet’s history), date range or text. Edits carry `changes` (old → new per field); sheet saves carry `cells` (old → new per cell) and `source` (form or excel).\n\n**Access:** signed in, and the role needs `audit.view`\n\n**Endpoint:** `GET /api/v1/audit`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `page` | integer | no | min 1; default `1` |  |\n| `limit` | integer | no | min 1; max 100; default `20` |  |\n| `sort` | string | no | — | Sort by one of: createdAt (prefix with - for descending) |\n| `search` | string | no | 0–100 chars | Matches the action text or the person’s name |\n| `module` | string | no | 0–40 chars |  |\n| `roleId` | string | no | one of `superadmin`, `pc`, `epi`, `pi` |  |\n| `userId` | string | no | ObjectId |  |\n| `centreId` | string | no | ObjectId |  |\n| `entityId` | string | no | ObjectId | One record’s history, e.g. a sheet id |\n| `from` | string | no | pattern `^\\d{4}-\\d{2}-\\d{2}$` | From this date (inclusive) |\n| `to` | string | no | pattern `^\\d{4}-\\d{2}-\\d{2}$` | Up to this date (inclusive) |"
           }
         },
         {
@@ -2429,7 +2601,7 @@
                 {
                   "key": "roleId",
                   "value": "",
-                  "description": "string · one of `superadmin`, `pc`, `pi`",
+                  "description": "string · one of `superadmin`, `pc`, `epi`, `pi`",
                   "disabled": true
                 },
                 {
@@ -2464,7 +2636,7 @@
                 }
               ]
             },
-            "description": "The filtered trail as Excel (up to 10,000 rows).\n\n**Access:** signed in, and the role needs `audit.view`\n\n**Endpoint:** `GET /api/v1/audit/export`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `search` | string | no | 0–100 chars | Matches the action text or the person’s name |\n| `module` | string | no | 0–40 chars |  |\n| `roleId` | string | no | one of `superadmin`, `pc`, `pi` |  |\n| `userId` | string | no | ObjectId |  |\n| `centreId` | string | no | ObjectId |  |\n| `entityId` | string | no | ObjectId | One record’s history, e.g. a sheet id |\n| `from` | string | no | pattern `^\\d{4}-\\d{2}-\\d{2}$` | From this date (inclusive) |\n| `to` | string | no | pattern `^\\d{4}-\\d{2}-\\d{2}$` | Up to this date (inclusive) |"
+            "description": "The filtered trail as Excel (up to 10,000 rows).\n\n**Access:** signed in, and the role needs `audit.view`\n\n**Endpoint:** `GET /api/v1/audit/export`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `search` | string | no | 0–100 chars | Matches the action text or the person’s name |\n| `module` | string | no | 0–40 chars |  |\n| `roleId` | string | no | one of `superadmin`, `pc`, `epi`, `pi` |  |\n| `userId` | string | no | ObjectId |  |\n| `centreId` | string | no | ObjectId |  |\n| `entityId` | string | no | ObjectId | One record’s history, e.g. a sheet id |\n| `from` | string | no | pattern `^\\d{4}-\\d{2}-\\d{2}$` | From this date (inclusive) |\n| `to` | string | no | pattern `^\\d{4}-\\d{2}-\\d{2}$` | Up to this date (inclusive) |"
           }
         }
       ]
@@ -2751,6 +2923,12 @@
       "value": "",
       "type": "string",
       "description": "Set automatically by \"Create experiment\""
+    },
+    {
+      "key": "experiment PIId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by \"Create experiment PI\""
     },
     {
       "key": "sheetId",
