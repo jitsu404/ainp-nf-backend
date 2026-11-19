@@ -2,7 +2,6 @@ import type { Request, Response } from 'express';
 import { getValidated } from '../../middlewares/validate.js';
 import { contextOf } from '../../utils/context.js';
 import { created, ok } from '../../utils/response.js';
-import { ensureTrials } from '../trials/trials.service.js';
 import type {
   createExperimentSchemas,
   getExperimentSchemas,
@@ -10,9 +9,6 @@ import type {
   updateExperimentSchemas,
 } from './experiments.dto.js';
 import * as experimentsService from './experiments.service.js';
-
-// Assigning an experiment to centres creates their trials, composed here so the experiments
-// service doesn't depend on the trials module.
 
 export const list = async (req: Request, res: Response) => {
   const { query } = getValidated<typeof listExperimentsSchemas>(req);
@@ -28,14 +24,28 @@ export const create = async (req: Request, res: Response) => {
   const { body } = getValidated<typeof createExperimentSchemas>(req);
   const ctx = contextOf(req);
   const experiment = await experimentsService.createExperiment(ctx, body);
-  await ensureTrials(ctx, experiment);
   created(res, await experimentsService.getExperimentWithParameters(ctx, experiment.id as string));
 };
 
 export const update = async (req: Request, res: Response) => {
   const { params, body } = getValidated<typeof updateExperimentSchemas>(req);
   const ctx = contextOf(req);
-  const experiment = await experimentsService.updateExperiment(ctx, params.id, body);
-  await ensureTrials(ctx, experiment);
+
+  // Patch logic: only update fields that are explicitly present in req.body
+  const patch: Partial<typeof body> = {};
+  const rawBody = (req.body ?? {}) as Record<string, unknown>;
+
+  for (const key of Object.keys(rawBody)) {
+    if (key === 'parameters' || key === 'defaultParameters') {
+      const paramsList =
+        body.defaultParameters ?? (body as { parameters?: typeof body.defaultParameters }).parameters;
+      patch.defaultParameters = paramsList;
+      (patch as Record<string, unknown>).parameters = paramsList;
+    } else if (key in body) {
+      (patch as Record<string, unknown>)[key] = (body as Record<string, unknown>)[key];
+    }
+  }
+
+  const experiment = await experimentsService.updateExperiment(ctx, params.id, patch);
   ok(res, await experimentsService.getExperimentWithParameters(ctx, experiment.id as string));
 };

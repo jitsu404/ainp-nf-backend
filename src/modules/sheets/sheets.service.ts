@@ -101,14 +101,25 @@ export const createSheet = async (ctx: RequestContext, dto: CreateSheetDto) => {
   }
   // Year codes ('2025-26') sort in time order. Earlier years are outside the experiment, and the
   // reporting grid and trend start from the start year, so such a sheet would never be seen.
-  if (dto.fyCode < experiment.startYear) {
+  const fyStart = Number(dto.fyCode.slice(0, 4));
+  if (fyStart < experiment.startYear) {
     throw AppError.badRequest(
       'YEAR_BEFORE_START',
       `This experiment started in ${experiment.startYear}; data can't be recorded for ${dto.fyCode}`,
     );
   }
+  if (experiment.endYear && fyStart > experiment.endYear) {
+    throw AppError.badRequest(
+      'YEAR_AFTER_END',
+      `This experiment ended in ${experiment.endYear}; data can't be recorded for ${dto.fyCode}`,
+    );
+  }
   await assertYearOpen(dto.fyCode);
-  if (experiment.seasons.length && !experiment.seasons.includes(dto.seasonCode)) {
+  const seasonsMap =
+    experiment.seasons instanceof Map
+      ? experiment.seasons
+      : new Map(Object.entries(experiment.seasons ?? {}));
+  if (seasonsMap.size > 0 && !seasonsMap.has(dto.seasonCode)) {
     throw AppError.badRequest(
       'SEASON_NOT_IN_PROTOCOL',
       `${dto.seasonCode} is not a season of this experiment`,
@@ -717,8 +728,7 @@ export const experimentSummary = async (ctx: RequestContext, query: SummaryQuery
  * means no sheet was opened. Centre users see only their own centre (scoped trials and sheets).
  */
 export const reportingStatus = async (ctx: RequestContext, experimentId: string) => {
-  const experiment = await getExperiment(ctx, experimentId); // 404 if not assigned to the caller
-  const assigned = new Set(experiment.centreIds.map(String));
+  const experiment = await getExperiment(ctx, experimentId);
   const [trials, sheets, years] = await Promise.all([
     listTrials(ctx, { experimentId }),
     SheetModel.find(scoped(ctx, { experimentId }), {
@@ -734,7 +744,10 @@ export const reportingStatus = async (ctx: RequestContext, experimentId: string)
   ]);
   const yearCodes = years
     .map((y) => y.code)
-    .filter((code) => code >= experiment.startYear)
+    .filter((code) => {
+      const fyStart = Number(code.slice(0, 4));
+      return fyStart >= experiment.startYear && (!experiment.endYear || fyStart <= experiment.endYear);
+    })
     .sort();
   const byTrial = new Map<string, typeof sheets>();
   for (const s of sheets) {
@@ -743,7 +756,6 @@ export const reportingStatus = async (ctx: RequestContext, experimentId: string)
     byTrial.get(key)!.push(s);
   }
   const centres = trials
-    .filter((t) => assigned.has(String((t.centreId as unknown as { _id: unknown })._id)))
     .map((t) => {
       const centre = t.centreId as unknown as { _id: unknown; code: string; name: string };
       return {

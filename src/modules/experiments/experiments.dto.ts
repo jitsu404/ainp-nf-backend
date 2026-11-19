@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import type { RequestSchemas } from '../../middlewares/validate.js';
 import { idParams, objectId } from '../../utils/validators.js';
-import { fyCode } from '../financialYears/financialYears.dto.js';
 import { masterCode } from '../masters/masters.dto.js';
 import {
   DESIGNS_NEEDING_REPLICATIONS,
@@ -37,7 +36,6 @@ const uniqueBy = <T>(items: T[] | undefined, key: (t: T) => string) =>
   !items || new Set(items.map(key)).size === items.length;
 
 const shape = {
-  code: masterCode.meta({ example: 'NF-LTE' }),
   title: z
     .string()
     .trim()
@@ -48,15 +46,20 @@ const shape = {
   objectives: z.array(z.string().trim().min(3).max(500)).max(10).optional(),
   design: z.enum(EXPERIMENT_DESIGNS),
   replications: z.number().int().min(1).max(20).nullable().optional().meta({ example: 3 }),
+  mainPlotCount: z.number().int().min(0).optional(),
+  subPlotCount: z.number().int().min(0).optional(),
   treatments: z.array(treatment).max(60).optional(),
+  defaultParameters: z.array(experimentParameter).max(300).optional(),
   parameters: z.array(experimentParameter).max(300).optional(),
   seasons: z
-    .array(masterCode)
-    .max(10)
-    .optional()
-    .meta({ example: ['KHARIF', 'RABI'] }),
-  startYear: fyCode,
-  centreIds: z.array(objectId).max(100).optional(),
+    .union([
+      z.record(z.string(), z.array(objectId)),
+      z.array(z.string()).transform((arr) => Object.fromEntries(arr.map((s) => [s, []]))),
+    ])
+    .optional(),
+  startYear: z.number().int().min(1900).max(2100).meta({ example: 2024 }),
+  endYear: z.number().int().min(1900).max(2100).meta({ example: 2027 }),
+  assignedTo: objectId.nullable().optional(),
   referenceTreatmentCode: z.string().trim().toUpperCase().max(20).nullable().optional().meta({
     example: null,
     description: 'Treatment the others are compared with ("% vs reference"); one of the treatment codes',
@@ -66,9 +69,12 @@ const shape = {
 const checks = <
   T extends z.ZodType<{
     treatments?: { code: string }[];
+    defaultParameters?: { parameterId: string }[];
     parameters?: { parameterId: string }[];
     design?: string;
     replications?: number | null;
+    startYear?: number;
+    endYear?: number;
   }>,
 >(
   s: T,
@@ -79,9 +85,9 @@ const checks = <
       message: 'Treatment codes must be unique',
       path: ['treatments'],
     })
-    .refine((b) => uniqueBy(b.parameters, (p) => p.parameterId), {
+    .refine((b) => uniqueBy(b.defaultParameters ?? b.parameters, (p) => p.parameterId), {
       message: 'Each parameter can be added only once',
-      path: ['parameters'],
+      path: ['defaultParameters'],
     })
     .refine(
       (b) =>
@@ -94,9 +100,21 @@ const checks = <
         message: `${DESIGNS_NEEDING_REPLICATIONS.join(' and ')} need at least 2 replications`,
         path: ['replications'],
       },
-    );
+    )
+    .refine((b) => b.startYear === undefined || b.endYear === undefined || b.endYear >= b.startYear, {
+      message: 'endYear must be greater than or equal to startYear',
+      path: ['endYear'],
+    });
 
-const createBody = checks(z.object(shape).strict());
+const createBody = checks(
+  z
+    .object({
+      ...shape,
+      mainPlotCount: shape.mainPlotCount.default(0),
+      subPlotCount: shape.subPlotCount.default(0),
+    })
+    .strict(),
+);
 
 const updateBody = checks(
   z
@@ -111,7 +129,9 @@ const updateBody = checks(
 const listQuery = z.object({
   programmeCode: masterCode.optional(),
   status: z.enum(EXPERIMENT_STATUSES).optional(),
-  centreId: objectId.optional(),
+  assignedTo: objectId.optional(),
+  startYear: z.coerce.number().optional(),
+  endYear: z.coerce.number().optional(),
   search: z.string().trim().max(100).optional(),
 });
 

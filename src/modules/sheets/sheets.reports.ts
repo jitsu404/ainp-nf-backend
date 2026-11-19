@@ -20,7 +20,10 @@ export const experimentTrend = async (ctx: RequestContext, q: TrendQuery) => {
   const experiment = await getExperiment(ctx, q.experimentId); // 404 if not assigned to the caller
   const yearCodes = (await listFinancialYears())
     .map((y) => y.code)
-    .filter((code) => code >= experiment.startYear)
+    .filter((code) => {
+      const fyStart = Number(code.slice(0, 4));
+      return fyStart >= experiment.startYear && (!experiment.endYear || fyStart <= experiment.endYear);
+    })
     .sort();
   let parameters: Awaited<ReturnType<typeof experimentSummary>>['parameters'] = [];
   const years = [];

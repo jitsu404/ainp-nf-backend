@@ -75,7 +75,11 @@ const validateAgainstProtocol = async (experiment: Experiment, trial: Trial, dto
       for (const s of cs.seasons) {
         if (!seasons.has(s.seasonCode))
           throw AppError.badRequest('UNKNOWN_SEASON', `Unknown season ${s.seasonCode}`);
-        if (experiment.seasons.length && !experiment.seasons.includes(s.seasonCode)) {
+        const seasonsMap =
+          experiment.seasons instanceof Map
+            ? experiment.seasons
+            : new Map(Object.entries(experiment.seasons ?? {}));
+        if (seasonsMap.size > 0 && !seasonsMap.has(s.seasonCode)) {
           throw AppError.badRequest(
             'SEASON_NOT_IN_PROTOCOL',
             `${s.seasonCode} is not a season of this experiment`,

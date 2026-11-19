@@ -1,8 +1,8 @@
 import { Schema, type Types, model } from 'mongoose';
 
 // An experiment is the PCU's protocol (the "technical programme"): design, common treatments and
-// the parameters every centre records. It is assigned to centres; each centre runs it as a trial
-// (modules/trials) with its own cropping systems and practices, and records data in sheets.
+// default parameters recorded across participating centres. It is assigned to centres; each centre
+// runs it as a trial (modules/trials) with its own cropping systems and practices, and records data in sheets.
 
 // Designs used in AINP-NF, as named in the Annual Report 2025-26 (RBD = randomized complete block,
 // split plot and strip plot in 7.2.x, farmer-participatory validation in 7.2.6, the geo-referenced
@@ -61,18 +61,25 @@ export interface Experiment {
   design: ExperimentDesign;
   /** Replications for replicated designs; null for non-replicated trials and surveys. */
   replications: number | null;
+  mainPlotCount: number;
+  subPlotCount: number;
   treatments: Treatment[];
   /** The treatment others are compared with ("% vs reference"), e.g. the AI-NPOF package. */
   referenceTreatmentCode: string | null;
-  parameters: ExperimentParameter[];
-  /** Season master codes in which data is recorded. */
-  seasons: string[];
-  startYear: string;
+  defaultParameters: ExperimentParameter[];
+  parameters?: ExperimentParameter[];
+  /** Seasons map where keys are season codes and values are arrays of MasterItem ObjectIds. */
+  seasons: Map<string, Types.ObjectId[]>;
+  startYear: number;
+  startYearDate: Date;
+  endYear: number;
+  endYearDate: Date;
   status: ExperimentStatus;
-  centreIds: Types.ObjectId[];
+  /** User assigned to this experiment protocol. */
+  assignedTo?: Types.ObjectId | null;
   /**
    * Set once any centre has recorded data. From then on the design, replications and existing
-   * treatments/parameters are frozen (new ones can still be added), so recorded data stays valid.
+   * treatments/defaultParameters are frozen (new ones can still be added), so recorded data stays valid.
    */
   dataLocked: boolean;
   createdBy?: Types.ObjectId;
@@ -108,13 +115,28 @@ const experimentSchema = new Schema<Experiment>(
     objectives: { type: [String], default: [] },
     design: { type: String, enum: EXPERIMENT_DESIGNS, required: true },
     replications: { type: Number, min: 1, max: 20, default: null },
+    mainPlotCount: { type: Number, min: 0, default: 0 },
+    subPlotCount: { type: Number, min: 0, default: 0 },
     treatments: { type: [treatmentSchema], default: [] },
     referenceTreatmentCode: { type: String, default: null },
-    parameters: { type: [experimentParameterSchema], default: [] },
-    seasons: { type: [String], default: [] },
-    startYear: { type: String, required: true, match: /^\d{4}-\d{2}$/ },
+    defaultParameters: { type: [experimentParameterSchema], default: [] },
+    parameters: { type: [experimentParameterSchema], default: undefined },
+    seasons: {
+      type: Map,
+      of: [
+        {
+          type: Schema.Types.ObjectId,
+          ref: 'MasterItem',
+        },
+      ],
+      default: () => new Map(),
+    },
+    startYear: { type: Number, required: true },
+    startYearDate: { type: Date, required: true },
+    endYear: { type: Number, required: true },
+    endYearDate: { type: Date, required: true },
     status: { type: String, enum: EXPERIMENT_STATUSES, default: 'Draft' },
-    centreIds: { type: [{ type: Schema.Types.ObjectId, ref: 'Centre' }], default: [] },
+    assignedTo: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     dataLocked: { type: Boolean, default: false },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -123,6 +145,7 @@ const experimentSchema = new Schema<Experiment>(
 );
 
 experimentSchema.index({ programmeCode: 1, code: 1 });
-experimentSchema.index({ centreIds: 1 });
+experimentSchema.index({ startYear: 1, endYear: 1 });
+experimentSchema.index({ assignedTo: 1 });
 
 export const ExperimentModel = model<Experiment>('Experiment', experimentSchema);
