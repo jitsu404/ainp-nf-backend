@@ -1,41 +1,71 @@
+import moment from 'moment';
 import { type QueryFilter, trusted } from 'mongoose';
+import { hasCapability } from '../../config/constants.js';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
 import { type RequestContext, withScope } from '../../utils/context.js';
 import { escapeRegex } from '../../utils/validators.js';
 import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { centreExists } from '../centres/centres.service.js';
-import { findExperimentPi } from '../users/users.service.js';
-import { hasCapability } from '../../config/constants.js';
-import { activeMasterCodes } from '../masters/masters.service.js';
+import { generateExperimentCode } from '../counters/counters.service.js';
+import { activeMasterCodes, masterItemsExist } from '../masters/masters.service.js';
 import { parametersByIds } from '../parameters/parameters.service.js';
+import { findExperimentPi } from '../users/users.service.js';
 import type { CreateExperimentDto, ListExperimentsQuery, UpdateExperimentDto } from './experiments.dto.js';
 export { DESIGNS_WITH_ANOVA } from './experiments.model.js';
 import {
-  EXPERIMENT_METADATA_KEYS,
-  type ExperimentMetadata,
   DESIGNS_NEEDING_REPLICATIONS,
   DESIGNS_WITHOUT_REPLICATIONS,
+  EXPERIMENT_METADATA_KEYS,
   type Experiment,
+  type ExperimentMetadata,
   ExperimentModel,
 } from './experiments.model.js';
 
 const MODULE = 'experiments';
 
-/** Centre users only see experiments assigned to their centre. */
+/**
+ * Centre users see only the experiments assigned to their centre; an Experiment PI only the
+ * experiment(s) their seat leads.
+ */
 const scoped = (ctx: RequestContext, filter: QueryFilter<Experiment>) =>
   withScope(ctx.user, filter, 'centreIds', '_id');
+
+/** First and last moment of the experiment's calendar years (stored for date-range queries). */
+export const computeYearDates = (startYear: number, endYear: number) => ({
+  startYearDate: moment.utc(String(startYear), 'YYYY').startOf('year').toDate(),
+  endYearDate: moment.utc(String(endYear), 'YYYY').endOf('year').toDate(),
+});
+
+/** The season codes an experiment records in (keys of its seasons map); empty = any season. */
+export const experimentSeasonCodes = (experiment: Pick<Experiment, 'seasons'>): string[] => {
+  const seasons = experiment.seasons as unknown;
+  if (seasons instanceof Map) return [...seasons.keys()];
+  return seasons && typeof seasons === 'object' ? Object.keys(seasons) : [];
+};
+
+/** Calendar year a financial-year code starts in: '2026-27' → 2026. */
+export const fyStartYear = (fyCode: string): number => Number(fyCode.slice(0, 4));
+
+/** Whether financial year `fyCode` falls within the experiment's years. */
+export const fyWithinExperiment = (fyCode: string, e: Pick<Experiment, 'startYear' | 'endYear'>) => {
+  const year = fyStartYear(fyCode);
+  return year >= e.startYear && (!e.endYear || year <= e.endYear);
+};
 
 export const listExperiments = (ctx: RequestContext, query: ListExperimentsQuery) => {
   const where: QueryFilter<Experiment> = {};
   if (query.programmeCode) where.programmeCode = query.programmeCode;
   if (query.status) where.status = query.status;
   if (query.centreId) where.centreIds = query.centreId;
+  if (query.piUserId) where.piUserId = query.piUserId;
+  if (query.startYear) where.startYear = query.startYear;
+  if (query.endYear) where.endYear = query.endYear;
   if (query.search) {
     const pattern = new RegExp(escapeRegex(query.search), 'i');
     where.$or = [{ code: pattern }, { title: pattern }];
   }
-  return ExperimentModel.find(scoped(ctx, where)).sort({ programmeCode: 1, code: 1 }).limit(500);
+  return ExperimentModel.find(scoped(ctx, where)).sort({ createdAt: -1 }).limit(500);
 };
 
 export const getExperiment = async (ctx: RequestContext, id: string) => {
@@ -46,7 +76,7 @@ export const getExperiment = async (ctx: RequestContext, id: string) => {
 
 /**
  * For other modules, after they have checked the caller's access another way (e.g. through a
- * trial at the caller's centre). Not scoped by centre.
+ * trial at the caller's centre). Not scoped.
  */
 export const findExperiment = async (id: string) => {
   const experiment = await ExperimentModel.findById(id);
@@ -59,31 +89,34 @@ export const getExperimentWithParameters = async (ctx: RequestContext, id: strin
   withParameterDetails(await getExperiment(ctx, id));
 
 export const withParameterDetails = async (experiment: Awaited<ReturnType<typeof findExperiment>>) => {
-  const library = await parametersByIds(experiment.parameters.map((p) => String(p.parameterId)));
+  const library = await parametersByIds(experiment.defaultParameters.map((p) => String(p.parameterId)));
+  const defaultParameters = experiment.defaultParameters.map((p) => {
+    const lib = library.get(String(p.parameterId));
+    return {
+      // Explicit fields: spreading a Mongoose sub-document does not copy its values.
+      section: p.section,
+      level: p.level,
+      required: p.required,
+      parameterId: String(p.parameterId),
+      code: lib?.code,
+      name: lib?.name,
+      unitCode: lib?.unitCode ?? null,
+      category: lib?.category,
+      dataType: lib?.dataType ?? 'number',
+      decimals: lib?.decimals ?? 2,
+      min: lib?.min ?? null,
+      max: lib?.max ?? null,
+      choices: lib?.choices ?? [],
+      /** Set for a calculated parameter: its values are computed, never entered. */
+      formula: lib?.formula ?? null,
+    };
+  });
   return {
     ...experiment.toJSON(),
     id: experiment.id as string,
-    parameters: experiment.parameters.map((p) => {
-      const lib = library.get(String(p.parameterId));
-      return {
-        // Explicit fields: spreading a Mongoose sub-document does not copy its values.
-        section: p.section,
-        level: p.level,
-        required: p.required,
-        parameterId: String(p.parameterId),
-        code: lib?.code,
-        name: lib?.name,
-        unitCode: lib?.unitCode ?? null,
-        category: lib?.category,
-        dataType: lib?.dataType ?? 'number',
-        decimals: lib?.decimals ?? 2,
-        min: lib?.min ?? null,
-        max: lib?.max ?? null,
-        choices: lib?.choices ?? [],
-        /** Set for a calculated parameter: its values are computed, never entered. */
-        formula: lib?.formula ?? null,
-      };
-    }),
+    defaultParameters,
+    // Read-only alias for the sheets and analysis code, which work on "the parameters to record".
+    parameters: defaultParameters,
   };
 };
 
@@ -94,15 +127,19 @@ const validateReferences = async (dto: Partial<CreateExperimentDto>) => {
       `Programme ${dto.programmeCode} is not in the programmes master`,
     );
   }
-  if (dto.seasons?.length) {
-    const seasons = await activeMasterCodes('season');
-    const unknown = dto.seasons.filter((s) => !seasons.has(s));
+  if (dto.seasons) {
+    const known = await activeMasterCodes('season');
+    const unknown = Object.keys(dto.seasons).filter((code) => !known.has(code));
     if (unknown.length)
       throw AppError.badRequest('UNKNOWN_SEASON', `Unknown season(s): ${unknown.join(', ')}`);
+    const itemIds = [...new Set(Object.values(dto.seasons).flat())];
+    if (itemIds.length && !(await masterItemsExist(itemIds))) {
+      throw AppError.badRequest('UNKNOWN_SEASON_ITEM', 'One or more season master items not found');
+    }
   }
-  if (dto.parameters?.length) {
-    const library = await parametersByIds(dto.parameters.map((p) => p.parameterId));
-    const missing = dto.parameters.filter((p) => !library.get(p.parameterId)?.isActive);
+  if (dto.defaultParameters?.length) {
+    const library = await parametersByIds(dto.defaultParameters.map((p) => p.parameterId));
+    const missing = dto.defaultParameters.filter((p) => !library.get(p.parameterId)?.isActive);
     if (missing.length) {
       throw AppError.badRequest(
         'UNKNOWN_PARAMETER',
@@ -129,15 +166,15 @@ const assertCompatibleWithData = (existing: Experiment, dto: UpdateExperimentDto
     const removed = existing.treatments.filter((t) => !kept.has(t.code)).map((t) => t.code);
     if (removed.length) problems.push(`treatments ${removed.join(', ')} (they have data)`);
   }
-  if (dto.parameters) {
-    const kept = new Set(dto.parameters.map((p) => p.parameterId));
-    const removed = existing.parameters.filter((p) => !kept.has(String(p.parameterId)));
+  if (dto.defaultParameters) {
+    const kept = new Set(dto.defaultParameters.map((p) => p.parameterId));
+    const removed = existing.defaultParameters.filter((p) => !kept.has(String(p.parameterId)));
     if (removed.length) problems.push(`${removed.length} parameter(s) (they may have data)`);
   }
   if (problems.length) {
     throw AppError.conflict(
       'EXPERIMENT_HAS_DATA',
-      `Centres have recorded data for this experiment, so you can't change ${problems.join('; ')}. You can still add treatments and parameters.`,
+      `Centres have recorded data for this experiment, so you can't change ${problems.join('; ')}. You can still add treatments and default parameters.`,
     );
   }
 };
@@ -152,7 +189,10 @@ const assertReferenceTreatment = (code: string | null | undefined, treatments: {
   }
 };
 
-/** Only `research.assign` (PCU) may change which centres run it and who leads it. */
+/**
+ * Only `research.assign` (PCU) may change which centres run it and who leads it. The PI must be
+ * an active Experiment PI seat that doesn't already lead another experiment.
+ */
 const assertAssignment = async (
   ctx: RequestContext,
   dto: { centreIds?: unknown; piUserId?: string | null },
@@ -190,10 +230,14 @@ export const createExperiment = async (ctx: RequestContext, dto: CreateExperimen
   await validateReferences(dto);
   assertReferenceTreatment(dto.referenceTreatmentCode, dto.treatments ?? []);
   return withTransaction(async (session) => {
+    // A given code is kept; otherwise the next one in the sequence (AINP-NF-EXPT-001 …).
+    const code = dto.code ?? (await generateExperimentCode(session));
     const [experiment] = await ExperimentModel.create(
       [
         {
           ...dto,
+          code,
+          ...computeYearDates(dto.startYear, dto.endYear),
           replications: DESIGNS_WITHOUT_REPLICATIONS.includes(dto.design) ? null : (dto.replications ?? null),
           createdBy: ctx.user.id,
           updatedBy: ctx.user.id,
@@ -212,7 +256,7 @@ export const createExperiment = async (ctx: RequestContext, dto: CreateExperimen
 };
 
 export const updateExperiment = async (ctx: RequestContext, id: string, dto: UpdateExperimentDto) => {
-  // An Experiment PI may edit only the experiment they lead (others: 404).
+  // Scoped: an Experiment PI may edit only the experiment they lead (others: 404).
   await getExperiment(ctx, id);
   await assertAssignment(ctx, dto, id);
   await validateReferences(dto);
@@ -220,10 +264,18 @@ export const updateExperiment = async (ctx: RequestContext, id: string, dto: Upd
     const experiment = await ExperimentModel.findById(id).session(session);
     if (!experiment) throw AppError.notFound('EXPERIMENT_NOT_FOUND', 'Experiment not found');
     assertCompatibleWithData(experiment, dto);
-    // Replications can change as a side effect of the design, so record them too.
-    const keys = [...new Set([...Object.keys(dto), 'replications'])];
+    // Replications and the year dates can change as a side effect, so record them too.
+    const keys = [...new Set([...Object.keys(dto), 'replications', 'startYearDate', 'endYearDate'])];
     const before = snapshot(experiment, keys);
+
+    // `dto` holds only the fields the request sent (validate parsed it; nothing is defaulted).
     experiment.set({ ...dto, updatedBy: ctx.user.id });
+    if (dto.startYear !== undefined || dto.endYear !== undefined) {
+      if (experiment.endYear < experiment.startYear) {
+        throw AppError.badRequest('INVALID_YEARS', 'The end year must not be before the start year');
+      }
+      experiment.set(computeYearDates(experiment.startYear, experiment.endYear));
+    }
     if (DESIGNS_WITHOUT_REPLICATIONS.includes(experiment.design)) experiment.replications = null;
     // The request may change only the design or only the replications; check the result.
     if (DESIGNS_NEEDING_REPLICATIONS.includes(experiment.design) && (experiment.replications ?? 0) < 2) {

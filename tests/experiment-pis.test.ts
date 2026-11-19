@@ -4,6 +4,8 @@ import { MasterItemModel } from '../src/modules/masters/masters.model.js';
 import { createCentre, newPerson, signIn, signedInAgent } from './helpers.js';
 
 const FY = '2026-27';
+const START_YEAR = 2026; // calendar years; 2026 covers financial year 2026-27
+const END_YEAR = 2029;
 const PASSWORD = 'SeatPassword123';
 
 const piBody = (extra: Record<string, unknown> = {}) => {
@@ -23,7 +25,8 @@ const experimentBody = (code: string, extra: Record<string, unknown> = {}) => ({
     { code: 'T2', name: 'Natural farming' },
   ],
   seasons: ['KHARIF'],
-  startYear: FY,
+  startYear: START_YEAR,
+  endYear: END_YEAR,
   ...extra,
 });
 

@@ -8,6 +8,8 @@ import { analyseParameter, dmrtLetters, pooledAnalysis } from '../src/modules/sh
 import { createCentre, signedInAgent } from './helpers.js';
 
 const FY = '2026-27';
+const START_YEAR = 2026; // calendar years; 2026 covers financial year 2026-27
+const END_YEAR = 2029;
 
 /** Masters, a year, two parameters and two centres, plus signed-in PCU and Centre PI agents. */
 const setup = async () => {
@@ -56,12 +58,13 @@ const setup = async () => {
         { code: 'T2', name: 'Complete NF' },
         { code: 'T3', name: 'ICM' },
       ],
-      parameters: [
+      defaultParameters: [
         { parameterId: grain.id, section: 'Yield', level: 'plot', required: true },
         { parameterId: net.id, section: 'Economics', level: 'treatment' },
       ],
       seasons: ['KHARIF'],
-      startYear: FY,
+      startYear: START_YEAR,
+      endYear: END_YEAR,
       centreIds: [centreA.id, centreB.id],
     })
     .expect(201);
@@ -102,7 +105,13 @@ describe('experiments and trials', () => {
 
   it('validates the protocol (programme, replications, unique treatments)', async () => {
     const { pcu, grain } = await setup();
-    const base = { code: 'X1', title: 'Some experiment', design: 'RBD', startYear: FY };
+    const base = {
+      code: 'X1',
+      title: 'Some experiment',
+      design: 'RBD',
+      startYear: START_YEAR,
+      endYear: END_YEAR,
+    };
     const noReps = await pcu
       .post('/api/v1/experiments')
       .send({ ...base, programmeCode: 'P2', replications: 1 })
@@ -123,7 +132,7 @@ describe('experiments and trials', () => {
           { code: 'T1', name: 'A' },
           { code: 't1', name: 'B' },
         ],
-        parameters: [{ parameterId: grain.id }],
+        defaultParameters: [{ parameterId: grain.id }],
       })
       .expect(400);
   });
@@ -471,7 +480,7 @@ describe('calculated parameters', () => {
     });
 
     const experiment = (await pcu.get(`/api/v1/experiments/${experimentId}`).expect(200)).body.data;
-    const keep = experiment.parameters.map(
+    const keep = experiment.defaultParameters.map(
       (p: { parameterId: string; section: string; level: string; required: boolean }) => ({
         parameterId: p.parameterId,
         section: p.section,
@@ -482,7 +491,7 @@ describe('calculated parameters', () => {
     await pcu
       .patch(`/api/v1/experiments/${experimentId}`)
       .send({
-        parameters: [
+        defaultParameters: [
           ...keep,
           { parameterId: price.id, section: 'Economics', level: 'treatment' },
           { parameterId: cost.id, section: 'Economics', level: 'treatment' },
@@ -613,6 +622,38 @@ describe('trend and Excel exports', () => {
   });
 });
 
+describe('experiment codes and years', () => {
+  it('generates the next code when none is given, and keeps a given one', async () => {
+    const { pcu } = await setup(); // setup creates NF-LTE with its own code
+    const body = { title: 'Generated code experiment', programmeCode: 'P2', design: 'RBD', replications: 3 };
+    const first = await pcu
+      .post('/api/v1/experiments')
+      .send({ ...body, startYear: START_YEAR, endYear: END_YEAR })
+      .expect(201);
+    const second = await pcu
+      .post('/api/v1/experiments')
+      .send({ ...body, startYear: START_YEAR, endYear: END_YEAR })
+      .expect(201);
+    expect([first.body.data.code, second.body.data.code]).toEqual(['AINP-NF-EXPT-001', 'AINP-NF-EXPT-002']);
+    const end = await pcu
+      .post('/api/v1/experiments')
+      .send({ ...body, startYear: 2027, endYear: 2026 })
+      .expect(400);
+    expect(end.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it("refuses sheets after the experiment's end year", async () => {
+    const { pcu, piA, experimentId, trialAId } = await setup();
+    await pcu.patch(`/api/v1/experiments/${experimentId}`).send({ endYear: 2026 }).expect(200);
+    await FinancialYearModel.create({ code: '2027-28', ...fyDates('2027-28'), isOpen: true });
+    const after = await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: '2027-28', seasonCode: 'KHARIF' })
+      .expect(400);
+    expect(after.body.error.code).toBe('YEAR_AFTER_END');
+  });
+});
+
 describe('opening a sheet', () => {
   it('needs an active experiment and a year from its start year on', async () => {
     const { pcu, piA, experimentId, trialAId } = await setup(); // starts in FY (2026-27)
@@ -733,7 +774,12 @@ describe('sheet audit history', () => {
 describe('experiment designs', () => {
   it('applies each design’s replication rule', async () => {
     const { pcu } = await setup();
-    const base = { title: 'Design rules experiment', programmeCode: 'P2', startYear: FY };
+    const base = {
+      title: 'Design rules experiment',
+      programmeCode: 'P2',
+      startYear: START_YEAR,
+      endYear: END_YEAR,
+    };
     // Split plot needs replications, like RBD.
     await pcu
       .post('/api/v1/experiments')

@@ -3,7 +3,11 @@ import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
 import { type RequestContext, withScope } from '../../utils/context.js';
 import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
-import { findExperiment, withParameterDetails } from '../experiments/experiments.service.js';
+import {
+  experimentSeasonCodes,
+  findExperiment,
+  withParameterDetails,
+} from '../experiments/experiments.service.js';
 import type { Experiment } from '../experiments/experiments.model.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
 import { getOwnProfile } from '../users/users.service.js';
@@ -75,7 +79,8 @@ const validateAgainstProtocol = async (experiment: Experiment, trial: Trial, dto
       for (const s of cs.seasons) {
         if (!seasons.has(s.seasonCode))
           throw AppError.badRequest('UNKNOWN_SEASON', `Unknown season ${s.seasonCode}`);
-        if (experiment.seasons.length && !experiment.seasons.includes(s.seasonCode)) {
+        const protocolSeasons = experimentSeasonCodes(experiment);
+        if (protocolSeasons.length && !protocolSeasons.includes(s.seasonCode)) {
           throw AppError.badRequest(
             'SEASON_NOT_IN_PROTOCOL',
             `${s.seasonCode} is not a season of this experiment`,

@@ -7,6 +7,8 @@ import { ParameterModel } from '../src/modules/parameters/parameters.model.js';
 import { createCentre, signedInAgent } from './helpers.js';
 
 const FY = '2026-27';
+const START_YEAR = 2026; // calendar years; 2026 covers financial year 2026-27
+const END_YEAR = 2029;
 
 /** An experiment assigned to centres A and B (each with a PI); centre C has a PI but no trial. */
 const setup = async () => {
@@ -42,9 +44,10 @@ const setup = async () => {
         { code: 'T1', name: 'Control' },
         { code: 'T2', name: 'Complete NF' },
       ],
-      parameters: [{ parameterId: grain.id, section: 'Yield', level: 'plot' }],
+      defaultParameters: [{ parameterId: grain.id, section: 'Yield', level: 'plot' }],
       seasons: ['KHARIF'],
-      startYear: FY,
+      startYear: START_YEAR,
+      endYear: END_YEAR,
       centreIds: [centreA.id, centreB.id],
     })
     .expect(201);

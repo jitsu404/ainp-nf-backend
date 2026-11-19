@@ -54,6 +54,10 @@ export const listMasters = async (type: MasterType, query: ListMastersQuery) => 
 export const activeMasterNames = async (type: MasterType): Promise<Set<string>> =>
   new Set((await MasterItemModel.find({ type, isActive: true }, { name: 1 }).lean()).map((m) => m.name));
 
+/** For other modules: whether every given master item id exists. */
+export const masterItemsExist = async (ids: string[]): Promise<boolean> =>
+  (await MasterItemModel.countDocuments({ _id: trusted({ $in: ids }) })) === new Set(ids).size;
+
 /** Code → name of every item of a type (inactive ones too, so old records still read well). */
 export const masterNames = async (type: MasterType): Promise<Map<string, string>> =>
   new Map((await MasterItemModel.find({ type }, { code: 1, name: 1 }).lean()).map((m) => [m.code, m.name]));

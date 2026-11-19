@@ -1,6 +1,6 @@
 import type { RequestContext } from '../../utils/context.js';
 import { buildMultiSheetWorkbook } from '../../utils/excel.js';
-import { getExperiment } from '../experiments/experiments.service.js';
+import { fyWithinExperiment, getExperiment } from '../experiments/experiments.service.js';
 import { listFinancialYears } from '../financialYears/financialYears.service.js';
 import type { SummaryQuery, TrendQuery } from './sheets.dto.js';
 import { analyseSheet, experimentSummary } from './sheets.service.js';
@@ -20,7 +20,7 @@ export const experimentTrend = async (ctx: RequestContext, q: TrendQuery) => {
   const experiment = await getExperiment(ctx, q.experimentId); // 404 if not assigned to the caller
   const yearCodes = (await listFinancialYears())
     .map((y) => y.code)
-    .filter((code) => code >= experiment.startYear)
+    .filter((code) => fyWithinExperiment(code, experiment))
     .sort();
   let parameters: Awaited<ReturnType<typeof experimentSummary>>['parameters'] = [];
   const years = [];

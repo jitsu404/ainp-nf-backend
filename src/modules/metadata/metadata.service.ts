@@ -7,6 +7,7 @@ import { buildWorkbook } from '../../utils/excel.js';
 import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { centresByIds } from '../centres/centres.service.js';
 import {
+  experimentSeasonCodes,
   getExperiment,
   updateExperimentMetadata,
   withParameterDetails,
@@ -123,7 +124,10 @@ const autoValues = (
       .filter(Boolean)
       .join(', '),
     temporalExtent: temporal,
-    seasons: experiment.seasons.map((s) => src.seasons.get(s) ?? s).join(', ') || null,
+    seasons:
+      experimentSeasonCodes(experiment)
+        .map((s) => src.seasons.get(s) ?? s)
+        .join(', ') || null,
     spatialExtent: centre
       ? `Site-specific: ${centre.name}, ${centre.state}${centre.zone ? ` (${centre.zone})` : ''}`
       : null,
