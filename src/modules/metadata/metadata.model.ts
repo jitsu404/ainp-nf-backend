@@ -27,18 +27,65 @@ export interface TrialMetadata {
   trialId: Types.ObjectId;
   experimentId: Types.ObjectId;
   centreId: Types.ObjectId;
+
+  // 1–6 Institutional & Project Information
+  smdName?: string | null;
+  instituteName?: string | null;
+  unitType?: string | null;
+  unitName?: string | null;
+  projectTitle?: string | null;
+  projectCode?: string | null;
+
+  // 7–8 Dataset
   datasetTitle: string | null;
   description: string | null;
+
+  // 9–11 & Co-PIs Personnel
+  piNames?: string | null;
+  piDesignations?: string | null;
+  piEmails?: string | null;
   coPis: CoPi[];
+
+  // 12–16 Funding & Domain
+  fundingType?: string | null;
+  fundingSource?: string | null;
+  subject?: string | null;
+  keywords?: string | null;
+  commodity?: string | null;
+
+  // 17 Completion Date
   completionDate: Date | null;
+
+  // 18, 20 Design & Category
+  dataCategory?: string | null;
+  design?: string | null;
+
+  // 21–27 Specifications, Formats & Methodology
   plotSize: string | null;
   dataFormat: string[];
+  dataType?: string | null;
+  methodology?: string | null;
   instruments: string | null;
+  dataScale?: string | null;
+  language?: string | null;
+
+  // 28–32 Coverage, Location & Custodian
+  temporalExtent?: string | null;
+  seasons?: string | null;
+  spatialExtent?: string | null;
   availabilityLocation: string | null;
+  custodian?: string | null;
+
+  // 33–36 Citations & Access
   embargoYears: number | null;
   source: string | null;
   relation: string | null;
   citation: string | null;
+
+  // 37–38 Attributes & Resources
+  attributes?: string | null;
+  resource?: string | null;
+
   status: MetadataStatus;
   history: MetadataHistoryEntry[];
   createdBy?: Types.ObjectId;
@@ -74,18 +121,65 @@ const trialMetadataSchema = new Schema<TrialMetadata>(
     trialId: { type: Schema.Types.ObjectId, ref: 'Trial', required: true },
     experimentId: { type: Schema.Types.ObjectId, ref: 'Experiment', required: true },
     centreId: { type: Schema.Types.ObjectId, ref: 'Centre', required: true },
+
+    // 1–6 Institutional & Project Information
+    smdName: text(500),
+    instituteName: text(500),
+    unitType: text(200),
+    unitName: text(500),
+    projectTitle: text(500),
+    projectCode: text(500),
+
+    // 7–8 Dataset
     datasetTitle: text(300),
     description: text(2000),
+
+    // 9–11 & Co-PIs Personnel
+    piNames: text(500),
+    piDesignations: text(500),
+    piEmails: text(500),
     coPis: { type: [coPiSchema], default: [] },
+
+    // 12–16 Funding & Domain
+    fundingType: text(200),
+    fundingSource: text(500),
+    subject: text(500),
+    keywords: text(500),
+    commodity: text(500),
+
+    // 17 Completion Date
     completionDate: { type: Date, default: null },
+
+    // 18, 20 Design & Category
+    dataCategory: text(200),
+    design: text(500),
+
+    // 21–27 Specifications, Formats & Methodology
     plotSize: text(200),
     dataFormat: { type: [{ type: String, enum: DATA_FORMATS }], default: [] },
+    dataType: text(200),
+    methodology: text(4000),
     instruments: text(2000),
+    dataScale: text(200),
+    language: text(200),
+
+    // 28–32 Coverage, Location & Custodian
+    temporalExtent: text(500),
+    seasons: text(500),
+    spatialExtent: text(500),
     availabilityLocation: { type: String, enum: [...AVAILABILITY_LOCATIONS, null], default: null },
+    custodian: text(500),
+
+    // 33–36 Citations & Access
     embargoYears: { type: Number, min: 0, max: 20, default: null },
     source: text(500),
     relation: text(1000),
     citation: text(2000),
+
+    // 37–38 Attributes & Resources
+    attributes: text(4000),
+    resource: text(2000),
+
     status: { type: String, enum: METADATA_STATUSES, default: 'Draft' },
     history: { type: [historySchema], default: [] },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },

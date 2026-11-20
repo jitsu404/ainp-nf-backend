@@ -4,7 +4,13 @@ import { authenticate } from '../../middlewares/authenticate.js';
 import { authorize } from '../../middlewares/authorize.js';
 import { validate } from '../../middlewares/validate.js';
 import * as controller from './trials.controller.js';
-import { getTrialSchemas, listTrialsSchemas, updateTrialSchemas } from './trials.dto.js';
+import {
+  getTrialMetadataSchemas,
+  getTrialSchemas,
+  listTrialsSchemas,
+  saveTrialMetadataSchemas,
+  updateTrialSchemas,
+} from './trials.dto.js';
 
 export const trialsRouter = Router();
 
@@ -28,4 +34,23 @@ trialsRouter.patch(
   authorize('research.enter', 'research.assign'),
   validate(updateTrialSchemas),
   controller.update,
+);
+trialsRouter.get(
+  '/:id/metadata',
+  apiDoc({
+    name: 'Get trial metadata',
+    description: 'Returns all 38 ICAR metadata fields, prefilled with computed defaults.',
+  }),
+  validate(getTrialMetadataSchemas),
+  controller.getMetadata,
+);
+trialsRouter.put(
+  '/:id/metadata',
+  apiDoc({
+    name: 'Save trial metadata',
+    description: 'Saves trial-specific customizations for ICAR metadata fields.',
+  }),
+  authorize('research.enter', 'research.assign'),
+  validate(saveTrialMetadataSchemas),
+  controller.saveMetadata,
 );

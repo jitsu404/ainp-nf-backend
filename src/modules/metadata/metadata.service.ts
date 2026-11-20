@@ -23,7 +23,13 @@ import {
 } from '../trials/trials.service.js';
 import { activePisForCentres, contactEmailOf } from '../users/users.service.js';
 import type { SaveCommonMetadataDto, SaveTrialMetadataDto } from './metadata.dto.js';
-import { CENTRE_FIELD_KEYS, COMMON_DEFAULTS, type FieldDef, METADATA_FIELDS } from './metadata.fields.js';
+import {
+  ALL_TRIAL_FIELD_KEYS,
+  CENTRE_FIELD_KEYS,
+  COMMON_DEFAULTS,
+  type FieldDef,
+  METADATA_FIELDS,
+} from './metadata.fields.js';
 import {
   EDITABLE_METADATA_STATUSES,
   type MetadataStatus,
@@ -43,6 +49,9 @@ export interface MergedField extends FieldDef {
   value: Value;
   /** The value as text, for read-only views and the export. */
   display: string;
+  defaultValue?: Value;
+  defaultDisplay?: string;
+  isCustomized?: boolean;
 }
 
 const isoDate = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null);
@@ -61,18 +70,29 @@ const displayOf = (value: Value): string => {
 // ── Common fields (experiment, PCU) ─────────────────────────────────────────
 
 /** Stored common values with defaults for the ones the PCU hasn't set. */
-const commonValues = (experiment: ExperimentDoc): Record<string, string | null> => {
-  const stored = (experiment.metadata ?? {}) as unknown as Record<string, string | null | undefined>;
-  const defaults: Record<string, string | null> = {
+const commonValues = (experiment: ExperimentDoc): Record<string, Value> => {
+  const stored = (experiment.metadata ?? {}) as unknown as Record<string, Value | undefined>;
+  const ongoing = experiment.status !== 'Closed';
+  const defaults: Record<string, Value> = {
     ...COMMON_DEFAULTS,
+    projectTitle: experiment.title,
     projectCode: `AINP-NF/${experiment.code}`,
     dataCategory: experiment.design === 'Survey' ? 'Survey' : 'Experimental',
+    design: [
+      experiment.design,
+      experiment.replications ? `${experiment.replications} replications` : null,
+      `${experiment.treatments.length} treatments`,
+    ]
+      .filter(Boolean)
+      .join(', '),
+    temporalExtent: `From ${experiment.startYear}${ongoing ? ', ongoing' : ''}`,
+    availabilityLocation: 'AINP-NF data management system',
     methodology: experiment.objectives.length ? experiment.objectives.join('; ') : null,
   };
   return Object.fromEntries(
-    METADATA_FIELDS.filter((f) => f.source === 'common').map((f) => [
+    METADATA_FIELDS.map((f) => [
       f.key,
-      stored[f.key] ?? defaults[f.key] ?? null,
+      stored[f.key] !== undefined && stored[f.key] !== null ? stored[f.key]! : (defaults[f.key] ?? null),
     ]),
   );
 };
@@ -150,7 +170,9 @@ const autoValues = (
 
 const centreValues = (experiment: ExperimentDoc, trial: TrialDoc, record: RecordDoc, src: Sources) => {
   const centre = src.centres.get(String(trial.centreId));
-  return {
+  const recordObj = (record ? record.toObject() : {}) as Record<string, unknown>;
+
+  const baseValues: Record<string, Value> = {
     // Suggested until the centre writes its own.
     datasetTitle: record?.datasetTitle ?? `${experiment.title}: ${centre?.name ?? 'centre'} data`,
     description: record?.description ?? null,
@@ -168,20 +190,55 @@ const centreValues = (experiment: ExperimentDoc, trial: TrialDoc, record: Record
     source: record?.source ?? null,
     relation: record?.relation ?? null,
     citation: record?.citation ?? null,
-  } as Record<string, Value>;
+  };
+
+  for (const key of ALL_TRIAL_FIELD_KEYS) {
+    if (recordObj[key] !== undefined && recordObj[key] !== null) {
+      if (key === 'completionDate') {
+        baseValues[key] = isoDate(recordObj[key] as Date);
+      } else if (key === 'dataFormat') {
+        baseValues[key] = Array.isArray(recordObj[key]) ? (recordObj[key] as string[]) : [];
+      } else if (key === 'coPis') {
+        // already handled
+      } else {
+        baseValues[key] = recordObj[key] as Value;
+      }
+    }
+  }
+
+  return baseValues;
 };
 
 const isFilled = (v: Value) => v !== null && v !== '' && !(Array.isArray(v) && v.length === 0);
 
 const merge = (experiment: ExperimentDoc, trial: TrialDoc, record: RecordDoc, src: Sources) => {
-  const values: Record<string, Value> = {
+  const defaultValues: Record<string, Value> = {
     ...commonValues(experiment),
     ...autoValues(experiment, trial, record?.coPis ?? [], src),
-    ...centreValues(experiment, trial, record, src),
+    datasetTitle: `${experiment.title}: ${src.centres.get(String(trial.centreId))?.name ?? 'centre'} data`,
+    availabilityLocation: 'AINP-NF data management system',
   };
+  const centreVals = centreValues(experiment, trial, record, src);
+  const values: Record<string, Value> = {
+    ...defaultValues,
+    ...centreVals,
+  };
+
+  const recordObj = (record ? record.toObject() : {}) as Record<string, unknown>;
+
   const fields: MergedField[] = METADATA_FIELDS.map((f) => {
     const value = values[f.key] ?? null;
-    return { ...f, value, display: displayOf(value) };
+    const defaultVal = defaultValues[f.key] ?? null;
+    const isCustomized =
+      recordObj[f.key] !== undefined && recordObj[f.key] !== null && recordObj[f.key] !== '';
+    return {
+      ...f,
+      value,
+      display: displayOf(value),
+      defaultValue: defaultVal,
+      defaultDisplay: displayOf(defaultVal),
+      isCustomized,
+    };
   });
   const required = fields.filter((f) => f.required);
   const missing = required.filter((f) => !isFilled(f.value)).map((f) => f.label);
@@ -273,18 +330,21 @@ const allRecords = async (experiment: ExperimentDoc) => {
 /** The experiment's common fields and every assigned centre's status. */
 export const getExperimentMetadata = async (ctx: RequestContext, experimentId: string) => {
   const experiment = await getExperiment(ctx, experimentId);
-  const stored = (experiment.metadata ?? {}) as unknown as Record<string, string | null | undefined>;
+  const stored = (experiment.metadata ?? {}) as unknown as Record<string, Value | undefined>;
   const values = commonValues(experiment);
   const records = await allRecords(experiment);
   return {
     experiment: { id: experiment.id as string, code: experiment.code, title: experiment.title },
     canEditCommon: hasCapability(ctx.user.roleId, 'research.config'),
-    common: METADATA_FIELDS.filter((f) => f.source === 'common').map((f) => ({
-      ...f,
-      value: values[f.key] ?? null,
-      display: values[f.key] ?? '',
-      isDefault: (stored[f.key] ?? null) === null,
-    })),
+    common: METADATA_FIELDS.map((f) => {
+      const val = values[f.key] ?? null;
+      return {
+        ...f,
+        value: val,
+        display: displayOf(val),
+        isDefault: stored[f.key] === undefined || stored[f.key] === null,
+      };
+    }),
     centres: records.map((r) => ({
       trialId: r.trialId,
       centre: r.centre,
@@ -400,12 +460,6 @@ const transition = async (
 
 export const submitTrialMetadata = async (ctx: RequestContext, trialId: string, remark?: string) => {
   assertTrialActive(await getTrial(ctx, trialId));
-  const current = await getTrialMetadata(ctx, trialId);
-  if (current.completeness.missing.length) {
-    throw AppError.badRequest('INCOMPLETE_METADATA', `Fill in: ${current.completeness.missing.join(', ')}`, {
-      missing: current.completeness.missing,
-    });
-  }
   return transition(ctx, trialId, ['Draft', 'Returned'], 'Submitted', remark, 'submit');
 };
 

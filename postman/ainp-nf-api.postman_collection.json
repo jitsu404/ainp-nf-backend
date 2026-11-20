@@ -1657,6 +1657,72 @@
             },
             "description": "The centre sets its cropping systems (crops and varieties per season), the practice details of each treatment, the in-charge, layout notes and status. Seasons, crops and treatments are checked against the masters and the protocol.\n\n**Access:** signed in, and the role needs one of `research.enter`, `research.assign`\n\n**Endpoint:** `PATCH /api/v1/trials/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `seasonCrops` | object | no | — | The centre's crops per season where they differ from the experiment's (crop master item ids). Only the seasons sent change; null puts a season back to the experiment's crops. |\n| `croppingSystems` | object[] | no | — |  |\n| `practices` | object[] | no | — |  |\n| `inChargeUserId` | string | no | ObjectId; nullable |  |\n| `layoutNotes` | string | no | 0–4000 chars; nullable |  |\n| `status` | string | no | one of `Setup`, `Running`, `Completed` |  |\n\nUnknown fields are rejected."
           }
+        },
+        {
+          "name": "Get trial metadata",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/trials/:id/metadata",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "trials",
+                ":id",
+                "metadata"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{trialId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Returns all 38 ICAR metadata fields, prefilled with computed defaults.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/trials/:id/metadata`"
+          }
+        },
+        {
+          "name": "Save trial metadata",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"smdName\": \"Sample smdName\",\n  \"instituteName\": \"Sample instituteName\",\n  \"unitType\": \"Division\",\n  \"unitName\": \"Sample unitName\",\n  \"projectTitle\": \"Sample projectTitle\",\n  \"projectCode\": \"Sample projectCode\",\n  \"datasetTitle\": \"Sample datasetTitle\",\n  \"description\": \"Sample description\",\n  \"piNames\": \"Sample piNames\",\n  \"piDesignations\": \"Sample piDesignations\",\n  \"piEmails\": \"Sample piEmails\",\n  \"coPis\": [\n    {\n      \"name\": \"Dr. A. Kumar\",\n      \"designation\": \"Sample designation\",\n      \"email\": \"user@example.com\"\n    }\n  ],\n  \"fundingType\": \"Internal\",\n  \"fundingSource\": \"Sample fundingSource\",\n  \"subject\": \"Sample subject\",\n  \"keywords\": \"Sample keywords\",\n  \"commodity\": \"Sample commodity\",\n  \"completionDate\": \"2026-04-01\",\n  \"dataCategory\": \"Experimental\",\n  \"design\": \"Sample design\",\n  \"plotSize\": \"Sample plotSize\",\n  \"dataFormat\": [\n    \"Digital\"\n  ],\n  \"dataType\": \"Numerical data (tables)\",\n  \"methodology\": \"Sample methodology\",\n  \"instruments\": \"Sample instruments\",\n  \"dataScale\": \"Raw\",\n  \"language\": \"Sample language\",\n  \"temporalExtent\": \"Sample temporalExtent\",\n  \"seasons\": \"Sample seasons\",\n  \"spatialExtent\": \"Sample spatialExtent\",\n  \"availabilityLocation\": \"AINP-NF data management system\",\n  \"custodian\": \"Sample custodian\",\n  \"embargoYears\": 0,\n  \"source\": \"Sample source\",\n  \"relation\": \"Sample relation\",\n  \"citation\": \"Sample citation\",\n  \"attributes\": \"Sample attributes\",\n  \"resource\": \"Sample resource\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/trials/:id/metadata",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "trials",
+                ":id",
+                "metadata"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{trialId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "Saves trial-specific customizations for ICAR metadata fields.\n\n**Access:** signed in, and the role needs one of `research.enter`, `research.assign`\n\n**Endpoint:** `PUT /api/v1/trials/:id/metadata`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `smdName` | string | no | 0–500 chars; nullable |  |\n| `instituteName` | string | no | 0–500 chars; nullable |  |\n| `unitType` | any | no | nullable |  |\n| `unitName` | string | no | 0–500 chars; nullable |  |\n| `projectTitle` | string | no | 0–500 chars; nullable |  |\n| `projectCode` | string | no | 0–500 chars; nullable |  |\n| `datasetTitle` | string | no | 0–300 chars; nullable |  |\n| `description` | string | no | 0–2000 chars; nullable |  |\n| `piNames` | string | no | 0–500 chars; nullable |  |\n| `piDesignations` | string | no | 0–500 chars; nullable |  |\n| `piEmails` | string | no | 0–500 chars; nullable |  |\n| `coPis` | object[] | no | — |  |\n| `fundingType` | any | no | nullable |  |\n| `fundingSource` | string | no | 0–500 chars; nullable |  |\n| `subject` | string | no | 0–500 chars; nullable |  |\n| `keywords` | string | no | 0–500 chars; nullable |  |\n| `commodity` | string | no | 0–500 chars; nullable |  |\n| `completionDate` | any | no | — |  |\n| `dataCategory` | any | no | nullable |  |\n| `design` | string | no | 0–500 chars; nullable |  |\n| `plotSize` | string | no | 0–200 chars; nullable |  |\n| `dataFormat` | string[] | no | — |  |\n| `dataType` | any | no | nullable |  |\n| `methodology` | string | no | 0–4000 chars; nullable |  |\n| `instruments` | string | no | 0–2000 chars; nullable |  |\n| `dataScale` | any | no | nullable |  |\n| `language` | string | no | 0–500 chars; nullable |  |\n| `temporalExtent` | string | no | 0–500 chars; nullable |  |\n| `seasons` | string | no | 0–500 chars; nullable |  |\n| `spatialExtent` | string | no | 0–500 chars; nullable |  |\n| `availabilityLocation` | any | no | nullable |  |\n| `custodian` | string | no | 0–500 chars; nullable |  |\n| `embargoYears` | integer | no | min 0; max 20; nullable |  |\n| `source` | string | no | 0–500 chars; nullable |  |\n| `relation` | string | no | 0–1000 chars; nullable |  |\n| `citation` | string | no | 0–2000 chars; nullable |  |\n| `attributes` | string | no | 0–4000 chars; nullable |  |\n| `resource` | string | no | 0–2000 chars; nullable |  |\n\nUnknown fields are rejected."
+          }
         }
       ]
     },
@@ -2353,7 +2419,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"datasetTitle\": \"Sample datasetTitle\",\n  \"description\": \"Sample description\",\n  \"coPis\": [\n    {\n      \"name\": \"Dr. A. Kumar\",\n      \"designation\": \"Sample designation\",\n      \"email\": \"user@example.com\"\n    }\n  ],\n  \"completionDate\": \"2026-04-01\",\n  \"plotSize\": \"Sample plotSize\",\n  \"dataFormat\": [\n    \"Digital\"\n  ],\n  \"instruments\": \"Sample instruments\",\n  \"availabilityLocation\": \"AINP-NF data management system\",\n  \"embargoYears\": 0,\n  \"source\": \"Sample source\",\n  \"relation\": \"Sample relation\",\n  \"citation\": \"Sample citation\"\n}",
+              "raw": "{\n  \"smdName\": \"Sample smdName\",\n  \"instituteName\": \"Sample instituteName\",\n  \"unitType\": \"Division\",\n  \"unitName\": \"Sample unitName\",\n  \"projectTitle\": \"Sample projectTitle\",\n  \"projectCode\": \"Sample projectCode\",\n  \"datasetTitle\": \"Sample datasetTitle\",\n  \"description\": \"Sample description\",\n  \"piNames\": \"Sample piNames\",\n  \"piDesignations\": \"Sample piDesignations\",\n  \"piEmails\": \"Sample piEmails\",\n  \"coPis\": [\n    {\n      \"name\": \"Dr. A. Kumar\",\n      \"designation\": \"Sample designation\",\n      \"email\": \"user@example.com\"\n    }\n  ],\n  \"fundingType\": \"Internal\",\n  \"fundingSource\": \"Sample fundingSource\",\n  \"subject\": \"Sample subject\",\n  \"keywords\": \"Sample keywords\",\n  \"commodity\": \"Sample commodity\",\n  \"completionDate\": \"2026-04-01\",\n  \"dataCategory\": \"Experimental\",\n  \"design\": \"Sample design\",\n  \"plotSize\": \"Sample plotSize\",\n  \"dataFormat\": [\n    \"Digital\"\n  ],\n  \"dataType\": \"Numerical data (tables)\",\n  \"methodology\": \"Sample methodology\",\n  \"instruments\": \"Sample instruments\",\n  \"dataScale\": \"Raw\",\n  \"language\": \"Sample language\",\n  \"temporalExtent\": \"Sample temporalExtent\",\n  \"seasons\": \"Sample seasons\",\n  \"spatialExtent\": \"Sample spatialExtent\",\n  \"availabilityLocation\": \"AINP-NF data management system\",\n  \"custodian\": \"Sample custodian\",\n  \"embargoYears\": 0,\n  \"source\": \"Sample source\",\n  \"relation\": \"Sample relation\",\n  \"citation\": \"Sample citation\",\n  \"attributes\": \"Sample attributes\",\n  \"resource\": \"Sample resource\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2378,7 +2444,7 @@
                 }
               ]
             },
-            "description": "The centre's own fields. Only Draft or Returned metadata can change.\n\n**Access:** signed in, and the role needs `research.enter`\n\n**Endpoint:** `PUT /api/v1/metadata/trials/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `datasetTitle` | string | no | 0–300 chars; nullable |  |\n| `description` | string | no | 0–2000 chars; nullable |  |\n| `coPis` | object[] | no | — |  |\n| `completionDate` | any | no | — |  |\n| `plotSize` | string | no | 0–200 chars; nullable |  |\n| `dataFormat` | string[] | no | — |  |\n| `instruments` | string | no | 0–2000 chars; nullable |  |\n| `availabilityLocation` | any | no | nullable |  |\n| `embargoYears` | integer | no | min 0; max 20; nullable |  |\n| `source` | string | no | 0–500 chars; nullable |  |\n| `relation` | string | no | 0–1000 chars; nullable |  |\n| `citation` | string | no | 0–2000 chars; nullable |  |\n\nUnknown fields are rejected."
+            "description": "The centre's own fields. Only Draft or Returned metadata can change.\n\n**Access:** signed in, and the role needs `research.enter`\n\n**Endpoint:** `PUT /api/v1/metadata/trials/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `smdName` | string | no | 0–500 chars; nullable |  |\n| `instituteName` | string | no | 0–500 chars; nullable |  |\n| `unitType` | any | no | nullable |  |\n| `unitName` | string | no | 0–500 chars; nullable |  |\n| `projectTitle` | string | no | 0–500 chars; nullable |  |\n| `projectCode` | string | no | 0–500 chars; nullable |  |\n| `datasetTitle` | string | no | 0–300 chars; nullable |  |\n| `description` | string | no | 0–2000 chars; nullable |  |\n| `piNames` | string | no | 0–500 chars; nullable |  |\n| `piDesignations` | string | no | 0–500 chars; nullable |  |\n| `piEmails` | string | no | 0–500 chars; nullable |  |\n| `coPis` | object[] | no | — |  |\n| `fundingType` | any | no | nullable |  |\n| `fundingSource` | string | no | 0–500 chars; nullable |  |\n| `subject` | string | no | 0–500 chars; nullable |  |\n| `keywords` | string | no | 0–500 chars; nullable |  |\n| `commodity` | string | no | 0–500 chars; nullable |  |\n| `completionDate` | any | no | — |  |\n| `dataCategory` | any | no | nullable |  |\n| `design` | string | no | 0–500 chars; nullable |  |\n| `plotSize` | string | no | 0–200 chars; nullable |  |\n| `dataFormat` | string[] | no | — |  |\n| `dataType` | any | no | nullable |  |\n| `methodology` | string | no | 0–4000 chars; nullable |  |\n| `instruments` | string | no | 0–2000 chars; nullable |  |\n| `dataScale` | any | no | nullable |  |\n| `language` | string | no | 0–500 chars; nullable |  |\n| `temporalExtent` | string | no | 0–500 chars; nullable |  |\n| `seasons` | string | no | 0–500 chars; nullable |  |\n| `spatialExtent` | string | no | 0–500 chars; nullable |  |\n| `availabilityLocation` | any | no | nullable |  |\n| `custodian` | string | no | 0–500 chars; nullable |  |\n| `embargoYears` | integer | no | min 0; max 20; nullable |  |\n| `source` | string | no | 0–500 chars; nullable |  |\n| `relation` | string | no | 0–1000 chars; nullable |  |\n| `citation` | string | no | 0–2000 chars; nullable |  |\n| `attributes` | string | no | 0–4000 chars; nullable |  |\n| `resource` | string | no | 0–2000 chars; nullable |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -2890,7 +2956,7 @@
   "variable": [
     {
       "key": "host",
-      "value": "http://localhost:5000",
+      "value": "http://localhost:8081",
       "type": "string",
       "description": "Server origin"
     },

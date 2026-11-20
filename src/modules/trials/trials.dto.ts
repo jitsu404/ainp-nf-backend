@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { RequestSchemas } from '../../middlewares/validate.js';
 import { idParams, objectId } from '../../utils/validators.js';
 import { masterCode } from '../masters/masters.dto.js';
+import { trialBody } from '../metadata/metadata.dto.js';
 import { ASSIGNMENT_STATUSES, TRIAL_STATUSES } from './trials.model.js';
 
 const shortCode = z
@@ -98,6 +99,9 @@ const listQuery = z.object({
 export const listTrialsSchemas = { query: listQuery } satisfies RequestSchemas;
 export const getTrialSchemas = { params: idParams } satisfies RequestSchemas;
 export const updateTrialSchemas = { params: idParams, body: updateBody } satisfies RequestSchemas;
+export const getTrialMetadataSchemas = { params: idParams } satisfies RequestSchemas;
+export const saveTrialMetadataSchemas = { params: idParams, body: trialBody } satisfies RequestSchemas;
 
 export type UpdateTrialDto = z.output<typeof updateBody>;
 export type ListTrialsQuery = z.output<typeof listQuery>;
+export type SaveTrialMetadataDto = z.output<typeof trialBody>;

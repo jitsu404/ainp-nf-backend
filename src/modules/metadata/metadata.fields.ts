@@ -95,8 +95,8 @@ export const METADATA_FIELDS: readonly FieldDef[] = [
   common(4, 'unitName', 'Full name of the division / unit / network project'),
   auto(5, 'projectTitle', 'Project title', 'The experiment title'),
   common(6, 'projectCode', 'Project code (as per PME)'),
-  centre(7, 'datasetTitle', 'Dataset name / title', { required: true }),
-  centre(8, 'description', 'Dataset description (2–3 line abstract)', { type: 'textarea', required: true }),
+  centre(7, 'datasetTitle', 'Dataset name / title'),
+  centre(8, 'description', 'Dataset description (2–3 line abstract)', { type: 'textarea' }),
   auto(9, 'piNames', 'PI / Co-PI names', "The centre's current PI, then the Co-PIs below"),
   auto(10, 'piDesignations', 'PI / Co-PI designations', "The centre's current PI, then the Co-PIs below"),
   auto(11, 'piEmails', 'PI / Co-PI e-mail', "The centre's current PI, then the Co-PIs below"),
@@ -115,13 +115,11 @@ export const METADATA_FIELDS: readonly FieldDef[] = [
     'Design, replications and treatments of the protocol',
   ),
   centre(21, 'plotSize', 'Spatial resolution / plot size', {
-    required: true,
     hint: 'e.g. 6 m × 5 m (30 m²)',
   }),
   centre(22, 'dataFormat', 'Available data format', {
     type: 'multiselect',
     options: DATA_FORMATS,
-    required: true,
   }),
   common(23, 'dataType', 'Data type', { type: 'select', options: DATA_TYPES }),
   common(24, 'methodology', 'Methodology / protocol followed', { type: 'textarea' }),
@@ -137,7 +135,6 @@ export const METADATA_FIELDS: readonly FieldDef[] = [
   centre(31, 'availabilityLocation', 'Data availability location', {
     type: 'select',
     options: AVAILABILITY_LOCATIONS,
-    required: true,
   }),
   auto(32, 'custodian', 'Data custodian / contact', "The centre's current PI"),
   centre(33, 'embargoYears', 'Embargo (years), if any', { type: 'number' }),
@@ -148,20 +145,48 @@ export const METADATA_FIELDS: readonly FieldDef[] = [
   auto(38, 'resource', 'Resource (data files)', 'Observation sheets recorded in this system'),
 ];
 
-export const CENTRE_FIELD_KEYS = [
+export const ALL_TRIAL_FIELD_KEYS = [
+  'smdName',
+  'instituteName',
+  'unitType',
+  'unitName',
+  'projectTitle',
+  'projectCode',
   'datasetTitle',
   'description',
+  'piNames',
+  'piDesignations',
+  'piEmails',
   'coPis',
+  'fundingType',
+  'fundingSource',
+  'subject',
+  'keywords',
+  'commodity',
   'completionDate',
+  'dataCategory',
+  'design',
   'plotSize',
   'dataFormat',
+  'dataType',
+  'methodology',
   'instruments',
+  'dataScale',
+  'language',
+  'temporalExtent',
+  'seasons',
+  'spatialExtent',
   'availabilityLocation',
+  'custodian',
   'embargoYears',
   'source',
   'relation',
   'citation',
+  'attributes',
+  'resource',
 ] as const;
+
+export const CENTRE_FIELD_KEYS = ALL_TRIAL_FIELD_KEYS;
 export type CentreFieldKey = (typeof CENTRE_FIELD_KEYS)[number];
 
 /** Values of the common fields used until the PCU sets them. */

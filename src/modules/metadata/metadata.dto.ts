@@ -29,10 +29,19 @@ const optionalChoice = <T extends readonly [string, ...string[]]>(values: T) =>
     .optional()
     .transform((v) => (v === '' ? null : v));
 
-const trialBody = z
+export const trialBody = z
   .object({
+    smdName: optionalText(500),
+    instituteName: optionalText(500),
+    unitType: optionalChoice(UNIT_TYPES),
+    unitName: optionalText(500),
+    projectTitle: optionalText(500),
+    projectCode: optionalText(500),
     datasetTitle: optionalText(300),
     description: optionalText(2000),
+    piNames: optionalText(500),
+    piDesignations: optionalText(500),
+    piEmails: optionalText(500),
     coPis: z
       .array(
         z
@@ -50,40 +59,40 @@ const trialBody = z
       )
       .max(20)
       .optional(),
+    fundingType: optionalChoice(FUNDING_TYPES),
+    fundingSource: optionalText(500),
+    subject: optionalText(500),
+    keywords: optionalText(500),
+    commodity: optionalText(500),
     completionDate: z.iso
       .date()
       .nullable()
       .optional()
       .or(z.literal('').transform(() => null)),
+    dataCategory: optionalChoice(DATA_CATEGORIES),
+    design: optionalText(500),
     plotSize: optionalText(200),
     dataFormat: z.array(z.enum(DATA_FORMATS)).max(DATA_FORMATS.length).optional(),
+    dataType: optionalChoice(DATA_TYPES),
+    methodology: optionalText(4000),
     instruments: optionalText(2000),
+    dataScale: optionalChoice(DATA_SCALES),
+    language: optionalText(500),
+    temporalExtent: optionalText(500),
+    seasons: optionalText(500),
+    spatialExtent: optionalText(500),
     availabilityLocation: optionalChoice(AVAILABILITY_LOCATIONS),
+    custodian: optionalText(500),
     embargoYears: z.number().int().min(0).max(20).nullable().optional(),
     source: optionalText(500),
     relation: optionalText(1000),
     citation: optionalText(2000),
+    attributes: optionalText(4000),
+    resource: optionalText(2000),
   })
   .strict();
 
-const commonBody = z
-  .object({
-    smdName: optionalText(500),
-    instituteName: optionalText(500),
-    unitType: optionalChoice(UNIT_TYPES),
-    unitName: optionalText(500),
-    projectCode: optionalText(500),
-    fundingType: optionalChoice(FUNDING_TYPES),
-    fundingSource: optionalText(500),
-    subject: optionalText(500),
-    keywords: optionalText(500),
-    dataCategory: optionalChoice(DATA_CATEGORIES),
-    dataType: optionalChoice(DATA_TYPES),
-    methodology: optionalText(4000),
-    dataScale: optionalChoice(DATA_SCALES),
-    language: optionalText(500),
-  })
-  .strict();
+const commonBody = trialBody;
 
 const remarkBody = z.object({ remark: z.string().trim().max(2000).optional() }).strict();
 const returnBody = z

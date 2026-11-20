@@ -1,4 +1,5 @@
 import { Schema, type Types, model } from 'mongoose';
+import { ALL_TRIAL_FIELD_KEYS } from '../metadata/metadata.fields.js';
 
 // An experiment is the PCU's protocol (the "technical programme"): design, common treatments and
 // default parameters recorded across participating centres. It is assigned to centres; each centre
@@ -53,41 +54,50 @@ export interface ExperimentParameter {
 }
 
 /**
- * ICAR metadata fields that are the same for every centre running the experiment (the PCU fills
- * them once). Centre-specific fields live in modules/metadata; null means "use the default".
+ * ICAR metadata fields stored at the experiment level (defaults for every centre).
+ * null or undefined means "use the default".
  */
 export interface ExperimentMetadata {
-  smdName: string | null;
-  instituteName: string | null;
-  unitType: string | null;
-  unitName: string | null;
-  projectCode: string | null;
-  fundingType: string | null;
-  fundingSource: string | null;
-  subject: string | null;
-  keywords: string | null;
-  dataCategory: string | null;
-  dataType: string | null;
-  methodology: string | null;
-  dataScale: string | null;
-  language: string | null;
+  smdName?: string | null;
+  instituteName?: string | null;
+  unitType?: string | null;
+  unitName?: string | null;
+  projectTitle?: string | null;
+  projectCode?: string | null;
+  datasetTitle?: string | null;
+  description?: string | null;
+  piNames?: string | null;
+  piDesignations?: string | null;
+  piEmails?: string | null;
+  coPis?: { name: string; designation?: string | null; email?: string | null }[];
+  fundingType?: string | null;
+  fundingSource?: string | null;
+  subject?: string | null;
+  keywords?: string | null;
+  commodity?: string | null;
+  completionDate?: Date | string | null;
+  dataCategory?: string | null;
+  design?: string | null;
+  plotSize?: string | null;
+  dataFormat?: string[];
+  dataType?: string | null;
+  methodology?: string | null;
+  instruments?: string | null;
+  dataScale?: string | null;
+  language?: string | null;
+  temporalExtent?: string | null;
+  seasons?: string | null;
+  spatialExtent?: string | null;
+  availabilityLocation?: string | null;
+  custodian?: string | null;
+  embargoYears?: number | null;
+  source?: string | null;
+  relation?: string | null;
+  citation?: string | null;
+  attributes?: string | null;
+  resource?: string | null;
 }
-export const EXPERIMENT_METADATA_KEYS = [
-  'smdName',
-  'instituteName',
-  'unitType',
-  'unitName',
-  'projectCode',
-  'fundingType',
-  'fundingSource',
-  'subject',
-  'keywords',
-  'dataCategory',
-  'dataType',
-  'methodology',
-  'dataScale',
-  'language',
-] as const satisfies readonly (keyof ExperimentMetadata)[];
+export const EXPERIMENT_METADATA_KEYS = ALL_TRIAL_FIELD_KEYS;
 
 export interface Experiment {
   code: string;
@@ -151,13 +161,58 @@ const experimentParameterSchema = new Schema<ExperimentParameter>(
   { _id: false },
 );
 
+const metaText = (maxlength: number) => ({ type: String, trim: true, maxlength, default: null });
+
+const experimentCoPiSchema = new Schema(
+  {
+    name: { type: String, required: true, trim: true, maxlength: 150 },
+    designation: { type: String, trim: true, maxlength: 150, default: null },
+    email: { type: String, trim: true, lowercase: true, maxlength: 200, default: null },
+  },
+  { _id: false },
+);
+
 const experimentMetadataSchema = new Schema<ExperimentMetadata>(
-  Object.fromEntries(
-    EXPERIMENT_METADATA_KEYS.map((key) => [
-      key,
-      { type: String, trim: true, maxlength: key === 'methodology' ? 4000 : 500, default: null },
-    ]),
-  ),
+  {
+    smdName: metaText(500),
+    instituteName: metaText(500),
+    unitType: metaText(200),
+    unitName: metaText(500),
+    projectTitle: metaText(500),
+    projectCode: metaText(500),
+    datasetTitle: metaText(300),
+    description: metaText(2000),
+    piNames: metaText(500),
+    piDesignations: metaText(500),
+    piEmails: metaText(500),
+    coPis: { type: [experimentCoPiSchema], default: [] },
+    fundingType: metaText(200),
+    fundingSource: metaText(500),
+    subject: metaText(500),
+    keywords: metaText(500),
+    commodity: metaText(500),
+    completionDate: { type: Date, default: null },
+    dataCategory: metaText(200),
+    design: metaText(500),
+    plotSize: metaText(200),
+    dataFormat: { type: [String], default: [] },
+    dataType: metaText(200),
+    methodology: metaText(4000),
+    instruments: metaText(2000),
+    dataScale: metaText(200),
+    language: metaText(200),
+    temporalExtent: metaText(500),
+    seasons: metaText(500),
+    spatialExtent: metaText(500),
+    availabilityLocation: metaText(200),
+    custodian: metaText(500),
+    embargoYears: { type: Number, min: 0, max: 20, default: null },
+    source: metaText(500),
+    relation: metaText(1000),
+    citation: metaText(2000),
+    attributes: metaText(4000),
+    resource: metaText(2000),
+  },
   { _id: false },
 );
 
