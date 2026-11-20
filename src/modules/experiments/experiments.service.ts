@@ -12,9 +12,10 @@ import { activeMasterCodes, masterItemsExist } from '../masters/masters.service.
 import { parametersByIds } from '../parameters/parameters.service.js';
 import { findExperimentPi } from '../users/users.service.js';
 import type { CreateExperimentDto, ListExperimentsQuery, UpdateExperimentDto } from './experiments.dto.js';
-export { DESIGNS_WITH_ANOVA } from './experiments.model.js';
+export { DESIGNS_WITH_ANOVA, DESIGNS_WITH_PLOTS } from './experiments.model.js';
 import {
   DESIGNS_NEEDING_REPLICATIONS,
+  DESIGNS_WITH_PLOTS,
   DESIGNS_WITHOUT_REPLICATIONS,
   EXPERIMENT_METADATA_KEYS,
   type Experiment,
@@ -60,14 +61,12 @@ export const experimentSeasonCodes = (experiment: Pick<Experiment, 'seasons'>): 
   return seasons && typeof seasons === 'object' ? Object.keys(seasons) : [];
 };
 
-/** Calendar year a financial-year code starts in: '2026-27' → 2026. */
-export const fyStartYear = (fyCode: string): number => Number(fyCode.slice(0, 4));
-
-/** Whether financial year `fyCode` falls within the experiment's years. */
-export const fyWithinExperiment = (fyCode: string, e: Pick<Experiment, 'startYear' | 'endYear'>) => {
-  const year = fyStartYear(fyCode);
-  return year >= e.startYear && (!e.endYear || year <= e.endYear);
-};
+/** Every year the experiment runs, start to end (2026, 2027 …). Sheets are recorded per year. */
+export const experimentYears = (e: Pick<Experiment, 'startYear' | 'endYear'>): number[] =>
+  Array.from(
+    { length: Math.max(0, (e.endYear ?? e.startYear) - e.startYear + 1) },
+    (_, i) => e.startYear + i,
+  );
 
 export const listExperiments = (ctx: RequestContext, query: ListExperimentsQuery) => {
   const where: QueryFilter<Experiment> = {};
@@ -177,6 +176,10 @@ const assertCompatibleWithData = (existing: Experiment, dto: UpdateExperimentDto
   if (dto.design && dto.design !== existing.design) problems.push('the design');
   if (dto.replications !== undefined && dto.replications !== existing.replications)
     problems.push('the replications');
+  if (dto.mainPlotCount !== undefined && dto.mainPlotCount !== existing.mainPlotCount)
+    problems.push('the number of main plots');
+  if (dto.subPlotCount !== undefined && dto.subPlotCount !== existing.subPlotCount)
+    problems.push('the number of sub plots');
   if (dto.treatments) {
     const kept = new Set(dto.treatments.map((t) => t.code));
     const removed = existing.treatments.filter((t) => !kept.has(t.code)).map((t) => t.code);
@@ -204,6 +207,42 @@ const assertCompatibleWithData = (existing: Experiment, dto: UpdateExperimentDto
     );
   }
 };
+
+/**
+ * Main and sub plot counts for the design: split and strip plot need at least one of each; every
+ * other design is a single plot (both 0).
+ */
+const plotCounts = (design: Experiment['design'], mainPlotCount = 0, subPlotCount = 0) => {
+  if (!DESIGNS_WITH_PLOTS.includes(design)) return { mainPlotCount: 0, subPlotCount: 0 };
+  if (mainPlotCount < 1 || subPlotCount < 1) {
+    throw AppError.badRequest('PLOT_COUNTS_REQUIRED', `${design} needs at least 1 main plot and 1 sub plot`);
+  }
+  return { mainPlotCount, subPlotCount };
+};
+
+/** A sheet cell's plot: both null for a single-plot design. */
+export interface PlotRef {
+  mainPlot: number | null;
+  subPlot: number | null;
+}
+
+/**
+ * Every plot of the layout, main plot first (M1·S1, M1·S2, M2·S1 …); one `{ null, null }` plot
+ * for designs that aren't split into plots. Each plot holds all treatments × replications.
+ */
+export const experimentPlots = (
+  e: Pick<Experiment, 'design' | 'mainPlotCount' | 'subPlotCount'>,
+): PlotRef[] => {
+  if (!DESIGNS_WITH_PLOTS.includes(e.design) || !e.mainPlotCount || !e.subPlotCount) {
+    return [{ mainPlot: null, subPlot: null }];
+  }
+  return Array.from({ length: e.mainPlotCount }, (_, m) =>
+    Array.from({ length: e.subPlotCount }, (_, s) => ({ mainPlot: m + 1, subPlot: s + 1 })),
+  ).flat();
+};
+
+/** "M1·S2", or '' for a single-plot design. */
+export const plotLabel = (p: PlotRef) => (p.mainPlot === null ? '' : `M${p.mainPlot}·S${p.subPlot}`);
 
 /** The reference treatment, if set, must be one of the experiment's treatments. */
 const assertReferenceTreatment = (code: string | null | undefined, treatments: { code: string }[]) => {
@@ -315,6 +354,7 @@ export const createExperiment = async (
           code,
           ...computeYearDates(dto.startYear, dto.endYear),
           replications: DESIGNS_WITHOUT_REPLICATIONS.includes(dto.design) ? null : (dto.replications ?? null),
+          ...plotCounts(dto.design, dto.mainPlotCount, dto.subPlotCount),
           createdBy: ctx.user.id,
           updatedBy: ctx.user.id,
         },
@@ -349,7 +389,16 @@ export const updateExperiment = async (
     if (!experiment) throw AppError.notFound('EXPERIMENT_NOT_FOUND', 'Experiment not found');
     assertCompatibleWithData(experiment, dto);
     // Replications and the year dates can change as a side effect, so record them too.
-    const keys = [...new Set([...Object.keys(dto), 'replications', 'startYearDate', 'endYearDate'])];
+    const keys = [
+      ...new Set([
+        ...Object.keys(dto),
+        'replications',
+        'mainPlotCount',
+        'subPlotCount',
+        'startYearDate',
+        'endYearDate',
+      ]),
+    ];
     const before = snapshot(experiment, keys);
 
     // `dto` holds only the fields the request sent (validate parsed it; nothing is defaulted).
@@ -368,6 +417,7 @@ export const updateExperiment = async (
         `${experiment.design} needs at least 2 replications`,
       );
     }
+    experiment.set(plotCounts(experiment.design, experiment.mainPlotCount, experiment.subPlotCount));
     assertReferenceTreatment(experiment.referenceTreatmentCode, experiment.treatments);
     assertPlotTreatmentsCount(
       experiment.design,

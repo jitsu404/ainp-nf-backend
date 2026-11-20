@@ -32,7 +32,7 @@ sheetsRouter.get(
   apiDoc({
     name: 'Trend across years',
     description:
-      'Treatment means (mean of centres, approved sheets) for each financial year since the experiment started; optionally one season or one centre.',
+      'Treatment means (mean of centres, approved sheets) for each year of the experiment (future years without data left off); optionally one season or one centre.',
   }),
   validate(trendSchemas),
   controller.trend,
@@ -51,7 +51,7 @@ sheetsRouter.get(
   apiDoc({
     name: 'Reporting status',
     description:
-      'For one experiment: each assigned centre × financial year (since the start year) × season, with the sheets opened and their status. Centre users see only their own centre.',
+      'For one experiment: each assigned centre × year (start to end year) × season, with the sheets opened and their status. Centre users see only their own centre.',
   }),
   validate(reportingSchemas),
   controller.reporting,
@@ -77,7 +77,7 @@ sheetsRouter.post(
   apiDoc({
     name: 'Open sheet',
     description:
-      'One sheet per trial × financial year × season (× cropping system or crop). The year must be open.',
+      "One sheet per trial × year × season (× cropping system or crop). `year` is the year the season starts in (Rabi 2026 runs into 2027), any year from the experiment's start year to its end year.",
   }),
   authorize('research.enter'),
   validate(createSheetSchemas),
@@ -88,7 +88,7 @@ sheetsRouter.put(
   apiDoc({
     name: 'Save values',
     description:
-      'Upserts cells (treatment × replication × parameter); `value: null` clears a cell. Every cell is checked against the protocol and the parameter library; any error rejects the whole batch. Only Draft or Returned sheets in an open year.',
+      'Upserts cells ((main plot × sub plot ×) treatment × replication × parameter); `value: null` clears a cell. Split / strip plot cells need `mainPlot` and `subPlot`; other designs leave them null. Every cell is checked against the protocol and the parameter library; any error rejects the whole batch. Only Draft or Returned sheets in an open year.',
   }),
   authorize('research.enter'),
   validate(saveValuesSchemas),
@@ -123,7 +123,7 @@ sheetsRouter.get(
   apiDoc({
     name: 'Download sheet template',
     description:
-      'Excel with the current values: "Plot data" (treatment × replication) and "Treatment data" tabs.',
+      'Excel with the current values: "Plot data" (treatment × replication, in every main × sub plot for split / strip plot) and "Treatment data" tabs. Plots and replications are written as M1, S1, R1.',
   }),
   validate(sheetTemplateSchemas),
   controller.template,

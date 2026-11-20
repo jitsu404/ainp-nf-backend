@@ -8,8 +8,12 @@ import { type Formula, evaluateFormula, parseFormula } from '../../utils/formula
 //  - a per-treatment formula that uses a per-plot input (yield) uses that treatment's mean over
 //    the replications;
 //  - a per-plot formula that uses a per-treatment input (price) uses the treatment's value.
+// In split- and strip-plot designs every plot (main × sub) is computed on its own.
 
 export interface ObsRow {
+  /** Null for designs that are a single plot. */
+  mainPlot: number | null;
+  subPlot: number | null;
   treatmentCode: string;
   replication: number | null;
   parameterId: string;
@@ -26,6 +30,8 @@ export interface CalcProtocolParam {
 
 interface Protocol {
   replications: number | null;
+  /** Every plot of the layout (experimentPlots). */
+  plots: { mainPlot: number | null; subPlot: number | null }[];
   treatments: { code: string }[];
   parameters: CalcProtocolParam[];
 }
@@ -33,7 +39,7 @@ interface Protocol {
 const MAX_DEPTH = 20;
 
 /** Ids of the protocol's calculated parameters (their stored values, if any, are ignored). */
-export const calculatedIds = (protocol: Protocol): Set<string> =>
+export const calculatedIds = (protocol: Pick<Protocol, 'parameters'>): Set<string> =>
   new Set(protocol.parameters.filter((p) => p.formula).map((p) => p.parameterId));
 
 /**
@@ -50,9 +56,13 @@ export const computeCalculated = (
   const calcIds = calculatedIds(protocol);
 
   const values = new Map<string, number>();
+  const at = (id: string, plot: string, t: string, r: number | null) => `${id}|${plot}|${t}|${r}`;
   for (const row of entered) {
     if (typeof row.value === 'number' && !calcIds.has(row.parameterId)) {
-      values.set(`${row.parameterId}|${row.treatmentCode}|${row.replication}`, row.value);
+      values.set(
+        at(row.parameterId, `${row.mainPlot}.${row.subPlot}`, row.treatmentCode, row.replication),
+        row.value,
+      );
     }
   }
   const formulaOf = (code: string): Formula | null => {
@@ -67,18 +77,18 @@ export const computeCalculated = (
     return library.get(code)?.formula ?? null;
   };
 
-  const valueAt = (code: string, t: string, r: number | null, depth: number): number | null => {
+  const valueAt = (code: string, plot: string, t: string, r: number | null, depth: number): number | null => {
     if (depth > MAX_DEPTH) return null;
     const formula = formulaOf(code);
-    if (formula) return evaluateFormula(formula, (c) => valueAt(c, t, r, depth + 1));
+    if (formula) return evaluateFormula(formula, (c) => valueAt(c, plot, t, r, depth + 1));
     const p = byCode.get(code);
     if (!p) return null;
-    if (!replicated(p)) return values.get(`${p.parameterId}|${t}|null`) ?? null;
-    if (r !== null) return values.get(`${p.parameterId}|${t}|${r}`) ?? null;
+    if (!replicated(p)) return values.get(at(p.parameterId, plot, t, null)) ?? null;
+    if (r !== null) return values.get(at(p.parameterId, plot, t, r)) ?? null;
     // Per-plot input asked for at treatment level: the mean of the replications recorded.
     const xs: number[] = [];
     for (let rep = 1; rep <= (protocol.replications ?? 0); rep++) {
-      const v = values.get(`${p.parameterId}|${t}|${rep}`);
+      const v = values.get(at(p.parameterId, plot, t, rep));
       if (v !== undefined) xs.push(v);
     }
     return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
@@ -88,17 +98,21 @@ export const computeCalculated = (
   for (const p of protocol.parameters) {
     if (!p.formula || !p.code) continue;
     const reps = replicated(p) ? Array.from({ length: protocol.replications ?? 0 }, (_, i) => i + 1) : [null];
-    for (const t of protocol.treatments) {
-      for (const r of reps) {
-        const v = valueAt(p.code, t.code, r, 0);
-        if (v === null) continue;
-        const factor = 10 ** p.decimals;
-        rows.push({
-          treatmentCode: t.code,
-          replication: r,
-          parameterId: p.parameterId,
-          value: Math.round(v * factor) / factor,
-        });
+    for (const { mainPlot, subPlot } of protocol.plots) {
+      for (const t of protocol.treatments) {
+        for (const r of reps) {
+          const v = valueAt(p.code, `${mainPlot}.${subPlot}`, t.code, r, 0);
+          if (v === null) continue;
+          const factor = 10 ** p.decimals;
+          rows.push({
+            mainPlot,
+            subPlot,
+            treatmentCode: t.code,
+            replication: r,
+            parameterId: p.parameterId,
+            value: Math.round(v * factor) / factor,
+          });
+        }
       }
     }
   }

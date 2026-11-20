@@ -1331,7 +1331,7 @@
                 "experiments"
               ]
             },
-            "description": "The PCU protocol: design, replications, common treatments, the parameters to record (plot- or treatment-level) and seasons. Assigning centres creates their trials; `piUserId` links an Experiment PI seat (optional).\n\n**Access:** signed in, and the role needs `research.assign`\n\n**Endpoint:** `POST /api/v1/experiments`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | 5–300 chars |  |\n| `programmeCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | yes | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0; default `0` |  |\n| `subPlotCount` | integer | no | min 0; default `0` |  |\n| `treatments` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | yes | min 1900; max 2100 |  |\n| `endYear` | integer | yes | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` | Leave out to generate the next code (AINP-NF-EXPT-001 …) |\n\nUnknown fields are rejected."
+            "description": "The PCU protocol: design, replications, common treatments, the parameters to record (plot- or treatment-level) and seasons. Assigning centres creates their trials; `piUserId` links an Experiment PI seat (optional).\n\n**Access:** signed in, and the role needs `research.assign`\n\n**Endpoint:** `POST /api/v1/experiments`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | 5–300 chars |  |\n| `programmeCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | yes | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0; max 10; default `0` | Split / strip plot: main plots (≥ 1); other designs: 0. Each main × sub plot holds every treatment × replication |\n| `subPlotCount` | integer | no | min 0; max 10; default `0` | Split / strip plot: sub plots per main plot (≥ 1); other designs: 0 |\n| `treatments` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | yes | min 1900; max 2100 |  |\n| `endYear` | integer | yes | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` | Leave out to generate the next code (AINP-NF-EXPT-001 …) |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -1370,7 +1370,7 @@
                 }
               ]
             },
-            "description": "Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added. The Experiment PI edits only their own experiment; centres and the PI (`centreIds`, `piUserId`) need `research.assign`.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | no | 5–300 chars |  |\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | no | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0 |  |\n| `subPlotCount` | integer | no | min 0 |  |\n| `treatments` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | no | min 1900; max 2100 |  |\n| `endYear` | integer | no | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n| `withdrawReason` | string | no | 3–500 chars | Why centres left out of `centreIds` are withdrawn (kept on their trial; their data stays read-only) |\n\nUnknown fields are rejected."
+            "description": "Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added. The Experiment PI edits only their own experiment; centres and the PI (`centreIds`, `piUserId`) need `research.assign`.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | no | 5–300 chars |  |\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | no | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0; max 10 | Split / strip plot: main plots (≥ 1); other designs: 0. Each main × sub plot holds every treatment × replication |\n| `subPlotCount` | integer | no | min 0; max 10 | Split / strip plot: sub plots per main plot (≥ 1); other designs: 0 |\n| `treatments` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | no | min 1900; max 2100 |  |\n| `endYear` | integer | no | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n| `withdrawReason` | string | no | 3–500 chars | Why centres left out of `centreIds` are withdrawn (kept on their trial; their data stays read-only) |\n\nUnknown fields are rejected."
           }
         }
       ]
@@ -1763,9 +1763,9 @@
                   "disabled": true
                 },
                 {
-                  "key": "fyCode",
+                  "key": "year",
                   "value": "",
-                  "description": "string · pattern `^\\d{4}-\\d{2}$`",
+                  "description": "integer · min 1900; max 2100",
                   "disabled": true
                 },
                 {
@@ -1782,7 +1782,7 @@
                 }
               ]
             },
-            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `trialId` | string | no | ObjectId |  |\n| `experimentId` | string | no | ObjectId |  |\n| `centreId` | string | no | ObjectId |  |\n| `fyCode` | string | no | pattern `^\\d{4}-\\d{2}$` |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `status` | string | no | one of `Draft`, `Submitted`, `Returned`, `Approved` |  |"
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `trialId` | string | no | ObjectId |  |\n| `experimentId` | string | no | ObjectId |  |\n| `centreId` | string | no | ObjectId |  |\n| `year` | integer | no | min 1900; max 2100 |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `status` | string | no | one of `Draft`, `Submitted`, `Returned`, `Approved` |  |"
           }
         },
         {
@@ -1820,7 +1820,7 @@
                 }
               ]
             },
-            "description": "Treatment means (mean of centres, approved sheets) for each financial year since the experiment started; optionally one season or one centre.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/trend`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | yes | ObjectId |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `centreId` | string | no | ObjectId | One centre only (default: mean of all centres) |"
+            "description": "Treatment means (mean of centres, approved sheets) for each year of the experiment (future years without data left off); optionally one season or one centre.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/trend`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | yes | ObjectId |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `centreId` | string | no | ObjectId | One centre only (default: mean of all centres) |"
           }
         },
         {
@@ -1829,7 +1829,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/sheets/summary/export?experimentId={{experimentId}}&fyCode=2026-27",
+              "raw": "{{baseUrl}}/sheets/summary/export?experimentId={{experimentId}}&year=2026",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1846,9 +1846,9 @@
                   "disabled": false
                 },
                 {
-                  "key": "fyCode",
-                  "value": "2026-27",
-                  "description": "string · pattern `^\\d{4}-\\d{2}$`",
+                  "key": "year",
+                  "value": "2026",
+                  "description": "integer · min 1900; max 2100",
                   "disabled": false
                 },
                 {
@@ -1865,7 +1865,7 @@
                 }
               ]
             },
-            "description": "The cross-centre summary and pooled analyses as Excel (same filters as the summary).\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/summary/export`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | yes | ObjectId |  |\n| `fyCode` | string | yes | pattern `^\\d{4}-\\d{2}$` |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `includeUnapproved` | string | no | — | Include sheets not yet approved |"
+            "description": "The cross-centre summary and pooled analyses as Excel (same filters as the summary).\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/summary/export`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | yes | ObjectId |  |\n| `year` | integer | yes | min 1900; max 2100 |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `includeUnapproved` | string | no | — | Include sheets not yet approved |"
           }
         },
         {
@@ -1891,7 +1891,7 @@
                 }
               ]
             },
-            "description": "For one experiment: each assigned centre × financial year (since the start year) × season, with the sheets opened and their status. Centre users see only their own centre.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/reporting`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | yes | ObjectId |  |"
+            "description": "For one experiment: each assigned centre × year (start to end year) × season, with the sheets opened and their status. Centre users see only their own centre.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/reporting`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | yes | ObjectId |  |"
           }
         },
         {
@@ -1900,7 +1900,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/sheets/summary?experimentId={{experimentId}}&fyCode=2026-27",
+              "raw": "{{baseUrl}}/sheets/summary?experimentId={{experimentId}}&year=2026",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1916,9 +1916,9 @@
                   "disabled": false
                 },
                 {
-                  "key": "fyCode",
-                  "value": "2026-27",
-                  "description": "string · pattern `^\\d{4}-\\d{2}$`",
+                  "key": "year",
+                  "value": "2026",
+                  "description": "integer · min 1900; max 2100",
                   "disabled": false
                 },
                 {
@@ -1935,7 +1935,7 @@
                 }
               ]
             },
-            "description": "Treatment means per centre and parameter for one experiment and year, from approved sheets.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/summary`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | yes | ObjectId |  |\n| `fyCode` | string | yes | pattern `^\\d{4}-\\d{2}$` |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `includeUnapproved` | string | no | — | Include sheets not yet approved |"
+            "description": "Treatment means per centre and parameter for one experiment and year, from approved sheets.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/summary`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | yes | ObjectId |  |\n| `year` | integer | yes | min 1900; max 2100 |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `includeUnapproved` | string | no | — | Include sheets not yet approved |"
           }
         },
         {
@@ -1989,7 +1989,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"trialId\": \"{{trialId}}\",\n  \"fyCode\": \"2026-27\",\n  \"seasonCode\": \"KHARIF\",\n  \"croppingSystemCode\": \"CS1\",\n  \"cropCode\": \"RICE\"\n}",
+              "raw": "{\n  \"trialId\": \"{{trialId}}\",\n  \"year\": 2026,\n  \"seasonCode\": \"KHARIF\",\n  \"croppingSystemCode\": \"CS1\",\n  \"cropCode\": \"RICE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2005,7 +2005,7 @@
                 "sheets"
               ]
             },
-            "description": "One sheet per trial × financial year × season (× cropping system or crop). The year must be open.\n\n**Access:** signed in, and the role needs `research.enter`\n\n**Endpoint:** `POST /api/v1/sheets`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `trialId` | string | yes | ObjectId |  |\n| `fyCode` | string | yes | pattern `^\\d{4}-\\d{2}$` |  |\n| `seasonCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `croppingSystemCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable |  |\n| `cropCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable |  |\n\nUnknown fields are rejected."
+            "description": "One sheet per trial × year × season (× cropping system or crop). `year` is the year the season starts in (Rabi 2026 runs into 2027), any year from the experiment's start year to its end year.\n\n**Access:** signed in, and the role needs `research.enter`\n\n**Endpoint:** `POST /api/v1/sheets`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `trialId` | string | yes | ObjectId |  |\n| `year` | integer | yes | min 1900; max 2100 | Year the season starts in (Rabi 2026 runs into 2027); any year from the experiment's startYear to its endYear |\n| `seasonCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `croppingSystemCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable |  |\n| `cropCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -2020,7 +2020,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"values\": [\n    {\n      \"treatmentCode\": \"T1\",\n      \"replication\": 1,\n      \"parameterId\": \"{{parameterId}}\",\n      \"value\": 1\n    }\n  ]\n}",
+              "raw": "{\n  \"values\": [\n    {\n      \"mainPlot\": null,\n      \"subPlot\": null,\n      \"treatmentCode\": \"T1\",\n      \"replication\": 1,\n      \"parameterId\": \"{{parameterId}}\",\n      \"value\": 1\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2045,7 +2045,7 @@
                 }
               ]
             },
-            "description": "Upserts cells (treatment × replication × parameter); `value: null` clears a cell. Every cell is checked against the protocol and the parameter library; any error rejects the whole batch. Only Draft or Returned sheets in an open year.\n\n**Access:** signed in, and the role needs `research.enter`\n\n**Endpoint:** `PUT /api/v1/sheets/:id/values`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `values` | object[] | yes | — |  |\n\nUnknown fields are rejected."
+            "description": "Upserts cells ((main plot × sub plot ×) treatment × replication × parameter); `value: null` clears a cell. Split / strip plot cells need `mainPlot` and `subPlot`; other designs leave them null. Every cell is checked against the protocol and the parameter library; any error rejects the whole batch. Only Draft or Returned sheets in an open year.\n\n**Access:** signed in, and the role needs `research.enter`\n\n**Endpoint:** `PUT /api/v1/sheets/:id/values`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `values` | object[] | yes | — |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -2191,7 +2191,7 @@
                 }
               ]
             },
-            "description": "Excel with the current values: \"Plot data\" (treatment × replication) and \"Treatment data\" tabs.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/:id/template`"
+            "description": "Excel with the current values: \"Plot data\" (treatment × replication, in every main × sub plot for split / strip plot) and \"Treatment data\" tabs. Plots and replications are written as M1, S1, R1.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/sheets/:id/template`"
           }
         },
         {
@@ -2325,7 +2325,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"smdName\": \"Sample smdName\",\n  \"instituteName\": \"Sample instituteName\",\n  \"unitType\": \"Division\",\n  \"unitName\": \"Sample unitName\",\n  \"projectCode\": \"Sample projectCode\",\n  \"fundingType\": \"Internal\",\n  \"fundingSource\": \"Sample fundingSource\",\n  \"subject\": \"Sample subject\",\n  \"keywords\": \"Sample keywords\",\n  \"dataCategory\": \"Experimental\",\n  \"dataType\": \"Numerical data (tables)\",\n  \"methodology\": \"Sample methodology\",\n  \"dataScale\": \"Raw\",\n  \"language\": \"Sample language\"\n}",
+              "raw": "{\n  \"smdName\": \"Sample smdName\",\n  \"instituteName\": \"Sample instituteName\",\n  \"unitType\": \"Division\",\n  \"unitName\": \"Sample unitName\",\n  \"projectTitle\": \"Sample projectTitle\",\n  \"projectCode\": \"Sample projectCode\",\n  \"datasetTitle\": \"Sample datasetTitle\",\n  \"description\": \"Sample description\",\n  \"piNames\": \"Sample piNames\",\n  \"piDesignations\": \"Sample piDesignations\",\n  \"piEmails\": \"Sample piEmails\",\n  \"coPis\": [\n    {\n      \"name\": \"Dr. A. Kumar\",\n      \"designation\": \"Sample designation\",\n      \"email\": \"user@example.com\"\n    }\n  ],\n  \"fundingType\": \"Internal\",\n  \"fundingSource\": \"Sample fundingSource\",\n  \"subject\": \"Sample subject\",\n  \"keywords\": \"Sample keywords\",\n  \"commodity\": \"Sample commodity\",\n  \"completionDate\": \"2026-04-01\",\n  \"dataCategory\": \"Experimental\",\n  \"design\": \"Sample design\",\n  \"plotSize\": \"Sample plotSize\",\n  \"dataFormat\": [\n    \"Digital\"\n  ],\n  \"dataType\": \"Numerical data (tables)\",\n  \"methodology\": \"Sample methodology\",\n  \"instruments\": \"Sample instruments\",\n  \"dataScale\": \"Raw\",\n  \"language\": \"Sample language\",\n  \"temporalExtent\": \"Sample temporalExtent\",\n  \"seasons\": \"Sample seasons\",\n  \"spatialExtent\": \"Sample spatialExtent\",\n  \"availabilityLocation\": \"AINP-NF data management system\",\n  \"custodian\": \"Sample custodian\",\n  \"embargoYears\": 0,\n  \"source\": \"Sample source\",\n  \"relation\": \"Sample relation\",\n  \"citation\": \"Sample citation\",\n  \"attributes\": \"Sample attributes\",\n  \"resource\": \"Sample resource\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2351,7 +2351,7 @@
                 }
               ]
             },
-            "description": "Fields that are the same for every centre (institute, funding, keywords …). Empty clears to the default.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PUT /api/v1/metadata/experiments/:id/common`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `smdName` | string | no | 0–500 chars; nullable |  |\n| `instituteName` | string | no | 0–500 chars; nullable |  |\n| `unitType` | any | no | nullable |  |\n| `unitName` | string | no | 0–500 chars; nullable |  |\n| `projectCode` | string | no | 0–500 chars; nullable |  |\n| `fundingType` | any | no | nullable |  |\n| `fundingSource` | string | no | 0–500 chars; nullable |  |\n| `subject` | string | no | 0–500 chars; nullable |  |\n| `keywords` | string | no | 0–500 chars; nullable |  |\n| `dataCategory` | any | no | nullable |  |\n| `dataType` | any | no | nullable |  |\n| `methodology` | string | no | 0–4000 chars; nullable |  |\n| `dataScale` | any | no | nullable |  |\n| `language` | string | no | 0–500 chars; nullable |  |\n\nUnknown fields are rejected."
+            "description": "Fields that are the same for every centre (institute, funding, keywords …). Empty clears to the default.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PUT /api/v1/metadata/experiments/:id/common`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `smdName` | string | no | 0–500 chars; nullable |  |\n| `instituteName` | string | no | 0–500 chars; nullable |  |\n| `unitType` | any | no | nullable |  |\n| `unitName` | string | no | 0–500 chars; nullable |  |\n| `projectTitle` | string | no | 0–500 chars; nullable |  |\n| `projectCode` | string | no | 0–500 chars; nullable |  |\n| `datasetTitle` | string | no | 0–300 chars; nullable |  |\n| `description` | string | no | 0–2000 chars; nullable |  |\n| `piNames` | string | no | 0–500 chars; nullable |  |\n| `piDesignations` | string | no | 0–500 chars; nullable |  |\n| `piEmails` | string | no | 0–500 chars; nullable |  |\n| `coPis` | object[] | no | — |  |\n| `fundingType` | any | no | nullable |  |\n| `fundingSource` | string | no | 0–500 chars; nullable |  |\n| `subject` | string | no | 0–500 chars; nullable |  |\n| `keywords` | string | no | 0–500 chars; nullable |  |\n| `commodity` | string | no | 0–500 chars; nullable |  |\n| `completionDate` | any | no | — |  |\n| `dataCategory` | any | no | nullable |  |\n| `design` | string | no | 0–500 chars; nullable |  |\n| `plotSize` | string | no | 0–200 chars; nullable |  |\n| `dataFormat` | string[] | no | — |  |\n| `dataType` | any | no | nullable |  |\n| `methodology` | string | no | 0–4000 chars; nullable |  |\n| `instruments` | string | no | 0–2000 chars; nullable |  |\n| `dataScale` | any | no | nullable |  |\n| `language` | string | no | 0–500 chars; nullable |  |\n| `temporalExtent` | string | no | 0–500 chars; nullable |  |\n| `seasons` | string | no | 0–500 chars; nullable |  |\n| `spatialExtent` | string | no | 0–500 chars; nullable |  |\n| `availabilityLocation` | any | no | nullable |  |\n| `custodian` | string | no | 0–500 chars; nullable |  |\n| `embargoYears` | integer | no | min 0; max 20; nullable |  |\n| `source` | string | no | 0–500 chars; nullable |  |\n| `relation` | string | no | 0–1000 chars; nullable |  |\n| `citation` | string | no | 0–2000 chars; nullable |  |\n| `attributes` | string | no | 0–4000 chars; nullable |  |\n| `resource` | string | no | 0–2000 chars; nullable |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -2956,7 +2956,7 @@
   "variable": [
     {
       "key": "host",
-      "value": "http://localhost:8081",
+      "value": "http://localhost:5000",
       "type": "string",
       "description": "Server origin"
     },

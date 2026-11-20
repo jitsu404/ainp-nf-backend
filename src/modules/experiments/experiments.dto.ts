@@ -6,9 +6,12 @@ import {
   DESIGNS_NEEDING_REPLICATIONS,
   EXPERIMENT_DESIGNS,
   EXPERIMENT_STATUSES,
+  MAX_PLOT_COUNT,
   PARAMETER_LEVELS,
   type ExperimentDesign,
 } from './experiments.model.js';
+
+export { MAX_PLOT_COUNT };
 
 const treatment = z
   .object({
@@ -46,8 +49,15 @@ const shape = {
   objectives: z.array(z.string().trim().min(3).max(500)).max(10).optional(),
   design: z.enum(EXPERIMENT_DESIGNS),
   replications: z.number().int().min(1).max(20).nullable().optional().meta({ example: 3 }),
-  mainPlotCount: z.number().int().min(0).optional(),
-  subPlotCount: z.number().int().min(0).optional(),
+  mainPlotCount: z.number().int().min(0).max(MAX_PLOT_COUNT).optional().meta({
+    example: 0,
+    description:
+      'Split / strip plot: main plots (≥ 1); other designs: 0. Each main × sub plot holds every treatment × replication',
+  }),
+  subPlotCount: z.number().int().min(0).max(MAX_PLOT_COUNT).optional().meta({
+    example: 0,
+    description: 'Split / strip plot: sub plots per main plot (≥ 1); other designs: 0',
+  }),
   treatments: z.array(treatment).max(60).optional(),
   mainPlotData: z.array(treatment).max(60).optional(),
   subPlotData: z.array(treatment).max(60).optional(),

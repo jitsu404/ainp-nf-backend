@@ -8,6 +8,7 @@ import { analyseParameter, dmrtLetters, pooledAnalysis } from '../src/modules/sh
 import { createCentre, signedInAgent } from './helpers.js';
 
 const FY = '2026-27';
+const YEAR = 2026; // sheets are recorded per season year; 2026 is open while FY 2026-27 is
 const START_YEAR = 2026; // calendar years; 2026 covers financial year 2026-27
 const END_YEAR = 2029;
 
@@ -192,12 +193,12 @@ describe('observation sheets', () => {
     const { pcu, piA, grain, net, experimentId, trialAId } = await setup();
     const sheet = await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(201);
     const id = sheet.body.data.id as string;
     await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(409);
 
     const invalid = await piA
@@ -282,31 +283,36 @@ describe('observation sheets', () => {
       .expect(200);
   });
 
-  it('keeps centres out of other centres’ sheets and blocks entry in closed years', async () => {
+  it('keeps centres out of other centres’ sheets; any year of the experiment can be recorded', async () => {
     const { piA, piB, grain, trialAId } = await setup();
     const sheet = await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(201);
     await piB.get(`/api/v1/sheets/${sheet.body.data.id}`).expect(404);
     await piB
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(404);
 
+    // The year comes from the experiment (2026–2029), not the financial years master: a closed
+    // financial year doesn't block entry, and a year with no financial year set up can be opened.
     await FinancialYearModel.updateOne({ code: FY }, { isOpen: false });
-    const closed = await piA
+    await piA
       .put(`/api/v1/sheets/${sheet.body.data.id}/values`)
       .send({ values: fullPlotData(grain.id, { T1: [1] }) })
-      .expect(409);
-    expect(closed.body.error.code).toBe('FY_CLOSED');
+      .expect(200);
+    await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, year: END_YEAR, seasonCode: 'KHARIF' })
+      .expect(201);
   });
 
   it('round-trips Excel: download the template, fill it, preview, then save', async () => {
     const { piA, grain, trialAId } = await setup();
     const sheet = await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(201);
     const id = sheet.body.data.id as string;
 
@@ -370,7 +376,7 @@ describe('observation sheets', () => {
     ] as const) {
       const sheet = await centrePi
         .post('/api/v1/sheets')
-        .send({ trialId: trial.id, fyCode: FY, seasonCode: 'KHARIF' })
+        .send({ trialId: trial.id, year: YEAR, seasonCode: 'KHARIF' })
         .expect(201);
       await centrePi
         .put(`/api/v1/sheets/${sheet.body.data.id}/values`)
@@ -386,7 +392,7 @@ describe('observation sheets', () => {
       await pcu.post(`/api/v1/sheets/${sheet.body.data.id}/approve`).send({}).expect(200);
     }
     const summary = await pcu
-      .get(`/api/v1/sheets/summary?experimentId=${experimentId}&fyCode=${FY}`)
+      .get(`/api/v1/sheets/summary?experimentId=${experimentId}&year=${YEAR}`)
       .expect(200);
     expect(summary.body.data.centres).toHaveLength(2);
     const means = summary.body.data.centres
@@ -401,7 +407,7 @@ describe('observation sheets', () => {
     expect(summary.body.data.centres[0]).toHaveProperty('croppingSystemName', null);
 
     const mine = await piA
-      .get(`/api/v1/sheets/summary?experimentId=${experimentId}&fyCode=${FY}`)
+      .get(`/api/v1/sheets/summary?experimentId=${experimentId}&year=${YEAR}`)
       .expect(200);
     expect(mine.body.data.centres).toHaveLength(1);
   });
@@ -503,7 +509,7 @@ describe('calculated parameters', () => {
 
     const sheet = await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(201);
     const id = sheet.body.data.id as string;
     const perTreatment = (parameterId: string, values: number[]) =>
@@ -584,10 +590,9 @@ describe('trend and Excel exports', () => {
 
   it('gives means per year since the start, and exports the analysis and summary', async () => {
     const { pcu, piA, grain, experimentId, trialAId } = await setup();
-    await FinancialYearModel.create({ code: '2027-28', ...fyDates('2027-28'), isOpen: true });
     const sheet = await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(201);
     const id = sheet.body.data.id as string;
     await piA
@@ -598,12 +603,19 @@ describe('trend and Excel exports', () => {
     await pcu.post(`/api/v1/sheets/${id}/approve`).send({}).expect(200);
 
     const trend = await pcu.get(`/api/v1/sheets/trend?experimentId=${experimentId}`).expect(200);
-    expect(trend.body.data.years.map((y: { fyCode: string }) => y.fyCode)).toEqual([FY, '2027-28']);
+    // Every year from the start; years still to come with no data are left off the end.
+    const trendYears = trend.body.data.years.map((y: { year: number }) => y.year) as number[];
+    expect(trendYears[0]).toBe(YEAR);
+    expect(trendYears).toEqual(trendYears.map((_, i) => YEAR + i));
+    expect(Math.max(...trendYears)).toBeLessThanOrEqual(Math.max(YEAR, new Date().getFullYear()));
     expect(trend.body.data.years[0]).toMatchObject({
       sheets: 1,
       means: { [grain.id]: { T1: 11, T2: 15, T3: 9 } },
     });
-    expect(trend.body.data.years[1].means[grain.id]).toEqual({ T1: null, T2: null, T3: null });
+    // A later year (once the calendar reaches it) has no data: empty means.
+    for (const later of trend.body.data.years.slice(1)) {
+      expect(later.means[grain.id]).toEqual({ T1: null, T2: null, T3: null });
+    }
 
     const analysis = await download(piA, `/api/v1/sheets/${id}/analysis/export`);
     const book = new ExcelJS.Workbook();
@@ -613,9 +625,9 @@ describe('trend and Excel exports', () => {
 
     const summary = await download(
       pcu,
-      `/api/v1/sheets/summary/export?experimentId=${experimentId}&fyCode=${FY}`,
+      `/api/v1/sheets/summary/export?experimentId=${experimentId}&year=${YEAR}`,
     );
-    expect(summary.headers['content-disposition']).toContain('NF-LTE_2026-27_summary.xlsx');
+    expect(summary.headers['content-disposition']).toContain('NF-LTE_2026_summary.xlsx');
     const book2 = new ExcelJS.Workbook();
     await book2.xlsx.load(summary.body as ArrayBuffer);
     expect(book2.worksheets.map((w) => w.name)).toEqual(['Means by centre', 'Pooled analysis']);
@@ -645,10 +657,9 @@ describe('experiment codes and years', () => {
   it("refuses sheets after the experiment's end year", async () => {
     const { pcu, piA, experimentId, trialAId } = await setup();
     await pcu.patch(`/api/v1/experiments/${experimentId}`).send({ endYear: 2026 }).expect(200);
-    await FinancialYearModel.create({ code: '2027-28', ...fyDates('2027-28'), isOpen: true });
     const after = await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: '2027-28', seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: 2027, seasonCode: 'KHARIF' })
       .expect(400);
     expect(after.body.error.code).toBe('YEAR_AFTER_END');
   });
@@ -657,25 +668,24 @@ describe('experiment codes and years', () => {
 describe('opening a sheet', () => {
   it('needs an active experiment and a year from its start year on', async () => {
     const { pcu, piA, experimentId, trialAId } = await setup(); // starts in FY (2026-27)
-    await FinancialYearModel.create({ code: '2025-26', ...fyDates('2025-26'), isOpen: true });
 
     const before = await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: '2025-26', seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: 2025, seasonCode: 'KHARIF' })
       .expect(400);
     expect(before.body.error.code).toBe('YEAR_BEFORE_START');
 
     await pcu.patch(`/api/v1/experiments/${experimentId}`).send({ status: 'Draft' }).expect(200);
     const draft = await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(409);
     expect(draft.body.error.code).toBe('EXPERIMENT_NOT_ACTIVE');
 
     await pcu.patch(`/api/v1/experiments/${experimentId}`).send({ status: 'Active' }).expect(200);
     await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(201);
   });
 });
@@ -685,15 +695,16 @@ describe('reporting status', () => {
     const { pcu, piA, experimentId, trialAId, centreA } = await setup();
     await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(201);
 
     const all = await pcu.get(`/api/v1/sheets/reporting?experimentId=${experimentId}`).expect(200);
-    expect(all.body.data).toMatchObject({ years: [FY], seasons: ['KHARIF'], openYears: [FY] });
+    // Every year of the experiment, start to end (2026–2029).
+    expect(all.body.data).toMatchObject({ years: [2026, 2027, 2028, 2029], seasons: ['KHARIF'] });
     expect(all.body.data.centres).toHaveLength(2);
     const a = all.body.data.centres.find((c: { centre: { id: string } }) => c.centre.id === centreA.id);
     expect(a.sheets).toEqual([
-      expect.objectContaining({ fyCode: FY, seasonCode: 'KHARIF', status: 'Draft' }),
+      expect.objectContaining({ year: YEAR, seasonCode: 'KHARIF', status: 'Draft' }),
     ]);
     const b = all.body.data.centres.find((c: { centre: { id: string } }) => c.centre.id !== centreA.id);
     expect(b.sheets).toEqual([]);
@@ -716,13 +727,13 @@ describe('assigning and withdrawing centres', () => {
     const { pcu, piA, grain, experimentId, trialAId, centreA, centreB } = await setup();
     const sheet = await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(201);
     const sheetId = sheet.body.data.id as string;
     const values = fullPlotData(grain.id, { T1: [10, 12, 11], T2: [14, 16, 15], T3: [8, 10, 9] });
     await piA.put(`/api/v1/sheets/${sheetId}/values`).send({ values }).expect(200);
     const summary = () =>
-      pcu.get(`/api/v1/sheets/summary?experimentId=${experimentId}&fyCode=${FY}&includeUnapproved=true`);
+      pcu.get(`/api/v1/sheets/summary?experimentId=${experimentId}&year=${YEAR}&includeUnapproved=true`);
     expect((await summary().expect(200)).body.data.centres).toHaveLength(1);
 
     const updated = await pcu
@@ -751,7 +762,7 @@ describe('assigning and withdrawing centres', () => {
     await piA.patch(`/api/v1/trials/${trialAId}`).send({ layoutNotes: 'Changed' }).expect(409);
     await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF', cropCode: 'RICE' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF', cropCode: 'RICE' })
       .expect(409);
     const metadata = await piA.get(`/api/v1/metadata/trials/${trialAId}`).expect(200);
     expect(metadata.body.data).toMatchObject({ canEdit: false, canSubmit: false });
@@ -902,7 +913,7 @@ describe('sheet audit history', () => {
     const { piA, grain, trialAId, centreA } = await setup();
     const sheet = await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(201);
     const id = sheet.body.data.id as string;
     const values = fullPlotData(grain.id, { T1: [10, 12, 11], T2: [14, 16, 15], T3: [8, 10, 9] });
@@ -966,11 +977,34 @@ describe('experiment designs', () => {
       startYear: START_YEAR,
       endYear: END_YEAR,
     };
-    // Split plot needs replications, like RBD.
+    const plots = { mainPlotCount: 2, subPlotCount: 2 };
+    // Split plot needs replications, like RBD, and at least one main and one sub plot.
     await pcu
       .post('/api/v1/experiments')
-      .send({ ...base, code: 'SP1', design: 'Split plot', replications: 1 })
+      .send({ ...base, ...plots, code: 'SP1', design: 'Split plot', replications: 1 })
       .expect(400);
+    const noPlots = await pcu
+      .post('/api/v1/experiments')
+      .send({ ...base, code: 'SP2', design: 'Split plot', replications: 3 })
+      .expect(400);
+    expect(noPlots.body.error.code).toBe('PLOT_COUNTS_REQUIRED');
+    await pcu
+      .post('/api/v1/experiments')
+      .send({
+        ...base,
+        code: 'SP3',
+        design: 'Split plot',
+        replications: 3,
+        mainPlotCount: 11,
+        subPlotCount: 2,
+      })
+      .expect(400);
+    // Other designs are a single plot: counts sent are dropped.
+    const rbd = await pcu
+      .post('/api/v1/experiments')
+      .send({ ...base, ...plots, code: 'RB1', design: 'RBD', replications: 3 })
+      .expect(201);
+    expect(rbd.body.data).toMatchObject({ mainPlotCount: 0, subPlotCount: 0 });
     // Farmer-participatory trials are never replicated: replications sent are dropped.
     const fp = await pcu
       .post('/api/v1/experiments')
@@ -980,14 +1014,14 @@ describe('experiment designs', () => {
     // Strip plot occurs both un-replicated and replicated in the reports.
     const stripNone = await pcu
       .post('/api/v1/experiments')
-      .send({ ...base, code: 'ST1', design: 'Strip plot' })
+      .send({ ...base, ...plots, code: 'ST1', design: 'Strip plot' })
       .expect(201);
     expect(stripNone.body.data.replications).toBeNull();
     const stripReps = await pcu
       .post('/api/v1/experiments')
-      .send({ ...base, code: 'ST2', design: 'Strip plot', replications: 3 })
+      .send({ ...base, ...plots, code: 'ST2', design: 'Strip plot', replications: 3 })
       .expect(201);
-    expect(stripReps.body.data.replications).toBe(3);
+    expect(stripReps.body.data).toMatchObject({ replications: 3, mainPlotCount: 2, subPlotCount: 2 });
     // An update is checked against the saved experiment: switching a Strip plot without
     // replications to RBD needs replications; switching an RBD to Split plot keeps its 3.
     const toRbd = await pcu
@@ -995,7 +1029,16 @@ describe('experiment designs', () => {
       .send({ design: 'RBD' })
       .expect(400);
     expect(toRbd.body.error.code).toBe('REPLICATIONS_REQUIRED');
-    await pcu.patch(`/api/v1/experiments/${stripReps.body.data.id}`).send({ design: 'RBD' }).expect(200);
+    const nowRbd = await pcu
+      .patch(`/api/v1/experiments/${stripReps.body.data.id}`)
+      .send({ design: 'RBD' })
+      .expect(200);
+    expect(nowRbd.body.data).toMatchObject({ mainPlotCount: 0, subPlotCount: 0 });
+    // Back to split plot: the plots must be given again.
+    await pcu
+      .patch(`/api/v1/experiments/${stripReps.body.data.id}`)
+      .send({ design: 'Split plot' })
+      .expect(400);
     await pcu.patch(`/api/v1/experiments/${stripReps.body.data.id}`).send({ replications: 1 }).expect(400);
     // Old names are no longer accepted.
     await pcu
@@ -1004,22 +1047,125 @@ describe('experiment designs', () => {
       .expect(400);
   });
 
-  it('runs the ANOVA only for RBD; a split-plot sheet gets treatment means only', async () => {
+  it('records every treatment × replication in each main × sub plot of a split-plot design', async () => {
     const { pcu, piA, grain, experimentId, trialAId } = await setup();
-    await pcu.patch(`/api/v1/experiments/${experimentId}`).send({ design: 'Split plot' }).expect(200);
+    await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({ design: 'Split plot', mainPlotCount: 2, subPlotCount: 2 })
+      .expect(200);
     const sheet = await piA
       .post('/api/v1/sheets')
-      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(201);
+    const id = sheet.body.data.id as string;
+    const yields = { T1: [10, 13, 10], T2: [15, 16, 14], T3: [8, 9, 10] };
+    const inPlot = (mainPlot: number, subPlot: number, shift = 0) =>
+      fullPlotData(grain.id, yields).map((c) => ({ ...c, mainPlot, subPlot, value: c.value + shift }));
+
+    // A value without its plot, or outside the layout, is refused.
+    const noPlot = await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({ values: fullPlotData(grain.id, yields) })
+      .expect(400);
+    expect(noPlot.body.error.details.cells[0].message).toContain('Main plot must be 1–2');
     await piA
-      .put(`/api/v1/sheets/${sheet.body.data.id}/values`)
-      .send({ values: fullPlotData(grain.id, { T1: [10, 13, 10], T2: [15, 16, 14], T3: [8, 9, 10] }) })
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({ values: inPlot(3, 1) })
+      .expect(400);
+
+    // Three of the four plots: the same T1 R1 is a separate cell in each plot.
+    await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({ values: [...inPlot(1, 1), ...inPlot(1, 2, 1), ...inPlot(2, 1, 2)] })
       .expect(200);
-    const analysis = await piA.get(`/api/v1/sheets/${sheet.body.data.id}/analysis`).expect(200);
-    const result = analysis.body.data.parameters.find((p: { code: string }) => p.code === 'GRAIN_YIELD');
-    expect(result.means.map((m: { mean: number }) => m.mean)).toEqual([11, 15, 9]);
-    expect(result.anova).toBeNull();
-    expect(result.reason).toContain('split plot');
+    const detail = await piA.get(`/api/v1/sheets/${id}`).expect(200);
+    expect(detail.body.data.values).toHaveLength(27);
+    const incomplete = await piA.post(`/api/v1/sheets/${id}/submit`).send({}).expect(400);
+    expect(incomplete.body.error.details.missing).toHaveLength(9);
+    expect(incomplete.body.error.details.missing[0]).toBe('M2·S2 T1 R1: Grain yield');
+
+    await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({ values: inPlot(2, 2, 3) })
+      .expect(200);
+
+    // Each plot is a complete RBD with its own ANOVA; the sheet's means are over all plots.
+    const analysis = await piA.get(`/api/v1/sheets/${id}/analysis`).expect(200);
+    const plots = analysis.body.data.plots as {
+      label: string;
+      parameters: { code: string; means: { mean: number }[]; anova: unknown }[];
+    }[];
+    expect(plots.map((p) => p.label)).toEqual(['M1·S1', 'M1·S2', 'M2·S1', 'M2·S2']);
+    const yieldIn = (label: string) =>
+      plots.find((p) => p.label === label)!.parameters.find((x) => x.code === 'GRAIN_YIELD')!;
+    expect(yieldIn('M1·S1').means.map((m) => m.mean)).toEqual([11, 15, 9]);
+    expect(yieldIn('M2·S2').means.map((m) => m.mean)).toEqual([14, 18, 12]);
+    expect(yieldIn('M1·S1').anova).not.toBeNull();
+    const overall = analysis.body.data.parameters.find((p: { code: string }) => p.code === 'GRAIN_YIELD');
+    expect(overall.means.map((m: { mean: number }) => m.mean)).toEqual([12.5, 16.5, 10.5]);
+    expect(overall.anova).toBeNull();
+
+    // The Excel template names the plot of every row: 4 plots × 3 treatments × 3 replications.
+    const download = await piA
+      .get(`/api/v1/sheets/${id}/template`)
+      .buffer(true)
+      .parse((res, cb) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => cb(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(download.body as ArrayBuffer);
+    const tab = workbook.getWorksheet('Plot data')!;
+    expect(tab.getRow(1).getCell(1).value).toBe('Main plot');
+    expect(tab.getRow(1).getCell(2).value).toBe('Sub plot');
+    expect(tab.actualRowCount).toBe(1 + 36);
+    // Plots and replications are written as labels. Last row: M2 S2 T3 R3 = 10 + 3.
+    expect([1, 2, 3, 4, 5].map((c) => tab.getRow(2).getCell(c).value)).toEqual(['M1', 'S1', 'T1', 'R1', 10]);
+    expect([1, 2, 3, 4, 5].map((c) => tab.getRow(37).getCell(c).value)).toEqual(['M2', 'S2', 'T3', 'R3', 13]);
+
+    // A label that can't be read is reported for its row, and nothing is saved.
+    tab.getRow(2).getCell(1).value = 'S1';
+    const unreadable = await piA
+      .post(`/api/v1/sheets/${id}/import?dryRun=false`)
+      .attach('file', Buffer.from(await workbook.xlsx.writeBuffer()), 'data.xlsx')
+      .expect(200);
+    expect(unreadable.body.data.dryRun).toBe(true);
+    expect(unreadable.body.data.errors).toEqual([
+      expect.objectContaining({
+        row: 2,
+        message: expect.stringContaining('Main plot "S1" (write M1, M2 …)'),
+      }),
+    ]);
+    // Lower case and plain numbers are read too: m1 / 1.
+    tab.getRow(2).getCell(1).value = 'm1';
+    tab.getRow(2).getCell(4).value = 1;
+    tab.getRow(37).getCell(5).value = 20;
+    const imported = await piA
+      .post(`/api/v1/sheets/${id}/import?dryRun=false`)
+      .attach('file', Buffer.from(await workbook.xlsx.writeBuffer()), 'data.xlsx')
+      .expect(200);
+    expect(imported.body.data).toMatchObject({ dryRun: false, filled: 36, errors: [] });
+    const latest = await piA.get(`/api/v1/audit?entityId=${id}&limit=1`).expect(200);
+    expect(latest.body.data[0].cells).toEqual([
+      {
+        mainPlot: 2,
+        subPlot: 2,
+        treatmentCode: 'T3',
+        replication: 3,
+        parameterCode: 'GRAIN_YIELD',
+        from: 13,
+        to: 20,
+      },
+    ]);
+
+    // Once data exists the layout is frozen.
+    const frozen = await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({ subPlotCount: 3 })
+      .expect(409);
+    expect(frozen.body.error.code).toBe('EXPERIMENT_HAS_DATA');
   });
 });
 

@@ -1,8 +1,10 @@
 import { Schema, type Types, model } from 'mongoose';
 
 // An observation sheet is the unit of data entry and submission:
-// one trial (experiment at a centre) × financial year × season (× cropping system or crop).
-// Its values live in `observations`, one row per treatment × replication × parameter
+// one trial (experiment at a centre) × year × season (× cropping system or crop). The year is the
+// one the season starts in: Kharif 2026 and Rabi 2026 (sown late 2026, harvested early 2027) are
+// both 2026. Any year from the experiment's start year to its end year can be recorded.
+// Its values live in `observations`, one row per plot × treatment × replication × parameter
 // ("long format"), which keeps validation, analysis, consolidation and export simple.
 
 export const SHEET_STATUSES = ['Draft', 'Submitted', 'Returned', 'Approved'] as const;
@@ -22,7 +24,8 @@ export interface Sheet {
   trialId: Types.ObjectId;
   experimentId: Types.ObjectId;
   centreId: Types.ObjectId;
-  fyCode: string;
+  /** Year the season starts in (2026), within the experiment's startYear … endYear. */
+  year: number;
   seasonCode: string;
   croppingSystemCode: string | null;
   cropCode: string | null;
@@ -50,7 +53,7 @@ const sheetSchema = new Schema<Sheet>(
     trialId: { type: Schema.Types.ObjectId, ref: 'Trial', required: true },
     experimentId: { type: Schema.Types.ObjectId, ref: 'Experiment', required: true },
     centreId: { type: Schema.Types.ObjectId, ref: 'Centre', required: true },
-    fyCode: { type: String, required: true, match: /^\d{4}-\d{2}$/ },
+    year: { type: Number, required: true, min: 1900, max: 2100 },
     seasonCode: { type: String, required: true, uppercase: true },
     croppingSystemCode: { type: String, uppercase: true, default: null },
     cropCode: { type: String, uppercase: true, default: null },
@@ -63,16 +66,19 @@ const sheetSchema = new Schema<Sheet>(
 );
 
 sheetSchema.index(
-  { trialId: 1, fyCode: 1, seasonCode: 1, croppingSystemCode: 1, cropCode: 1 },
-  { unique: true, name: 'one_sheet_per_trial_year_season' },
+  { trialId: 1, year: 1, seasonCode: 1, croppingSystemCode: 1, cropCode: 1 },
+  { unique: true, name: 'one_sheet_per_trial_season_year' },
 );
-sheetSchema.index({ experimentId: 1, fyCode: 1, seasonCode: 1, status: 1 });
+sheetSchema.index({ experimentId: 1, year: 1, seasonCode: 1, status: 1 });
 sheetSchema.index({ centreId: 1, status: 1 });
 
 export const SheetModel = model<Sheet>('Sheet', sheetSchema);
 
 export interface Observation {
   sheetId: Types.ObjectId;
+  /** 1…mainPlotCount / 1…subPlotCount for split- and strip-plot designs; null for a single plot. */
+  mainPlot: number | null;
+  subPlot: number | null;
   treatmentCode: string;
   /** 1…r for plot-level parameters; null for treatment-level ones. */
   replication: number | null;
@@ -87,6 +93,8 @@ export interface Observation {
 const observationSchema = new Schema<Observation>(
   {
     sheetId: { type: Schema.Types.ObjectId, ref: 'Sheet', required: true },
+    mainPlot: { type: Number, min: 1, default: null },
+    subPlot: { type: Number, min: 1, default: null },
     treatmentCode: { type: String, required: true, uppercase: true },
     replication: { type: Number, min: 1, default: null },
     parameterId: { type: Schema.Types.ObjectId, ref: 'Parameter', required: true },
@@ -98,8 +106,8 @@ const observationSchema = new Schema<Observation>(
 );
 
 observationSchema.index(
-  { sheetId: 1, treatmentCode: 1, replication: 1, parameterId: 1 },
-  { unique: true, name: 'one_value_per_cell' },
+  { sheetId: 1, mainPlot: 1, subPlot: 1, treatmentCode: 1, replication: 1, parameterId: 1 },
+  { unique: true, name: 'one_value_per_plot_cell' },
 );
 observationSchema.index({ parameterId: 1 });
 

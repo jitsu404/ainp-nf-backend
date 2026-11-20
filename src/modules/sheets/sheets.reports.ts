@@ -1,7 +1,6 @@
 import type { RequestContext } from '../../utils/context.js';
 import { buildMultiSheetWorkbook } from '../../utils/excel.js';
-import { fyWithinExperiment, getExperiment } from '../experiments/experiments.service.js';
-import { listFinancialYears } from '../financialYears/financialYears.service.js';
+import { experimentYears, getExperiment } from '../experiments/experiments.service.js';
 import type { SummaryQuery, TrendQuery } from './sheets.dto.js';
 import { analyseSheet, experimentSummary } from './sheets.service.js';
 
@@ -13,21 +12,18 @@ const mean = (xs: (number | null | undefined)[]) => {
 };
 
 /**
- * Treatment means (mean of centres, approved sheets only) for every financial year since the
- * experiment started, optionally for one season and/or one centre. Centre users get their own.
+ * Treatment means (mean of centres, approved sheets only) for every year of the experiment,
+ * optionally for one season and/or one centre. Centre users get their own.
  */
 export const experimentTrend = async (ctx: RequestContext, q: TrendQuery) => {
   const experiment = await getExperiment(ctx, q.experimentId); // 404 if not assigned to the caller
-  const yearCodes = (await listFinancialYears())
-    .map((y) => y.code)
-    .filter((code) => fyWithinExperiment(code, experiment))
-    .sort();
+  const yearList = experimentYears(experiment);
   let parameters: Awaited<ReturnType<typeof experimentSummary>>['parameters'] = [];
   const years = [];
-  for (const fyCode of yearCodes) {
+  for (const year of yearList) {
     const s = await experimentSummary(ctx, {
       experimentId: q.experimentId,
-      fyCode,
+      year,
       seasonCode: q.seasonCode,
       includeUnapproved: false,
     });
@@ -42,8 +38,11 @@ export const experimentTrend = async (ctx: RequestContext, q: TrendQuery) => {
         ]),
       );
     }
-    years.push({ fyCode, sheets: centres.length, means });
+    years.push({ year, sheets: centres.length, means });
   }
+  // Years still to come with no data yet are left off the end.
+  const thisYear = new Date().getFullYear();
+  while (years.length > 1 && years.at(-1)!.year > thisYear && years.at(-1)!.sheets === 0) years.pop();
   return {
     experiment: {
       id: experiment.id as string,
@@ -63,62 +62,43 @@ const pct = (value: number | null, ref: number | null | undefined) =>
     ? null
     : Math.round(((value - ref) / Math.abs(ref)) * 1000) / 10;
 
-/** One sheet's analysis as Excel: means (with DMRT and % vs reference) and the ANOVA tables. */
+/**
+ * One sheet's analysis as Excel: means (with DMRT and % vs reference) and the ANOVA tables. Split
+ * and strip plot list every plot's analysis after the means over all plots, with a Plot column.
+ */
 export const exportSheetAnalysis = async (ctx: RequestContext, id: string) => {
   const a = await analyseSheet(ctx, id);
   const ref = a.experiment.referenceTreatmentCode;
   const names = new Map(a.treatments.map((t) => [t.code, t.name]));
-  const meansRows = a.parameters.flatMap((p) => {
-    const refMean = p.means.find((m) => m.treatmentCode === ref)?.mean;
-    return p.means.map((m) => ({
-      parameter: label(p),
-      treatment: m.treatmentCode,
-      name: names.get(m.treatmentCode),
-      n: m.n,
-      mean: m.mean,
-      dmrt: p.anova?.groups?.[m.treatmentCode] ?? '',
-      vsRef: ref && m.treatmentCode !== ref ? pct(m.mean, refMean) : null,
-    }));
-  });
-  const anovaRows = a.parameters.flatMap((p) =>
-    p.anova
-      ? [
-          ...p.anova.table.map((r) => ({ parameter: label(p), ...r })),
-          {
-            parameter: label(p),
-            source: `CV ${p.anova.cv} %`,
-            df: null,
-            ss: null,
-            ms: null,
-            f: null,
-            p: null,
-          },
-          {
-            parameter: label(p),
-            source: `SEm ± ${p.anova.sem}; SEd ± ${p.anova.sed}; CD (5 %) ${p.anova.cd5 ?? 'NS'}`,
-            df: null,
-            ss: null,
-            ms: null,
-            f: null,
-            p: null,
-          },
-        ]
-      : [
-          {
-            parameter: label(p),
-            source: p.reason ?? 'No analysis of variance',
-            df: null,
-            ss: null,
-            ms: null,
-            f: null,
-            p: null,
-          },
-        ],
+  const plotted = a.plots.length > 0;
+  const groups = [
+    { plot: plotted ? 'All plots' : '', parameters: a.parameters },
+    ...a.plots.map((p) => ({ plot: p.label, parameters: p.parameters })),
+  ];
+  const meansRows = groups.flatMap(({ plot, parameters }) =>
+    parameters.flatMap((p) => {
+      const refMean = p.means.find((m) => m.treatmentCode === ref)?.mean;
+      return p.means.map((m) => ({
+        plot,
+        parameter: label(p),
+        treatment: m.treatmentCode,
+        name: names.get(m.treatmentCode),
+        n: m.n,
+        mean: m.mean,
+        dmrt: p.anova?.groups?.[m.treatmentCode] ?? '',
+        vsRef: ref && m.treatmentCode !== ref ? pct(m.mean, refMean) : null,
+      }));
+    }),
   );
+  const anovaRows = groups.flatMap(({ plot, parameters }) =>
+    parameters.flatMap((p) => anovaOf(p).map((row) => ({ plot, ...row }))),
+  );
+  const plotColumn = plotted ? [{ key: 'plot', header: 'Plot' }] : [];
   const buffer = await buildMultiSheetWorkbook([
     {
       name: 'Treatment means',
       columns: [
+        ...plotColumn,
         { key: 'parameter', header: 'Parameter', width: 36 },
         { key: 'treatment', header: 'Treatment' },
         { key: 'name', header: 'Name', width: 30 },
@@ -132,6 +112,7 @@ export const exportSheetAnalysis = async (ctx: RequestContext, id: string) => {
     {
       name: 'ANOVA',
       columns: [
+        ...plotColumn,
         { key: 'parameter', header: 'Parameter', width: 36 },
         { key: 'source', header: 'Source', width: 40 },
         { key: 'df', header: 'df' },
@@ -143,8 +124,46 @@ export const exportSheetAnalysis = async (ctx: RequestContext, id: string) => {
       rows: anovaRows,
     },
   ]);
-  return { buffer, filename: `${a.experiment.code}_${a.fyCode}_${a.seasonCode}_analysis.xlsx` };
+  return { buffer, filename: `${a.experiment.code}_${a.year}_${a.seasonCode}_analysis.xlsx` };
 };
+
+type SheetParameterAnalysis = Awaited<ReturnType<typeof analyseSheet>>['parameters'][number];
+
+/** The ANOVA table of one parameter as export rows (or one row giving the reason there is none). */
+const anovaOf = (p: SheetParameterAnalysis) =>
+  p.anova
+    ? [
+        ...p.anova.table.map((r) => ({ parameter: label(p), ...r })),
+        {
+          parameter: label(p),
+          source: `CV ${p.anova.cv} %`,
+          df: null,
+          ss: null,
+          ms: null,
+          f: null,
+          p: null,
+        },
+        {
+          parameter: label(p),
+          source: `SEm ± ${p.anova.sem}; SEd ± ${p.anova.sed}; CD (5 %) ${p.anova.cd5 ?? 'NS'}`,
+          df: null,
+          ss: null,
+          ms: null,
+          f: null,
+          p: null,
+        },
+      ]
+    : [
+        {
+          parameter: label(p),
+          source: p.reason ?? 'No analysis of variance',
+          df: null,
+          ss: null,
+          ms: null,
+          f: null,
+          p: null,
+        },
+      ];
 
 /** The cross-centre summary as Excel: one row per centre and parameter, and the pooled analyses. */
 export const exportSummary = async (ctx: RequestContext, q: SummaryQuery) => {
@@ -234,5 +253,5 @@ export const exportSummary = async (ctx: RequestContext, q: SummaryQuery) => {
       rows: pooledRows,
     },
   ]);
-  return { buffer, filename: `${s.experiment.code}_${s.fyCode}_summary.xlsx` };
+  return { buffer, filename: `${s.experiment.code}_${s.year}_summary.xlsx` };
 };

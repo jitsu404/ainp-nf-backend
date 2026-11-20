@@ -26,8 +26,16 @@ export const DESIGNS_WITHOUT_REPLICATIONS: readonly ExperimentDesign[] = [
   'Farmer participatory',
   'Survey',
 ];
-/** Designs the analysis service can run an ANOVA for; the others get treatment means only. */
-export const DESIGNS_WITH_ANOVA: readonly ExperimentDesign[] = ['RBD'];
+/**
+ * Designs laid out in plots: each main plot × sub plot is one plot, and every plot is a complete
+ * RBD of the treatments × replications. Their mainPlotCount and subPlotCount must be ≥ 1 (other
+ * designs keep 0, a single plot). Strip plot uses the same layout (horizontal × vertical strips).
+ */
+export const DESIGNS_WITH_PLOTS: readonly ExperimentDesign[] = ['Split plot', 'Strip plot'];
+/** Largest number of main plots or sub plots, so the entry grid stays usable. */
+export const MAX_PLOT_COUNT = 10;
+/** Designs the analysis service can run an ANOVA for (per plot for split and strip plot). */
+export const DESIGNS_WITH_ANOVA: readonly ExperimentDesign[] = ['RBD', 'Split plot', 'Strip plot'];
 
 export const EXPERIMENT_STATUSES = ['Draft', 'Active', 'Closed'] as const;
 export type ExperimentStatus = (typeof EXPERIMENT_STATUSES)[number];
@@ -108,6 +116,7 @@ export interface Experiment {
   design: ExperimentDesign;
   /** Replications for replicated designs; null for non-replicated trials and surveys. */
   replications: number | null;
+  /** Main plots and sub plots (DESIGNS_WITH_PLOTS); 0 for designs that are a single plot. */
   mainPlotCount: number;
   subPlotCount: number;
   treatments: Treatment[];
@@ -226,8 +235,8 @@ const experimentSchema = new Schema<Experiment>(
     objectives: { type: [String], default: [] },
     design: { type: String, enum: EXPERIMENT_DESIGNS, required: true },
     replications: { type: Number, min: 1, max: 20, default: null },
-    mainPlotCount: { type: Number, min: 0, default: 0 },
-    subPlotCount: { type: Number, min: 0, default: 0 },
+    mainPlotCount: { type: Number, min: 0, max: MAX_PLOT_COUNT, default: 0 },
+    subPlotCount: { type: Number, min: 0, max: MAX_PLOT_COUNT, default: 0 },
     treatments: { type: [treatmentSchema], default: [] },
     mainPlotData: { type: [treatmentSchema], default: [] },
     subPlotData: { type: [treatmentSchema], default: [] },
