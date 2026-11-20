@@ -94,7 +94,7 @@ dist/                         # compiled output (git-ignored)
 ## Middleware order (`app.ts`)
 
 1. `requestId`
-2. `helmet()`, `cors({ origin: env.CLIENT_ORIGIN, credentials: true })`, `compression()`
+2. `helmet()`, `cors({ origin: env.CLIENT_ORIGIN, credentials: true })` (`CLIENT_ORIGIN` is a comma-separated list, parsed to origins: e.g. local dev and `https://ainp-nf-client.vercel.app`), `compression()`
 3. `express.json({ limit: '1mb' })`, `express.urlencoded(...)`, `cookieParser()`
 4. `httpLogger`
 5. `GET /health` (process up) and `GET /ready` (DB connected, else 503); no auth, not rate limited
@@ -188,7 +188,7 @@ export type CreateCentreDto = z.output<typeof centreBody>;
 - Body schemas use `.strict()` so unknown keys are rejected rather than silently stored.
 - List endpoints use `listQuery([...allowed sort fields])`: `page`, `limit` (max 100), and `sort` restricted to the allowlist (`-field` for descending).
 - Use `objectId` / `idParams` from `utils/validators.ts`; `z.stringbool()` for boolean query params.
-- Env config (`config/env.ts`) keys: `NODE_ENV`, `PORT`, `MONGODB_URI`, `JWT_SECRET` (min 32 chars), `JWT_EXPIRES_IN` (`8h`, `30m`, `1d`; parsed to seconds), `CLIENT_ORIGIN`, optional `LOG_LEVEL`, optional `TRUST_PROXY` (proxy hops, see Middleware order), optional `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`. Invalid config stops the process at start-up.
+- Env config (`config/env.ts`) keys: `NODE_ENV`, `PORT`, `MONGODB_URI`, `JWT_SECRET` (min 32 chars), `JWT_EXPIRES_IN` (`8h`, `30m`, `1d`; parsed to seconds), `CLIENT_ORIGIN` (one URL or a comma-separated list), optional `LOG_LEVEL`, optional `TRUST_PROXY` (proxy hops, see Middleware order), optional `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`. Invalid config stops the process at start-up.
 
 ## Authentication and RBAC
 

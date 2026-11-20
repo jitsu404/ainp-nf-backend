@@ -25,6 +25,7 @@ export const createApp = (): Express => {
   app.use(requestId);
   app.use(helmet());
   // Content-Disposition is exposed so a cross-origin client can read download file names.
+  // Every origin in CLIENT_ORIGIN may call the API with credentials (the session cookie).
   app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true, exposedHeaders: ['Content-Disposition'] }));
 
   app.use(compression());

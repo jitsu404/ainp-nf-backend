@@ -19,7 +19,19 @@ const envSchema = z.object({
   MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   JWT_EXPIRES_IN: duration.default(28800),
-  CLIENT_ORIGIN: z.url(),
+  // Sites allowed to call the API from the browser (CORS): one URL or a comma-separated list,
+  // e.g. "http://localhost:5174,https://ainp-nf-client.vercel.app". Stored as origins (no path or
+  // trailing slash), which is what browsers send.
+  CLIENT_ORIGIN: z
+    .string()
+    .transform((value) =>
+      value
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.url()).min(1, 'CLIENT_ORIGIN needs at least one URL'))
+    .transform((urls) => [...new Set(urls.map((u) => new URL(u).origin))]),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'debug']).optional(),
   // Proxies in front of the app whose X-Forwarded-For is trusted, so req.ip (rate limits, audit)
   // is the user's address. Render alone: 1. Vercel → Render: 2. Default: 1 in production, else 0.

@@ -10,7 +10,7 @@ process.env.NODE_ENV = 'test';
 process.env.MONGODB_URI = replSet.getUri();
 process.env.JWT_SECRET = 'test-secret-that-is-at-least-32-characters-long';
 process.env.JWT_EXPIRES_IN = '1h';
-process.env.CLIENT_ORIGIN = 'http://localhost:5173';
+process.env.CLIENT_ORIGIN = 'http://localhost:5173, https://ainp-nf-client.vercel.app/';
 
 beforeAll(async () => {
   const { connectDB } = await import('../src/config/db.js');

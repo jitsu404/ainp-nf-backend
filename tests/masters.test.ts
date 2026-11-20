@@ -133,9 +133,21 @@ describe('masters', () => {
     // A cross-origin client (VITE_API_BASE_URL on another port) must be able to read the file name.
     const crossOrigin = await agent
       .get('/api/v1/masters/season/import-template')
-      .set('Origin', env.CLIENT_ORIGIN)
+      .set('Origin', env.CLIENT_ORIGIN[0]!)
       .expect(200);
     expect(crossOrigin.headers['access-control-expose-headers']).toContain('Content-Disposition');
+    // Every listed client is allowed (a trailing slash in the setting doesn't matter); others aren't.
+    const vercel = await agent
+      .get('/api/v1/masters/season/import-template')
+      .set('Origin', 'https://ainp-nf-client.vercel.app')
+      .expect(200);
+    expect(vercel.headers['access-control-allow-origin']).toBe('https://ainp-nf-client.vercel.app');
+    expect(vercel.headers['access-control-allow-credentials']).toBe('true');
+    const stranger = await agent
+      .get('/api/v1/masters/season/import-template')
+      .set('Origin', 'https://example.com')
+      .expect(200);
+    expect(stranger.headers['access-control-allow-origin']).toBeUndefined();
 
     const notExcel = await agent
       .post('/api/v1/masters/season/import')
