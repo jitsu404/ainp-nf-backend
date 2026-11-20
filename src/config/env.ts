@@ -21,6 +21,9 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: duration.default(28800),
   CLIENT_ORIGIN: z.url(),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'debug']).optional(),
+  // Proxies in front of the app whose X-Forwarded-For is trusted, so req.ip (rate limits, audit)
+  // is the user's address. Render alone: 1. Vercel → Render: 2. Default: 1 in production, else 0.
+  TRUST_PROXY: z.coerce.number().int().min(0).max(5).optional(),
   // Only used by `npm run seed` to create the first Super Administrator.
   SEED_SUPERADMIN_EMAIL: z.email().optional(),
   SEED_SUPERADMIN_PASSWORD: z.string().optional(),
@@ -40,3 +43,6 @@ export const env: Readonly<Env> = Object.freeze(parsed.data);
 export const isProduction = env.NODE_ENV === 'production';
 export const isDevelopment = env.NODE_ENV === 'development';
 export const isTest = env.NODE_ENV === 'test';
+
+/** Express `trust proxy` hop count (TRUST_PROXY, else 1 in production and 0 elsewhere). */
+export const trustProxyHops = env.TRUST_PROXY ?? (isProduction ? 1 : 0);

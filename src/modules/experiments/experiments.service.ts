@@ -244,6 +244,30 @@ export const experimentPlots = (
 /** "M1·S2", or '' for a single-plot design. */
 export const plotLabel = (p: PlotRef) => (p.mainPlot === null ? '' : `M${p.mainPlot}·S${p.subPlot}`);
 
+/**
+ * What a plot's main plot and sub plot stand for: the names given in mainPlotData / subPlotData
+ * (codes M1 … / S1 …), or null where none is given.
+ */
+export const plotNames = (
+  e: { mainPlotData?: { code: string; name: string }[]; subPlotData?: { code: string; name: string }[] },
+  p: PlotRef,
+) => ({
+  mainPlotName:
+    p.mainPlot === null
+      ? null
+      : ((e.mainPlotData ?? []).find((t) => t.code === `M${p.mainPlot}`)?.name ?? null),
+  subPlotName:
+    p.subPlot === null ? null : ((e.subPlotData ?? []).find((t) => t.code === `S${p.subPlot}`)?.name ?? null),
+});
+
+/** "M1 Conventional tillage · S2 Jeevamrit" (codes alone where no name is given); '' for one plot. */
+export const plotTitle = (e: Parameters<typeof plotNames>[0], p: PlotRef) => {
+  if (p.mainPlot === null) return '';
+  const { mainPlotName, subPlotName } = plotNames(e, p);
+  const part = (code: string, name: string | null) => (name ? `${code} ${name}` : code);
+  return `${part(`M${p.mainPlot}`, mainPlotName)} · ${part(`S${p.subPlot}`, subPlotName)}`;
+};
+
 /** The reference treatment, if set, must be one of the experiment's treatments. */
 const assertReferenceTreatment = (code: string | null | undefined, treatments: { code: string }[]) => {
   if (code && !treatments.some((t) => t.code === code)) {

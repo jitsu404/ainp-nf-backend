@@ -4,7 +4,7 @@ import cors from 'cors';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 import { isDBReady } from './config/db.js';
-import { env, isProduction } from './config/env.js';
+import { env, trustProxyHops } from './config/env.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { httpLogger } from './middlewares/httpLogger.js';
 import { notFound } from './middlewares/notFound.js';
@@ -17,8 +17,9 @@ export const createApp = (): Express => {
   const app = express();
 
   app.disable('x-powered-by');
-  // Behind the cloud load balancer: trust its X-Forwarded-For so req.ip and rate limits are correct.
-  if (isProduction) app.set('trust proxy', 1);
+  // Behind proxies (Render's load balancer, and Vercel when the client forwards /api to it): trust
+  // that many X-Forwarded-For hops so req.ip, rate limits and audit IPs are the user's address.
+  if (trustProxyHops > 0) app.set('trust proxy', trustProxyHops);
 
   // Order matters. See "Middleware order" in CLAUDE.md.
   app.use(requestId);

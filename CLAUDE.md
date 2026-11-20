@@ -103,7 +103,7 @@ dist/                         # compiled output (git-ignored)
 8. `notFound`
 9. `errorHandler` (last)
 
-`x-powered-by` is disabled. `trust proxy` is set to 1 in production, so `req.ip` and rate limits are correct behind the cloud load balancer. Rate limiters are skipped when `NODE_ENV=test`.
+`x-powered-by` is disabled. `trust proxy` is `TRUST_PROXY` hops (default 1 in production, 0 otherwise; set 2 when the Vercel client forwards `/api` to Render: Vercel + Render's load balancer), so `req.ip` and rate limits are correct behind the cloud load balancer. Rate limiters are skipped when `NODE_ENV=test`.
 
 ## Logging
 
@@ -188,7 +188,7 @@ export type CreateCentreDto = z.output<typeof centreBody>;
 - Body schemas use `.strict()` so unknown keys are rejected rather than silently stored.
 - List endpoints use `listQuery([...allowed sort fields])`: `page`, `limit` (max 100), and `sort` restricted to the allowlist (`-field` for descending).
 - Use `objectId` / `idParams` from `utils/validators.ts`; `z.stringbool()` for boolean query params.
-- Env config (`config/env.ts`) keys: `NODE_ENV`, `PORT`, `MONGODB_URI`, `JWT_SECRET` (min 32 chars), `JWT_EXPIRES_IN` (`8h`, `30m`, `1d`; parsed to seconds), `CLIENT_ORIGIN`, optional `LOG_LEVEL`, optional `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`. Invalid config stops the process at start-up.
+- Env config (`config/env.ts`) keys: `NODE_ENV`, `PORT`, `MONGODB_URI`, `JWT_SECRET` (min 32 chars), `JWT_EXPIRES_IN` (`8h`, `30m`, `1d`; parsed to seconds), `CLIENT_ORIGIN`, optional `LOG_LEVEL`, optional `TRUST_PROXY` (proxy hops, see Middleware order), optional `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`. Invalid config stops the process at start-up.
 
 ## Authentication and RBAC
 
@@ -272,7 +272,7 @@ When adding routes:
   - `seasons`: a map of season master code → master item ids (empty = any season). Read the codes with `experimentSeasonCodes(experiment)`, never `experiment.seasons` directly. The DTO also accepts a plain list of codes.
   - `defaultParameters`: the stored parameter list. Responses from `withParameterDetails` add `parameters` as a read-only alias (sheets and analysis use it); requests use only `defaultParameters`.
   - `centreIds` (assigned centres) and `piUserId` (the Experiment PI seat): only `research.assign` may change them. `centreIds` is a **cache of the active trials' centres**; the trials are the record (see Trial).
-  - `mainPlotCount` / `subPlotCount` (≤ 10 each): the plot layout of split and strip plot (`DESIGNS_WITH_PLOTS`, both ≥ 1, else 400 `PLOT_COUNTS_REQUIRED`); 0 for every other design. **Each main × sub plot is a complete RBD**: every treatment × replication is recorded in every plot, so 2 × 2 plots × 3 treatments × 2 replications = 24 rows per parameter. Use `experimentPlots(experiment)` (`[{ mainPlot, subPlot }]`, one `{ null, null }` plot for other designs) and `plotLabel()` ("M1·S2"). Factors (what the main and sub plots stand for) are not modelled yet.
+  - `mainPlotCount` / `subPlotCount` (≤ 10 each): the plot layout of split and strip plot (`DESIGNS_WITH_PLOTS`, both ≥ 1, else 400 `PLOT_COUNTS_REQUIRED`); 0 for every other design. **Each main × sub plot is a complete RBD**: every treatment × replication is recorded in every plot, so 2 × 2 plots × 3 treatments × 2 replications = 24 rows per parameter. Use `experimentPlots(experiment)` (`[{ mainPlot, subPlot }]`, one `{ null, null }` plot for other designs) and `plotLabel()` ("M1·S2"). What each main / sub plot stands for is `mainPlotData` / `subPlotData` (codes M1 … / S1 …, as many as the counts); `plotNames()` / `plotTitle()` ("M1 Conventional tillage · S2 Jeevamrit") give them to the analysis (`plots[].title`), its export and the Excel template (a name column beside each label, ignored on import).
   The protocol: Programme, design (RBD / Split plot / Strip plot / Non-replicated / Farmer participatory / Survey, as named in the Annual Report; RBD and Split plot need ≥ 2 replications, Strip plot may have none, the last three never have them), replications, common treatments (T1…), parameters from the library (each `plot`-level = per treatment × replication, or `treatment`-level = once per treatment, in every plot of the layout; `required` blocks submission), seasons, and assigned centres. Assigning centres creates their **trials**.
 - **`dataLocked`**: set when any centre records data. After that the design, replications, main and sub plot counts and existing treatments/parameters can't change (409 `EXPERIMENT_HAS_DATA`); new ones can be added.
 - **Assigning centres = trials.** A trial (unique per experiment × centre) is also the record of the assignment: `assignmentStatus` Active / Withdrawn, with `assignedAt/By`, `withdrawnAt/By`, `withdrawReason`. `syncTrials()` (trials service) is the only writer: a new centre gets a trial, a dropped one is **withdrawn** (never deleted), a re-added one gets its old trial back. It runs inside the experiment's create/update transaction (the controller passes it in as `SyncCentres`, because the trials service depends on the experiments service), audits each change with the centre's `centreId`, and returns the active centres, which become `centreIds`. Optional `withdrawReason` on the experiment PATCH is stored on the withdrawn trials.

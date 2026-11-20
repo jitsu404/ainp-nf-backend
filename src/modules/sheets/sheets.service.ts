@@ -16,6 +16,8 @@ import {
   getExperiment,
   markDataLocked,
   plotLabel,
+  plotNames,
+  plotTitle,
   withParameterDetails,
 } from '../experiments/experiments.service.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
@@ -475,6 +477,12 @@ const layoutFor = (experiment: ExperimentDetail) => {
   // Plots and replications are written as labels: M1, S2, R3.
   const plotted = DESIGNS_WITH_PLOTS.includes(experiment.design);
   const range = (prefix: string, n: number | null) => `${prefix}1 … ${prefix}${n ?? 1}`;
+  // Where the protocol names the main / sub plots, a column beside each label shows the name.
+  // It is there to read while entering data; import ignores it (the label decides the plot).
+  const named = (list?: { name: string }[]) => (list ?? []).some((t) => t.name);
+  const nameColumn = (key: string, header: string): ExcelColumn[] => [
+    { key, header, width: 26, note: 'For reference; not read on import (the label decides the plot).' },
+  ];
   const plotKeyColumns: ExcelColumn[] = plotted
     ? [
         {
@@ -483,12 +491,14 @@ const layoutFor = (experiment: ExperimentDetail) => {
           required: true,
           note: `Main plot: ${range('M', experiment.mainPlotCount)}`,
         },
+        ...(named(experiment.mainPlotData) ? nameColumn('mainPlotName', 'Main plot treatment') : []),
         {
           key: 'subPlot',
           header: 'Sub plot',
           required: true,
           note: `Sub plot: ${range('S', experiment.subPlotCount)}`,
         },
+        ...(named(experiment.subPlotData) ? nameColumn('subPlotName', 'Sub plot treatment') : []),
       ]
     : [];
   return {
@@ -526,7 +536,9 @@ export const sheetTemplate = async (ctx: RequestContext, id: string) => {
     values.get(cellKey({ ...plot, treatmentCode: t, replication: r, parameterId: p })) ?? null;
   const { plotted, plotParams, treatmentParams, plotColumns, treatmentColumns } = layoutFor(experiment);
   const plotCells = (plot: PlotRef) =>
-    plotted ? { mainPlot: `M${plot.mainPlot}`, subPlot: `S${plot.subPlot}` } : {};
+    plotted
+      ? { mainPlot: `M${plot.mainPlot}`, subPlot: `S${plot.subPlot}`, ...plotNames(experiment, plot) }
+      : {};
 
   const sheets = [];
   if (plotParams.length) {
@@ -715,6 +727,9 @@ export const analyseSheet = async (ctx: RequestContext, id: string) => {
     ? layout.map((plot) => ({
         ...plot,
         label: plotLabel(plot),
+        // What the plot's main and sub plot stand for, when the protocol names them.
+        ...plotNames(experiment, plot),
+        title: plotTitle(experiment, plot),
         parameters: analyse(
           observations.filter((o) => o.mainPlot === plot.mainPlot && o.subPlot === plot.subPlot),
         ),

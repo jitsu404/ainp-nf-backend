@@ -73,7 +73,7 @@ export const exportSheetAnalysis = async (ctx: RequestContext, id: string) => {
   const plotted = a.plots.length > 0;
   const groups = [
     { plot: plotted ? 'All plots' : '', parameters: a.parameters },
-    ...a.plots.map((p) => ({ plot: p.label, parameters: p.parameters })),
+    ...a.plots.map((p) => ({ plot: p.title, parameters: p.parameters })),
   ];
   const meansRows = groups.flatMap(({ plot, parameters }) =>
     parameters.flatMap((p) => {
@@ -93,7 +93,7 @@ export const exportSheetAnalysis = async (ctx: RequestContext, id: string) => {
   const anovaRows = groups.flatMap(({ plot, parameters }) =>
     parameters.flatMap((p) => anovaOf(p).map((row) => ({ plot, ...row }))),
   );
-  const plotColumn = plotted ? [{ key: 'plot', header: 'Plot' }] : [];
+  const plotColumn = plotted ? [{ key: 'plot', header: 'Plot', width: 34 }] : [];
   const buffer = await buildMultiSheetWorkbook([
     {
       name: 'Treatment means',

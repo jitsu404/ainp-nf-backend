@@ -1167,6 +1167,87 @@ describe('experiment designs', () => {
       .expect(409);
     expect(frozen.body.error.code).toBe('EXPERIMENT_HAS_DATA');
   });
+  it('shows the names given to main and sub plots in the analysis and the Excel template', async () => {
+    const { pcu, piA, grain, experimentId, trialAId } = await setup();
+    await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({ design: 'Split plot', mainPlotCount: 2, subPlotCount: 2 })
+      .expect(200);
+    await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({
+        mainPlotData: [
+          { code: 'M1', name: 'Conventional tillage' },
+          { code: 'M2', name: 'Zero tillage' },
+        ],
+        subPlotData: [
+          { code: 'S1', name: 'Jeevamrit' },
+          { code: 'S2', name: 'Ghanajeevamrit' },
+        ],
+      })
+      .expect(200);
+    const sheet = await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
+      .expect(201);
+    const id = sheet.body.data.id as string;
+    await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({
+        values: fullPlotData(grain.id, { T1: [10, 13, 10], T2: [15, 16, 14], T3: [8, 9, 10] }).map((c) => ({
+          ...c,
+          mainPlot: 2,
+          subPlot: 1,
+        })),
+      })
+      .expect(200);
+
+    const analysis = await piA.get(`/api/v1/sheets/${id}/analysis`).expect(200);
+    expect(analysis.body.data.plots[2]).toMatchObject({
+      label: 'M2·S1',
+      mainPlotName: 'Zero tillage',
+      subPlotName: 'Jeevamrit',
+      title: 'M2 Zero tillage · S1 Jeevamrit',
+    });
+
+    // Each label has its name beside it; import goes by the label and ignores the name.
+    const download = await piA
+      .get(`/api/v1/sheets/${id}/template`)
+      .buffer(true)
+      .parse((res, cb) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => cb(null, Buffer.concat(chunks)));
+      })
+      .expect(200);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(download.body as ArrayBuffer);
+    const tab = workbook.getWorksheet('Plot data')!;
+    expect([1, 2, 3, 4, 5, 6].map((c) => tab.getRow(1).getCell(c).value)).toEqual([
+      'Main plot',
+      'Main plot treatment',
+      'Sub plot',
+      'Sub plot treatment',
+      'Treatment',
+      'Replication',
+    ]);
+    // Row 20 = M2 S1 T1 R1 (after the 18 rows of M1).
+    expect([1, 2, 3, 4, 5, 6, 7].map((c) => tab.getRow(20).getCell(c).value)).toEqual([
+      'M2',
+      'Zero tillage',
+      'S1',
+      'Jeevamrit',
+      'T1',
+      'R1',
+      10,
+    ]);
+    tab.getRow(20).getCell(2).value = 'anything';
+    const imported = await piA
+      .post(`/api/v1/sheets/${id}/import?dryRun=true`)
+      .attach('file', Buffer.from(await workbook.xlsx.writeBuffer()), 'data.xlsx')
+      .expect(200);
+    expect(imported.body.data).toMatchObject({ errors: [], filled: 9 });
+  });
 });
 
 describe('RCBD analysis', () => {
