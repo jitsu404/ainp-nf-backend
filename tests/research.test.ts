@@ -711,6 +711,148 @@ describe('reporting status', () => {
   });
 });
 
+describe('assigning and withdrawing centres', () => {
+  it('withdrawing keeps the trial and its data read-only; assigning again reactivates the same trial', async () => {
+    const { pcu, piA, grain, experimentId, trialAId, centreA, centreB } = await setup();
+    const sheet = await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF' })
+      .expect(201);
+    const sheetId = sheet.body.data.id as string;
+    const values = fullPlotData(grain.id, { T1: [10, 12, 11], T2: [14, 16, 15], T3: [8, 10, 9] });
+    await piA.put(`/api/v1/sheets/${sheetId}/values`).send({ values }).expect(200);
+    const summary = () =>
+      pcu.get(`/api/v1/sheets/summary?experimentId=${experimentId}&fyCode=${FY}&includeUnapproved=true`);
+    expect((await summary().expect(200)).body.data.centres).toHaveLength(1);
+
+    const updated = await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({ centreIds: [centreB.id], withdrawReason: 'Centre moved to another programme' })
+      .expect(200);
+    expect(updated.body.data.centreIds).toEqual([centreB.id]);
+
+    const trials = await pcu.get(`/api/v1/trials?experimentId=${experimentId}`).expect(200);
+    expect(trials.body.data).toHaveLength(2);
+    const a = trials.body.data.find((t: { id: string }) => t.id === trialAId);
+    expect(a).toMatchObject({
+      assignmentStatus: 'Withdrawn',
+      withdrawReason: 'Centre moved to another programme',
+    });
+    expect(a.withdrawnAt).toBeTruthy();
+
+    // The withdrawn centre still reads its experiment, trial and sheet…
+    await piA.get(`/api/v1/experiments/${experimentId}`).expect(200);
+    await piA.get(`/api/v1/trials/${trialAId}`).expect(200);
+    await piA.get(`/api/v1/sheets/${sheetId}`).expect(200);
+    // …but can't change any of it.
+    const save = await piA.put(`/api/v1/sheets/${sheetId}/values`).send({ values }).expect(409);
+    expect(save.body.error.code).toBe('TRIAL_WITHDRAWN');
+    await piA.post(`/api/v1/sheets/${sheetId}/submit`).send({}).expect(409);
+    await piA.patch(`/api/v1/trials/${trialAId}`).send({ layoutNotes: 'Changed' }).expect(409);
+    await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, fyCode: FY, seasonCode: 'KHARIF', cropCode: 'RICE' })
+      .expect(409);
+    const metadata = await piA.get(`/api/v1/metadata/trials/${trialAId}`).expect(200);
+    expect(metadata.body.data).toMatchObject({ canEdit: false, canSubmit: false });
+    await piA.post(`/api/v1/metadata/trials/${trialAId}/submit`).send({}).expect(409);
+    // It leaves the grid and the consolidation.
+    const grid = await pcu.get(`/api/v1/sheets/reporting?experimentId=${experimentId}`).expect(200);
+    expect(grid.body.data.centres.map((c: { centre: { id: string } }) => c.centre.id)).toEqual([centreB.id]);
+    expect((await summary().expect(200)).body.data.centres).toHaveLength(0);
+    // The withdrawal is in the centre's own audit trail.
+    const audit = await piA.get('/api/v1/audit?module=trials').expect(200);
+    expect(audit.body.data.map((r: { action: string }) => r.action)).toContain(
+      'Withdrew the centre from NF-LTE: Centre moved to another programme',
+    );
+
+    // Assigning again brings back the same trial with its data.
+    await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({ centreIds: [centreA.id, centreB.id] })
+      .expect(200);
+    const again = await pcu.get(`/api/v1/trials/${trialAId}`).expect(200);
+    expect(again.body.data).toMatchObject({ assignmentStatus: 'Active', withdrawReason: null });
+    expect((await pcu.get(`/api/v1/trials?experimentId=${experimentId}`).expect(200)).body.data).toHaveLength(
+      2,
+    );
+    await piA.put(`/api/v1/sheets/${sheetId}/values`).send({ values }).expect(200);
+  });
+
+  it("each centre uses the experiment's crops per season unless it records its own", async () => {
+    const { pcu, piA, piB, experimentId, trialAId } = await setup();
+    const item = async (type: 'crop' | 'unit', code: string) =>
+      String((await MasterItemModel.findOne({ type, code }).orFail()).id);
+    const [rice, wheat, unit] = [
+      await item('crop', 'RICE'),
+      await item('crop', 'WHEAT'),
+      await item('unit', 'KG_HA'),
+    ];
+    await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({ seasons: { KHARIF: [rice] } })
+      .expect(200);
+
+    const before = await piA.get(`/api/v1/trials/${trialAId}`).expect(200);
+    expect(before.body.data.cropsBySeason).toEqual([
+      expect.objectContaining({
+        seasonCode: 'KHARIF',
+        changed: false,
+        crops: [expect.objectContaining({ id: rice, code: 'RICE' })],
+      }),
+    ]);
+
+    // Rice isn't available at centre A, so it grows wheat in Kharif.
+    const changed = await piA
+      .patch(`/api/v1/trials/${trialAId}`)
+      .send({ seasonCrops: { KHARIF: [wheat] } })
+      .expect(200);
+    expect(changed.body.data.cropsBySeason[0]).toMatchObject({
+      changed: true,
+      crops: [{ id: wheat, code: 'WHEAT' }],
+      defaultCrops: [{ id: rice, code: 'RICE' }],
+    });
+    const audit = await piA.get('/api/v1/audit?module=trials').expect(200);
+    expect(
+      audit.body.data.some(
+        (r: { changes?: { seasonCrops?: unknown } }) =>
+          JSON.stringify(r.changes?.seasonCrops) === JSON.stringify({ from: null, to: { KHARIF: [wheat] } }),
+      ),
+    ).toBe(true);
+
+    // Checked against the protocol's seasons and the crops master; other centres can't change it.
+    const season = await piA
+      .patch(`/api/v1/trials/${trialAId}`)
+      .send({ seasonCrops: { RABI: [wheat] } })
+      .expect(400);
+    expect(season.body.error.code).toBe('SEASON_NOT_IN_PROTOCOL');
+    const crop = await piA
+      .patch(`/api/v1/trials/${trialAId}`)
+      .send({ seasonCrops: { KHARIF: [unit] } })
+      .expect(400);
+    expect(crop.body.error.code).toBe('UNKNOWN_CROP');
+    await piB
+      .patch(`/api/v1/trials/${trialAId}`)
+      .send({ seasonCrops: { KHARIF: [rice] } })
+      .expect(404);
+
+    // null goes back to the experiment's crops.
+    const reset = await piA
+      .patch(`/api/v1/trials/${trialAId}`)
+      .send({ seasonCrops: { KHARIF: null } })
+      .expect(200);
+    expect(reset.body.data.cropsBySeason[0]).toMatchObject({ changed: false, crops: [{ id: rice }] });
+  });
+
+  it('a centre that was never assigned gets 404 for the experiment', async () => {
+    const { experimentId } = await setup();
+    const centreC = await createCentre();
+    const { agent: piC } = await signedInAgent('pi', centreC.id);
+    await piC.get(`/api/v1/experiments/${experimentId}`).expect(404);
+    expect((await piC.get('/api/v1/experiments').expect(200)).body.data).toEqual([]);
+  });
+});
+
 describe('sheet audit history', () => {
   it('records every changed cell (old → new), how it came in, and the centre', async () => {
     const { piA, grain, trialAId, centreA } = await setup();

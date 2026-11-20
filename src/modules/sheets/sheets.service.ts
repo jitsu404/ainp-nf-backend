@@ -18,7 +18,14 @@ import {
 import { assertYearOpen, listFinancialYears } from '../financialYears/financialYears.service.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
 import { calculatedParameters } from '../parameters/parameters.service.js';
-import { getTrial, listTrials, trialsByIds } from '../trials/trials.service.js';
+import {
+  assertTrialActive,
+  assertTrialIdActive,
+  getTrial,
+  listTrials,
+  trialsByIds,
+  withdrawnTrialIds,
+} from '../trials/trials.service.js';
 import { type ObsRow, calculatedIds, computeCalculated } from './sheets.calculated.js';
 import { type ParameterAnalysis, analyseParameter, pooledAnalysis } from './sheets.analysis.js';
 import type { CellInput, CreateSheetDto, ListSheetsQuery, SummaryQuery } from './sheets.dto.js';
@@ -98,6 +105,7 @@ export const getSheetDetail = async (ctx: RequestContext, id: string) => {
 
 export const createSheet = async (ctx: RequestContext, dto: CreateSheetDto) => {
   const trial = await getTrial(ctx, dto.trialId); // scoped: a centre can only open its own trials
+  assertTrialActive(trial);
   const experiment = await findExperiment(String(trial.experimentId));
   if (experiment.status !== 'Active') {
     throw AppError.conflict('EXPERIMENT_NOT_ACTIVE', 'Data can only be recorded for active experiments');
@@ -220,6 +228,7 @@ const checkCell = (
 };
 
 const assertEditable = async (sheet: Sheet) => {
+  await assertTrialIdActive(String(sheet.trialId));
   if (!EDITABLE_STATUSES.includes(sheet.status)) {
     throw AppError.conflict(
       'SHEET_LOCKED',
@@ -352,6 +361,9 @@ const transition = async (
   remark: string | undefined,
   verb: string,
 ) => {
+  // A withdrawn centre's sheets are read-only, whatever their status.
+  const existing = await getScopedSheet(ctx, id);
+  await assertTrialIdActive(String(existing.trialId));
   // Conditional update: if two people act at once, only the first succeeds.
   const sheet = await SheetModel.findOneAndUpdate(
     scoped(ctx, { _id: id, status: trusted({ $in: from }) }),
@@ -613,6 +625,9 @@ export const experimentSummary = async (ctx: RequestContext, query: SummaryQuery
   const where: QueryFilter<Sheet> = { experimentId: query.experimentId, fyCode: query.fyCode };
   if (query.seasonCode) where.seasonCode = query.seasonCode;
   if (!query.includeUnapproved) where.status = 'Approved';
+  // Withdrawn centres' sheets stay readable one by one but don't count in the consolidation.
+  const withdrawn = await withdrawnTrialIds(query.experimentId);
+  if (withdrawn.size) where.trialId = trusted({ $nin: [...withdrawn] });
   const sheets = await SheetModel.find(scoped(ctx, where)).populate<{
     centreId: { _id: unknown; code: string; name: string };
   }>('centreId', 'code name');
@@ -752,10 +767,9 @@ export const reportingStatus = async (ctx: RequestContext, experimentId: string)
     if (!byTrial.has(key)) byTrial.set(key, []);
     byTrial.get(key)!.push(s);
   }
-  // A trial stays (with its data) when its centre is unassigned; the grid shows assigned centres.
-  const assigned = new Set(experiment.centreIds.map(String));
+  // A withdrawn centre's trial keeps its data (read-only); the grid shows the active ones.
   const centres = trials
-    .filter((t) => assigned.has(String((t.centreId as unknown as { _id: unknown })._id)))
+    .filter((t) => t.assignmentStatus !== 'Withdrawn')
     .map((t) => {
       const centre = t.centreId as unknown as { _id: unknown; code: string; name: string };
       return {

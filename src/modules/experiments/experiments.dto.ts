@@ -60,7 +60,11 @@ const shape = {
     .meta({ example: { KHARIF: [], RABI: [] } }),
   startYear: z.number().int().min(1900).max(2100).meta({ example: 2026 }),
   endYear: z.number().int().min(1900).max(2100).meta({ example: 2029 }),
-  centreIds: z.array(objectId).max(100).optional(),
+  centreIds: z
+    .array(objectId)
+    .max(100)
+    .optional()
+    .transform((ids) => (ids ? [...new Set(ids)] : ids)),
   piUserId: objectId.nullable().optional().meta({
     description: 'Experiment PI seat to link (PCU only, `research.assign`); null unlinks',
   }),
@@ -127,7 +131,13 @@ const updateBody = checks(
   z
     .object(shape)
     .partial()
-    .extend({ status: z.enum(EXPERIMENT_STATUSES).optional() })
+    .extend({
+      status: z.enum(EXPERIMENT_STATUSES).optional(),
+      withdrawReason: z.string().trim().min(3).max(500).optional().meta({
+        description:
+          'Why centres left out of `centreIds` are withdrawn (kept on their trial; their data stays read-only)',
+      }),
+    })
     .strict()
     .refine((b) => Object.keys(b).length > 0, { message: 'Provide at least one field to update' }),
   { partial: true },

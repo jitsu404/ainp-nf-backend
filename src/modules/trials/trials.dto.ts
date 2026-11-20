@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { RequestSchemas } from '../../middlewares/validate.js';
 import { idParams, objectId } from '../../utils/validators.js';
 import { masterCode } from '../masters/masters.dto.js';
-import { TRIAL_STATUSES } from './trials.model.js';
+import { ASSIGNMENT_STATUSES, TRIAL_STATUSES } from './trials.model.js';
 
 const shortCode = z
   .string()
@@ -63,6 +63,14 @@ const practice = z
 
 const updateBody = z
   .object({
+    seasonCrops: z
+      .record(masterCode, z.array(objectId).max(20).nullable())
+      .optional()
+      .meta({
+        example: { KHARIF: [] },
+        description:
+          "The centre's crops per season where they differ from the experiment's (crop master item ids). Only the seasons sent change; null puts a season back to the experiment's crops.",
+      }),
     croppingSystems: z.array(croppingSystem).max(10).optional(),
     practices: z.array(practice).max(60).optional(),
     inChargeUserId: objectId.nullable().optional(),
@@ -84,6 +92,7 @@ const listQuery = z.object({
   experimentId: objectId.optional(),
   centreId: objectId.optional(),
   status: z.enum(TRIAL_STATUSES).optional(),
+  assignmentStatus: z.enum(ASSIGNMENT_STATUSES).optional(),
 });
 
 export const listTrialsSchemas = { query: listQuery } satisfies RequestSchemas;

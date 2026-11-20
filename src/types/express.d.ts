@@ -5,7 +5,11 @@ export interface AuthUser {
   id: string;
   roleId: RoleId;
   centreId: string | null;
-  /** Experiments linked to an Experiment PI account (experiment scope); empty for other roles. */
+  /**
+   * Experiment PI: the experiments their seat leads (their scope everywhere).
+   * Centre PI: the experiments their centre has a trial in, withdrawn ones included (their scope
+   * for experiments only; other collections are scoped by centre). Empty for national roles.
+   */
   experimentIds: string[];
   name: string;
   mustChangePassword: boolean;

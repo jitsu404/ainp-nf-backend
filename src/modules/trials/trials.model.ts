@@ -7,6 +7,12 @@ import { Schema, type Types, model } from 'mongoose';
 export const TRIAL_STATUSES = ['Setup', 'Running', 'Completed'] as const;
 export type TrialStatus = (typeof TRIAL_STATUSES)[number];
 
+// The trial is also the record of the assignment: assigning a centre creates (or reactivates) its
+// trial, unassigning withdraws it. A withdrawn trial keeps its data, read-only. Changed only by
+// syncTrials(); experiment.centreIds is a cache of the active trials' centres.
+export const ASSIGNMENT_STATUSES = ['Active', 'Withdrawn'] as const;
+export type AssignmentStatus = (typeof ASSIGNMENT_STATUSES)[number];
+
 export interface SeasonCrop {
   seasonCode: string;
   mainCropCode: string;
@@ -40,11 +46,23 @@ export interface TreatmentPractice {
 export interface Trial {
   experimentId: Types.ObjectId;
   centreId: Types.ObjectId;
+  /**
+   * The centre's own crops for a season, where they differ from the experiment's (season code →
+   * crop master item ids). A season not listed uses the experiment's crops. Read the result with
+   * trialSeasonCrops(); the audit trail records every change.
+   */
+  seasonCrops: Map<string, Types.ObjectId[]>;
   croppingSystems: CroppingSystem[];
   practices: TreatmentPractice[];
   inChargeUserId?: Types.ObjectId | null;
   layoutNotes?: string | null;
   status: TrialStatus;
+  assignmentStatus: AssignmentStatus;
+  assignedAt?: Date | null;
+  assignedBy?: Types.ObjectId | null;
+  withdrawnAt?: Date | null;
+  withdrawnBy?: Types.ObjectId | null;
+  withdrawReason?: string | null;
   createdBy?: Types.ObjectId;
   updatedBy?: Types.ObjectId;
   createdAt: Date;
@@ -90,11 +108,22 @@ const trialSchema = new Schema<Trial>(
   {
     experimentId: { type: Schema.Types.ObjectId, ref: 'Experiment', required: true },
     centreId: { type: Schema.Types.ObjectId, ref: 'Centre', required: true },
+    seasonCrops: {
+      type: Map,
+      of: [{ type: Schema.Types.ObjectId, ref: 'MasterItem' }],
+      default: () => new Map(),
+    },
     croppingSystems: { type: [croppingSystemSchema], default: [] },
     practices: { type: [practiceSchema], default: [] },
     inChargeUserId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     layoutNotes: { type: String, trim: true, maxlength: 4000, default: null },
     status: { type: String, enum: TRIAL_STATUSES, default: 'Setup' },
+    assignmentStatus: { type: String, enum: ASSIGNMENT_STATUSES, default: 'Active' },
+    assignedAt: { type: Date, default: null },
+    assignedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    withdrawnAt: { type: Date, default: null },
+    withdrawnBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    withdrawReason: { type: String, trim: true, maxlength: 500, default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
@@ -102,6 +131,6 @@ const trialSchema = new Schema<Trial>(
 );
 
 trialSchema.index({ experimentId: 1, centreId: 1 }, { unique: true });
-trialSchema.index({ centreId: 1 });
+trialSchema.index({ centreId: 1, experimentId: 1 });
 
 export const TrialModel = model<Trial>('Trial', trialSchema);

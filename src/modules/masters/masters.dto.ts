@@ -25,7 +25,11 @@ const itemBody = z
       .meta({ description: 'Allowed values depend on the type (see /masters/types)' }),
     linkedTo: z
       .preprocess((val) => (val === '' ? null : val), objectId.nullable().optional())
-      .meta({ description: 'Optional ID of linked master item (e.g. fundCategory for budgetHead)' }),
+      // `preprocess` hides the id rule from the Postman generator, so give a valid example.
+      .meta({
+        example: null,
+        description: 'Optional ID of linked master item (e.g. fundCategory for budgetHead)',
+      }),
     description: z.string().trim().max(500).optional(),
     sortOrder: z.number().int().min(0).max(9999).optional(),
   })

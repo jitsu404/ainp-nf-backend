@@ -14,7 +14,13 @@ import {
 } from '../experiments/experiments.service.js';
 import { masterNames } from '../masters/masters.service.js';
 import { sheetCoverageByTrial } from '../sheets/sheets.service.js';
-import { getTrial, trialsByIds, trialsOfExperiment } from '../trials/trials.service.js';
+import {
+  assertTrialActive,
+  assertTrialIdActive,
+  getTrial,
+  trialsByIds,
+  trialsOfExperiment,
+} from '../trials/trials.service.js';
 import { activePisForCentres, contactEmailOf } from '../users/users.service.js';
 import type { SaveCommonMetadataDto, SaveTrialMetadataDto } from './metadata.dto.js';
 import { CENTRE_FIELD_KEYS, COMMON_DEFAULTS, type FieldDef, METADATA_FIELDS } from './metadata.fields.js';
@@ -226,16 +232,19 @@ const ownsTrial = (ctx: RequestContext, trial: TrialDoc) =>
 
 const permissionsFor = (ctx: RequestContext, trial: TrialDoc, status: MetadataStatus) => {
   const can = (c: Parameters<typeof hasCapability>[1]) => hasCapability(ctx.user.roleId, c);
-  const own = ownsTrial(ctx, trial);
+  // A withdrawn centre's metadata is read-only, like the rest of its trial.
+  const active = trial.assignmentStatus !== 'Withdrawn';
+  const own = active && ownsTrial(ctx, trial);
   const editable = EDITABLE_METADATA_STATUSES.includes(status);
   return {
     canEdit: own && editable && can('research.enter'),
     canSubmit: own && editable && can('research.submit'),
     canReturn:
+      active &&
       !isCentreScoped(ctx.user) &&
       (status === 'Submitted' || status === 'Approved') &&
       (can('research.review') || can('research.approve')),
-    canApprove: !isCentreScoped(ctx.user) && status === 'Submitted' && can('research.approve'),
+    canApprove: active && !isCentreScoped(ctx.user) && status === 'Submitted' && can('research.approve'),
   };
 };
 
@@ -313,6 +322,7 @@ export const exportExperimentMetadata = async (ctx: RequestContext, experimentId
 export const saveTrialMetadata = async (ctx: RequestContext, trialId: string, dto: SaveTrialMetadataDto) => {
   // Only the trial's own centre (or a national user) can change it: others get 404.
   const trial = await getTrial(ctx, trialId);
+  assertTrialActive(trial);
   await withTransaction(async (session) => {
     let record = await TrialMetadataModel.findOne({ trialId }).session(session);
     if (record && !EDITABLE_METADATA_STATUSES.includes(record.status)) {
@@ -352,6 +362,7 @@ const transition = async (
   remark: string | undefined,
   verb: string,
 ) => {
+  await assertTrialIdActive(trialId);
   // Conditional update: if two people act at once, only the first succeeds.
   const filter: QueryFilter<TrialMetadata> = { trialId, status: trusted({ $in: from }) };
   const record = await TrialMetadataModel.findOneAndUpdate(
@@ -388,7 +399,7 @@ const transition = async (
 };
 
 export const submitTrialMetadata = async (ctx: RequestContext, trialId: string, remark?: string) => {
-  await getTrial(ctx, trialId);
+  assertTrialActive(await getTrial(ctx, trialId));
   const current = await getTrialMetadata(ctx, trialId);
   if (current.completeness.missing.length) {
     throw AppError.badRequest('INCOMPLETE_METADATA', `Fill in: ${current.completeness.missing.join(', ')}`, {

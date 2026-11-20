@@ -41,8 +41,12 @@ const stringExample = (schema: JsonSchema, key: string): string => {
   if (schema.format === 'date-time') return FIXED_DATE;
   if (schema.format === 'date') return FIXED_DATE.slice(0, 10);
   if (schema.format === 'uri' || schema.format === 'url') return 'https://example.com';
-  // Ids become Postman variables ({{centreId}}), filled in by earlier "create" requests.
-  if (isObjectIdSchema(schema)) return key ? `{{${key}}}` : '000000000000000000000000';
+  // Ids become Postman variables ({{centreId}}), filled in by earlier "create" requests. A field
+  // named after the entity (`centre`, `experiment`) uses the same variable as `centreId`.
+  if (isObjectIdSchema(schema)) {
+    if (!key) return '000000000000000000000000';
+    return `{{${key.endsWith('Id') ? key : `${key}Id`}}}`;
+  }
   if (/password/i.test(key)) return 'ChangeMe12345';
 
   let text = key ? `Sample ${key}` : 'Sample text';

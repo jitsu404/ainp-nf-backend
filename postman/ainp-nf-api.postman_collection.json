@@ -787,7 +787,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"KHARIF\",\n  \"name\": \"Kharif\",\n  \"group\": \"Sample group\",\n  \"linkedTo\": \"{{linkedTo}}\",\n  \"description\": \"Sample description\",\n  \"sortOrder\": 0\n}",
+              "raw": "{\n  \"code\": \"KHARIF\",\n  \"name\": \"Kharif\",\n  \"group\": \"Sample group\",\n  \"linkedTo\": null,\n  \"description\": \"Sample description\",\n  \"sortOrder\": 0\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -826,7 +826,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"KHARIF\",\n  \"name\": \"Kharif\",\n  \"group\": \"Sample group\",\n  \"linkedTo\": \"{{linkedTo}}\",\n  \"description\": \"Sample description\",\n  \"sortOrder\": 0,\n  \"isActive\": true\n}",
+              "raw": "{\n  \"code\": \"KHARIF\",\n  \"name\": \"Kharif\",\n  \"group\": \"Sample group\",\n  \"linkedTo\": null,\n  \"description\": \"Sample description\",\n  \"sortOrder\": 0,\n  \"isActive\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1346,7 +1346,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"mainPlotCount\": 0,\n  \"subPlotCount\": 0,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\"\n    }\n  ],\n  \"defaultParameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": {\n    \"KHARIF\": [],\n    \"RABI\": []\n  },\n  \"startYear\": 2026,\n  \"endYear\": 2029,\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"piUserId\": \"{{piUserId}}\",\n  \"referenceTreatmentCode\": null,\n  \"status\": \"Draft\"\n}",
+              "raw": "{\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"mainPlotCount\": 0,\n  \"subPlotCount\": 0,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\"\n    }\n  ],\n  \"defaultParameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": {\n    \"KHARIF\": [],\n    \"RABI\": []\n  },\n  \"startYear\": 2026,\n  \"endYear\": 2029,\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"piUserId\": \"{{piUserId}}\",\n  \"referenceTreatmentCode\": null,\n  \"status\": \"Draft\",\n  \"withdrawReason\": \"Sample withdrawReason\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1370,7 +1370,7 @@
                 }
               ]
             },
-            "description": "Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added. The Experiment PI edits only their own experiment; centres and the PI (`centreIds`, `piUserId`) need `research.assign`.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | no | 5–300 chars |  |\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | no | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0 |  |\n| `subPlotCount` | integer | no | min 0 |  |\n| `treatments` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | no | min 1900; max 2100 |  |\n| `endYear` | integer | no | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n\nUnknown fields are rejected."
+            "description": "Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added. The Experiment PI edits only their own experiment; centres and the PI (`centreIds`, `piUserId`) need `research.assign`.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | no | 5–300 chars |  |\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | no | one of `RBD`, `Split plot`, `Strip plot`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0 |  |\n| `subPlotCount` | integer | no | min 0 |  |\n| `treatments` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | no | min 1900; max 2100 |  |\n| `endYear` | integer | no | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n| `withdrawReason` | string | no | 3–500 chars | Why centres left out of `centreIds` are withdrawn (kept on their trial; their data stays read-only) |\n\nUnknown fields are rejected."
           }
         }
       ]
@@ -1549,7 +1549,7 @@
     },
     {
       "name": "Trials",
-      "description": "An experiment as run at one centre: its cropping systems, crops and varieties per season, practice details per treatment and in-charge. Created when the experiment is assigned.",
+      "description": "An experiment as run at one centre, and the record of that assignment: its crops per season (by default those of the experiment; the centre may choose its own), cropping systems, crops and varieties per season, practice details per treatment and in-charge. Created when the PCU assigns the centre (`assignmentStatus` Active); unassigning withdraws it (Withdrawn: kept with its sheets, read-only), and assigning again reactivates it.",
       "item": [
         {
           "name": "List trials",
@@ -1582,10 +1582,16 @@
                   "value": "",
                   "description": "string · one of `Setup`, `Running`, `Completed`",
                   "disabled": true
+                },
+                {
+                  "key": "assignmentStatus",
+                  "value": "",
+                  "description": "string · one of `Active`, `Withdrawn`",
+                  "disabled": true
                 }
               ]
             },
-            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/trials`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | no | ObjectId |  |\n| `centreId` | string | no | ObjectId |  |\n| `status` | string | no | one of `Setup`, `Running`, `Completed` |  |"
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/trials`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `experimentId` | string | no | ObjectId |  |\n| `centreId` | string | no | ObjectId |  |\n| `status` | string | no | one of `Setup`, `Running`, `Completed` |  |\n| `assignmentStatus` | string | no | one of `Active`, `Withdrawn` |  |"
           }
         },
         {
@@ -1625,7 +1631,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"croppingSystems\": [\n    {\n      \"code\": \"CS1\",\n      \"name\": \"Rice – Wheat\",\n      \"seasons\": []\n    }\n  ],\n  \"practices\": [\n    {\n      \"treatmentCode\": \"T2\",\n      \"seedDetails\": \"Sample seedDetails\",\n      \"nutrientDetails\": \"Sample nutrientDetails\",\n      \"protectionDetails\": \"Sample protectionDetails\",\n      \"otherDetails\": \"Sample otherDetails\"\n    }\n  ],\n  \"inChargeUserId\": \"{{inChargeUserId}}\",\n  \"layoutNotes\": \"Sample layoutNotes\",\n  \"status\": \"Setup\"\n}",
+              "raw": "{\n  \"seasonCrops\": {\n    \"KHARIF\": []\n  },\n  \"croppingSystems\": [\n    {\n      \"code\": \"CS1\",\n      \"name\": \"Rice – Wheat\",\n      \"seasons\": []\n    }\n  ],\n  \"practices\": [\n    {\n      \"treatmentCode\": \"T2\",\n      \"seedDetails\": \"Sample seedDetails\",\n      \"nutrientDetails\": \"Sample nutrientDetails\",\n      \"protectionDetails\": \"Sample protectionDetails\",\n      \"otherDetails\": \"Sample otherDetails\"\n    }\n  ],\n  \"inChargeUserId\": \"{{inChargeUserId}}\",\n  \"layoutNotes\": \"Sample layoutNotes\",\n  \"status\": \"Setup\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1649,7 +1655,7 @@
                 }
               ]
             },
-            "description": "The centre sets its cropping systems (crops and varieties per season), the practice details of each treatment, the in-charge, layout notes and status. Seasons, crops and treatments are checked against the masters and the protocol.\n\n**Access:** signed in, and the role needs one of `research.enter`, `research.assign`\n\n**Endpoint:** `PATCH /api/v1/trials/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `croppingSystems` | object[] | no | — |  |\n| `practices` | object[] | no | — |  |\n| `inChargeUserId` | string | no | ObjectId; nullable |  |\n| `layoutNotes` | string | no | 0–4000 chars; nullable |  |\n| `status` | string | no | one of `Setup`, `Running`, `Completed` |  |\n\nUnknown fields are rejected."
+            "description": "The centre sets its cropping systems (crops and varieties per season), the practice details of each treatment, the in-charge, layout notes and status. Seasons, crops and treatments are checked against the masters and the protocol.\n\n**Access:** signed in, and the role needs one of `research.enter`, `research.assign`\n\n**Endpoint:** `PATCH /api/v1/trials/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `seasonCrops` | object | no | — | The centre's crops per season where they differ from the experiment's (crop master item ids). Only the seasons sent change; null puts a season back to the experiment's crops. |\n| `croppingSystems` | object[] | no | — |  |\n| `practices` | object[] | no | — |  |\n| `inChargeUserId` | string | no | ObjectId; nullable |  |\n| `layoutNotes` | string | no | 0–4000 chars; nullable |  |\n| `status` | string | no | one of `Setup`, `Running`, `Completed` |  |\n\nUnknown fields are rejected."
           }
         }
       ]
@@ -2763,7 +2769,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"centre\": \"{{centre}}\",\n  \"fy\": \"{{fy}}\",\n  \"amount\": 0,\n  \"isTotal\": false,\n  \"budgetHead\": \"{{budgetHead}}\",\n  \"fundCategory\": \"{{fundCategory}}\"\n}",
+              "raw": "{\n  \"centre\": \"{{centreId}}\",\n  \"fy\": \"{{fyId}}\",\n  \"amount\": 0,\n  \"isTotal\": false,\n  \"budgetHead\": \"{{budgetHeadId}}\",\n  \"fundCategory\": \"{{fundCategoryId}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2794,7 +2800,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "[\n  {\n    \"centre\": \"{{centre}}\",\n    \"fy\": \"{{fy}}\",\n    \"budgetHead\": \"{{budgetHead}}\",\n    \"fundCategory\": \"{{fundCategory}}\",\n    \"amount\": 0,\n    \"isTotal\": false\n  }\n]",
+              "raw": "[\n  {\n    \"centre\": \"{{centreId}}\",\n    \"fy\": \"{{fyId}}\",\n    \"budgetHead\": \"{{budgetHeadId}}\",\n    \"fundCategory\": \"{{fundCategoryId}}\",\n    \"amount\": 0,\n    \"isTotal\": false\n  }\n]",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2826,7 +2832,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"centre\": \"{{centre}}\",\n  \"fy\": \"{{fy}}\",\n  \"amount\": 0,\n  \"isTotal\": true,\n  \"budgetHead\": \"{{budgetHead}}\",\n  \"fundCategory\": \"{{fundCategory}}\"\n}",
+              "raw": "{\n  \"centre\": \"{{centreId}}\",\n  \"fy\": \"{{fyId}}\",\n  \"amount\": 0,\n  \"isTotal\": true,\n  \"budgetHead\": \"{{budgetHeadId}}\",\n  \"fundCategory\": \"{{fundCategoryId}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

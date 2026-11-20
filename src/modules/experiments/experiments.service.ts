@@ -1,9 +1,9 @@
 import moment from 'moment';
-import { type QueryFilter, trusted } from 'mongoose';
+import { type ClientSession, type QueryFilter, trusted } from 'mongoose';
 import { hasCapability } from '../../config/constants.js';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
-import { type RequestContext, withScope } from '../../utils/context.js';
+import { type RequestContext, isCentreScoped, withScope } from '../../utils/context.js';
 import { escapeRegex } from '../../utils/validators.js';
 import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { centreExists } from '../centres/centres.service.js';
@@ -25,11 +25,27 @@ import {
 const MODULE = 'experiments';
 
 /**
- * Centre users see only the experiments assigned to their centre; an Experiment PI only the
- * experiment(s) their seat leads.
+ * Centre users see the experiments their centre has a trial in, including ones it was withdrawn
+ * from (read-only; `experimentIds` comes from their trials, see authenticate). An Experiment PI
+ * sees only the experiment(s) their seat leads.
  */
-const scoped = (ctx: RequestContext, filter: QueryFilter<Experiment>) =>
-  withScope(ctx.user, filter, 'centreIds', '_id');
+const scoped = (ctx: RequestContext, filter: QueryFilter<Experiment>): QueryFilter<Experiment> => {
+  if (!isCentreScoped(ctx.user)) return withScope(ctx.user, filter, 'centreIds', '_id');
+  if (!ctx.user.centreId) throw AppError.forbidden('NO_CENTRE', 'Your account is not linked to a centre');
+  return { $and: [filter, { _id: trusted({ $in: ctx.user.experimentIds }) }] };
+};
+
+/**
+ * Makes the experiment's trials match `centreIds` inside the experiment's transaction and returns
+ * the centres with an active trial. Passed in by the controller (trials.syncTrials), so this
+ * service doesn't depend on the trials module, which depends on it.
+ */
+export type SyncCentres = (
+  experiment: { id: string; code: string },
+  centreIds: string[],
+  session: ClientSession,
+  withdrawReason?: string | null,
+) => Promise<string[]>;
 
 /** First and last moment of the experiment's calendar years (stored for date-range queries). */
 export const computeYearDates = (startYear: number, endYear: number) => ({
@@ -225,7 +241,11 @@ export const experimentsByPi = async (userIds: string[]) =>
     ).map((e) => [String(e.piUserId), { id: e.id as string, code: e.code, title: e.title }]),
   );
 
-export const createExperiment = async (ctx: RequestContext, dto: CreateExperimentDto) => {
+export const createExperiment = async (
+  ctx: RequestContext,
+  dto: CreateExperimentDto,
+  syncCentres: SyncCentres,
+) => {
   await assertAssignment(ctx, dto);
   await validateReferences(dto);
   assertReferenceTreatment(dto.referenceTreatmentCode, dto.treatments ?? []);
@@ -251,11 +271,19 @@ export const createExperiment = async (ctx: RequestContext, dto: CreateExperimen
       { action: `Created experiment ${experiment.code}`, module: MODULE, entityId: experiment.id },
       session,
     );
+    if (dto.centreIds?.length) {
+      await syncCentres({ id: experiment.id as string, code: experiment.code }, dto.centreIds, session);
+    }
     return experiment;
   });
 };
 
-export const updateExperiment = async (ctx: RequestContext, id: string, dto: UpdateExperimentDto) => {
+export const updateExperiment = async (
+  ctx: RequestContext,
+  id: string,
+  { withdrawReason, ...dto }: UpdateExperimentDto,
+  syncCentres: SyncCentres,
+) => {
   // Scoped: an Experiment PI may edit only the experiment they lead (others: 404).
   await getExperiment(ctx, id);
   await assertAssignment(ctx, dto, id);
@@ -285,6 +313,16 @@ export const updateExperiment = async (ctx: RequestContext, id: string, dto: Upd
       );
     }
     assertReferenceTreatment(experiment.referenceTreatmentCode, experiment.treatments);
+    // Assigned centres: the trials are the record; centreIds caches their active centres.
+    if (dto.centreIds !== undefined) {
+      const active = await syncCentres(
+        { id: experiment.id as string, code: experiment.code },
+        dto.centreIds,
+        session,
+        withdrawReason,
+      );
+      experiment.set('centreIds', active);
+    }
     await experiment.save({ session });
     await recordAudit(
       ctx,

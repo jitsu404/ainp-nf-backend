@@ -100,7 +100,7 @@ export const API_MODULES: readonly ApiModule[] = [
     router: trialsRouter,
     singular: 'trial',
     description:
-      'An experiment as run at one centre: its cropping systems, crops and varieties per season, practice details per treatment and in-charge. Created when the experiment is assigned.',
+      'An experiment as run at one centre, and the record of that assignment: its crops per season (by default those of the experiment; the centre may choose its own), cropping systems, crops and varieties per season, practice details per treatment and in-charge. Created when the PCU assigns the centre (`assignmentStatus` Active); unassigning withdraws it (Withdrawn: kept with its sheets, read-only), and assigning again reactivates it.',
   },
   {
     name: 'Observation sheets',

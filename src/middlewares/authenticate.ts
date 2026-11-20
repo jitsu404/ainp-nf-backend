@@ -3,6 +3,7 @@ import { AUTH_COOKIE } from '../config/constants.js';
 import { tagHandler } from '../docs/routeMeta.js';
 import { verifyToken } from '../modules/auth/auth.service.js';
 import { experimentIdsOfPi } from '../modules/experiments/experiments.service.js';
+import { experimentIdsAtCentre } from '../modules/trials/trials.service.js';
 import { findActiveUserById } from '../modules/users/users.service.js';
 import { ROLES } from '../config/constants.js';
 import { AppError } from '../utils/AppError.js';
@@ -31,12 +32,22 @@ const loadUser =
       );
     }
 
+    // Experiment PI: the experiment(s) their seat leads. Centre PI: the experiments their centre has
+    // a trial in, withdrawn ones included (read-only). Read on every request, like the user, so
+    // linking, assigning or unlinking takes effect at once.
+    const scope = ROLES[user.roleId].scope;
+    const experimentIds =
+      scope === 'experiment'
+        ? await experimentIdsOfPi(user.id)
+        : scope === 'centre' && user.centreId
+          ? await experimentIdsAtCentre(user.centreId.toString())
+          : [];
+
     req.user = {
       id: user.id,
       roleId: user.roleId,
       centreId: user.centreId ? user.centreId.toString() : null,
-      // Read on every request, like the user, so linking or unlinking takes effect at once.
-      experimentIds: ROLES[user.roleId].scope === 'experiment' ? await experimentIdsOfPi(user.id) : [],
+      experimentIds,
       name: user.name,
       mustChangePassword: user.mustChangePassword,
     };
