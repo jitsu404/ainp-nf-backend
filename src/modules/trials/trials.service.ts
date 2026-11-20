@@ -211,16 +211,29 @@ const validateAgainstProtocol = async (experiment: Experiment, trial: Trial, dto
     }
     const ids = Object.values(dto.seasonCrops).flatMap((v) => v ?? []);
     const items = await masterItemsByIds(ids);
+    // A crop already used here (the experiment's or the centre's own) may stay after it was
+    // deactivated in the master; only newly chosen crops must be active.
+    const inUse = new Set([
+      ...[...seasonMap(experiment.seasons).values()].flat(),
+      ...[...seasonMap(trial.seasonCrops).values()].flat(),
+    ]);
     const bad = [...new Set(ids)].filter((id) => {
       const item = items.get(id);
-      return !item || item.type !== 'crop' || !item.isActive;
+      return !item || item.type !== 'crop' || (!item.isActive && !inUse.has(id));
     });
     if (bad.length) {
       throw AppError.badRequest('UNKNOWN_CROP', `Not active crops in the crops master: ${bad.join(', ')}`);
     }
   }
   if (dto.croppingSystems) {
-    const [seasons, crops] = await Promise.all([activeMasterCodes('season'), activeMasterCodes('crop')]);
+    const [seasons, active] = await Promise.all([activeMasterCodes('season'), activeMasterCodes('crop')]);
+    // Crops already in this trial's cropping systems may stay after being deactivated.
+    const crops = new Set([
+      ...active,
+      ...(trial.croppingSystems ?? []).flatMap((cs) =>
+        cs.seasons.flatMap((s) => [s.mainCropCode, s.intercropCode].filter(Boolean) as string[]),
+      ),
+    ]);
     for (const cs of dto.croppingSystems) {
       for (const s of cs.seasons) {
         if (!seasons.has(s.seasonCode))

@@ -836,6 +836,50 @@ describe('assigning and withdrawing centres', () => {
       .send({ seasonCrops: { KHARIF: [rice] } })
       .expect(404);
 
+    // A crop deactivated in the master after it was chosen may stay; it can't be newly chosen.
+    await MasterItemModel.updateOne({ _id: wheat }, { isActive: false });
+    await piA
+      .patch(`/api/v1/trials/${trialAId}`)
+      .send({
+        seasonCrops: { KHARIF: [wheat] },
+        croppingSystems: [
+          { code: 'CS1', name: 'Wheat', seasons: [{ seasonCode: 'KHARIF', mainCropCode: 'WHEAT' }] },
+        ],
+      })
+      .expect(400); // WHEAT isn't in this trial's cropping systems yet, and it's inactive
+    await piA
+      .patch(`/api/v1/trials/${trialAId}`)
+      .send({ seasonCrops: { KHARIF: [wheat] } })
+      .expect(200);
+    await MasterItemModel.updateOne({ _id: wheat }, { isActive: true });
+    await piA
+      .patch(`/api/v1/trials/${trialAId}`)
+      .send({
+        croppingSystems: [
+          { code: 'CS1', name: 'Wheat', seasons: [{ seasonCode: 'KHARIF', mainCropCode: 'WHEAT' }] },
+        ],
+      })
+      .expect(200);
+    await MasterItemModel.updateOne({ _id: wheat }, { isActive: false });
+    await piA
+      .patch(`/api/v1/trials/${trialAId}`)
+      .send({
+        croppingSystems: [
+          {
+            code: 'CS1',
+            name: 'Wheat system',
+            seasons: [{ seasonCode: 'KHARIF', mainCropCode: 'WHEAT' }],
+          },
+        ],
+      })
+      .expect(200);
+    const newCrop = await piB
+      .patch(`/api/v1/trials/${(await piB.get('/api/v1/trials').expect(200)).body.data[0].id}`)
+      .send({ seasonCrops: { KHARIF: [wheat] } })
+      .expect(400);
+    expect(newCrop.body.error.code).toBe('UNKNOWN_CROP');
+    await MasterItemModel.updateOne({ _id: wheat }, { isActive: true });
+
     // null goes back to the experiment's crops.
     const reset = await piA
       .patch(`/api/v1/trials/${trialAId}`)
