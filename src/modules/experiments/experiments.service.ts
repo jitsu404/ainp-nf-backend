@@ -182,6 +182,16 @@ const assertCompatibleWithData = (existing: Experiment, dto: UpdateExperimentDto
     const removed = existing.treatments.filter((t) => !kept.has(t.code)).map((t) => t.code);
     if (removed.length) problems.push(`treatments ${removed.join(', ')} (they have data)`);
   }
+  if (dto.mainPlotData) {
+    const kept = new Set(dto.mainPlotData.map((t) => t.code));
+    const removed = (existing.mainPlotData ?? []).filter((t) => !kept.has(t.code)).map((t) => t.code);
+    if (removed.length) problems.push(`main plot treatments ${removed.join(', ')} (they have data)`);
+  }
+  if (dto.subPlotData) {
+    const kept = new Set(dto.subPlotData.map((t) => t.code));
+    const removed = (existing.subPlotData ?? []).filter((t) => !kept.has(t.code)).map((t) => t.code);
+    if (removed.length) problems.push(`sub plot treatments ${removed.join(', ')} (they have data)`);
+  }
   if (dto.defaultParameters) {
     const kept = new Set(dto.defaultParameters.map((p) => p.parameterId));
     const removed = existing.defaultParameters.filter((p) => !kept.has(String(p.parameterId)));
@@ -202,6 +212,45 @@ const assertReferenceTreatment = (code: string | null | undefined, treatments: {
       'UNKNOWN_REFERENCE_TREATMENT',
       `${code} is not one of this experiment's treatments`,
     );
+  }
+};
+
+const assertPlotTreatmentsCount = (
+  design: string,
+  mainPlotCount: number,
+  subPlotCount: number,
+  mainPlotData?: { code: string }[],
+  subPlotData?: { code: string }[],
+) => {
+  if (design === 'Split plot') {
+    if (mainPlotData !== undefined && mainPlotData.length > 0) {
+      if (mainPlotCount <= 0) {
+        throw AppError.badRequest(
+          'MAIN_PLOT_COUNT_REQUIRED',
+          'Set mainPlotCount before configuring main plot treatments',
+        );
+      }
+      if (mainPlotData.length !== mainPlotCount) {
+        throw AppError.badRequest(
+          'MAIN_PLOT_COUNT_MISMATCH',
+          `Main plot treatments count (${mainPlotData.length}) must match mainPlotCount (${mainPlotCount})`,
+        );
+      }
+    }
+    if (subPlotData !== undefined && subPlotData.length > 0) {
+      if (subPlotCount <= 0) {
+        throw AppError.badRequest(
+          'SUB_PLOT_COUNT_REQUIRED',
+          'Set subPlotCount before configuring sub plot treatments',
+        );
+      }
+      if (subPlotData.length !== subPlotCount) {
+        throw AppError.badRequest(
+          'SUB_PLOT_COUNT_MISMATCH',
+          `Sub plot treatments count (${subPlotData.length}) must match subPlotCount (${subPlotCount})`,
+        );
+      }
+    }
   }
 };
 
@@ -249,6 +298,13 @@ export const createExperiment = async (
   await assertAssignment(ctx, dto);
   await validateReferences(dto);
   assertReferenceTreatment(dto.referenceTreatmentCode, dto.treatments ?? []);
+  assertPlotTreatmentsCount(
+    dto.design,
+    dto.mainPlotCount ?? 0,
+    dto.subPlotCount ?? 0,
+    dto.mainPlotData,
+    dto.subPlotData,
+  );
   return withTransaction(async (session) => {
     // A given code is kept; otherwise the next one in the sequence (AINP-NF-EXPT-001 …).
     const code = dto.code ?? (await generateExperimentCode(session));
@@ -313,6 +369,13 @@ export const updateExperiment = async (
       );
     }
     assertReferenceTreatment(experiment.referenceTreatmentCode, experiment.treatments);
+    assertPlotTreatmentsCount(
+      experiment.design,
+      experiment.mainPlotCount ?? 0,
+      experiment.subPlotCount ?? 0,
+      dto.mainPlotData,
+      dto.subPlotData,
+    );
     // Assigned centres: the trials are the record; centreIds caches their active centres.
     if (dto.centreIds !== undefined) {
       const active = await syncCentres(

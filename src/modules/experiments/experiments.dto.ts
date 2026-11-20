@@ -49,6 +49,8 @@ const shape = {
   mainPlotCount: z.number().int().min(0).optional(),
   subPlotCount: z.number().int().min(0).optional(),
   treatments: z.array(treatment).max(60).optional(),
+  mainPlotData: z.array(treatment).max(60).optional(),
+  subPlotData: z.array(treatment).max(60).optional(),
   defaultParameters: z.array(experimentParameter).max(300).optional(),
   seasons: z
     .union([
@@ -77,6 +79,8 @@ const shape = {
 const checks = <
   T extends z.ZodType<{
     treatments?: { code: string }[];
+    mainPlotData?: { code: string }[];
+    subPlotData?: { code: string }[];
     defaultParameters?: { parameterId: string }[];
     design?: string;
     replications?: number | null;
@@ -91,6 +95,14 @@ const checks = <
     .refine((b) => uniqueBy(b.treatments, (t) => t.code), {
       message: 'Treatment codes must be unique',
       path: ['treatments'],
+    })
+    .refine((b) => uniqueBy(b.mainPlotData, (t) => t.code), {
+      message: 'Main plot treatment codes must be unique',
+      path: ['mainPlotData'],
+    })
+    .refine((b) => uniqueBy(b.subPlotData, (t) => t.code), {
+      message: 'Sub plot treatment codes must be unique',
+      path: ['subPlotData'],
     })
     .refine((b) => uniqueBy(b.defaultParameters, (p) => p.parameterId), {
       message: 'Each parameter can be added only once',

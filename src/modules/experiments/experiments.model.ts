@@ -111,6 +111,8 @@ export interface Experiment {
   mainPlotCount: number;
   subPlotCount: number;
   treatments: Treatment[];
+  mainPlotData: Treatment[];
+  subPlotData: Treatment[];
   /** The treatment others are compared with ("% vs reference"), e.g. the AI-NPOF package. */
   referenceTreatmentCode: string | null;
   /** The parameters every centre records (the library entries with section, level, required). */
@@ -227,6 +229,8 @@ const experimentSchema = new Schema<Experiment>(
     mainPlotCount: { type: Number, min: 0, default: 0 },
     subPlotCount: { type: Number, min: 0, default: 0 },
     treatments: { type: [treatmentSchema], default: [] },
+    mainPlotData: { type: [treatmentSchema], default: [] },
+    subPlotData: { type: [treatmentSchema], default: [] },
     referenceTreatmentCode: { type: String, default: null },
     defaultParameters: { type: [experimentParameterSchema], default: [] },
     seasons: {
