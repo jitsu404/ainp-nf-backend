@@ -5,6 +5,7 @@ import {
   findCycle,
   formulaCodes,
   parseFormula,
+  renameFormulaCodes,
 } from '../src/utils/formula.js';
 
 const run = (text: string, values: Record<string, number | null>) =>
@@ -61,5 +62,19 @@ describe('formulas', () => {
     const graph = (code: string) => new Set(uses[code] ?? []);
     expect(findCycle('A', graph)).toEqual(['A', 'B', 'C', 'A']);
     expect(findCycle('D', graph)).toBeNull();
+  });
+
+  it('renames codes in a formula and leaves everything else as written', () => {
+    const codes = new Map([
+      ['GROSS_RETURNS', 'PRM_020'],
+      ['COST_CULTIVATION', 'PRM_021'],
+      ['INTERCROP_YIELD', 'PRM_005'],
+    ]);
+    expect(
+      renameFormulaCodes(
+        'GROSS_RETURNS - cost_cultivation * 1.5 + IFEMPTY(INTERCROP_YIELD, 0) / OTHER2',
+        (c) => codes.get(c),
+      ),
+    ).toBe('PRM_020 - PRM_021 * 1.5 + IFEMPTY(PRM_005, 0) / OTHER2');
   });
 });

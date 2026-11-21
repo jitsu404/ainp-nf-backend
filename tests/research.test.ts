@@ -443,20 +443,19 @@ describe('reference treatment', () => {
 describe('calculated parameters', () => {
   it('checks formulas in the library: syntax, known number parameters, no loops', async () => {
     const { pcu } = await setup();
-    const add = (code: string, formula: string, extra = {}) =>
-      pcu
-        .post('/api/v1/parameters')
-        .send({ code, name: `Param ${code}`, category: 'Economics', formula, ...extra });
-    expect((await add('BAD', 'GRAIN_YIELD +').expect(400)).body.error.code).toBe('INVALID_FORMULA');
-    expect((await add('BAD', 'NOPE * 2').expect(400)).body.error.message).toContain(
+    // Codes are generated, so a formula uses the codes the library gave (PRM_001 …).
+    const add = (name: string, formula: string, extra = {}) =>
+      pcu.post('/api/v1/parameters').send({ name, category: 'Economics', formula, ...extra });
+    expect((await add('Bad syntax', 'GRAIN_YIELD +').expect(400)).body.error.code).toBe('INVALID_FORMULA');
+    expect((await add('Bad code', 'NOPE * 2').expect(400)).body.error.message).toContain(
       'NOPE is not in the parameter library',
     );
-    await add('TXT', 'GRAIN_YIELD', { dataType: 'text' }).expect(400);
-    const a = await add('A_CALC', 'GRAIN_YIELD * 2').expect(201);
-    await add('B_CALC', 'A_CALC + 1').expect(201);
+    await add('Text', 'GRAIN_YIELD', { dataType: 'text' }).expect(400);
+    const a = await add('A calc', 'GRAIN_YIELD * 2').expect(201);
+    const b = await add('B calc', `${a.body.data.code} + 1`).expect(201);
     const loop = await pcu
       .patch(`/api/v1/parameters/${a.body.data.id}`)
-      .send({ formula: 'B_CALC - 1' })
+      .send({ formula: `${b.body.data.code} - 1` })
       .expect(400);
     expect(loop.body.error.message).toContain('loop');
   });
@@ -470,20 +469,14 @@ describe('calculated parameters', () => {
           .send({ category: 'Economics', ...body })
           .expect(201)
       ).body.data;
-    const price = await make({ code: 'SALE_PRICE_MAIN', name: 'Sale price', min: 0 });
-    const cost = await make({ code: 'COST_CULTIVATION', name: 'Cost of cultivation', min: 0 });
+    const price = await make({ name: 'Sale price', min: 0 });
+    const cost = await make({ name: 'Cost of cultivation', min: 0 });
     const net = await make({
-      code: 'NET_CALC',
       name: 'Net returns (calc)',
       decimals: 0,
-      formula: 'GRAIN_YIELD * SALE_PRICE_MAIN - COST_CULTIVATION',
+      formula: `GRAIN_YIELD * ${price.code} - ${cost.code}`,
     });
-    const bc = await make({
-      code: 'BC_CALC',
-      name: 'B:C (calc)',
-      decimals: 2,
-      formula: 'NET_CALC / COST_CULTIVATION',
-    });
+    const bc = await make({ name: 'B:C (calc)', decimals: 2, formula: `${net.code} / ${cost.code}` });
 
     const experiment = (await pcu.get(`/api/v1/experiments/${experimentId}`).expect(200)).body.data;
     const keep = experiment.defaultParameters.map(
@@ -555,7 +548,7 @@ describe('calculated parameters', () => {
     await piA.post(`/api/v1/sheets/${id}/submit`).send({}).expect(200);
 
     const analysis = await piA.get(`/api/v1/sheets/${id}/analysis`).expect(200);
-    const bcResult = analysis.body.data.parameters.find((p: { code: string }) => p.code === 'BC_CALC');
+    const bcResult = analysis.body.data.parameters.find((p: { code: string }) => p.code === bc.code);
     expect(bcResult.means.map((m: { mean: number }) => m.mean)).toEqual([0.64, 1.19, 0.86]);
 
     // The Excel template has no column for calculated parameters.
@@ -571,8 +564,8 @@ describe('calculated parameters', () => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(template.body as ArrayBuffer);
     const headers = (workbook.getWorksheet('Treatment data')!.getRow(1).values as unknown[]).map(String);
-    expect(headers.some((h) => h.includes('NET_CALC') || h.includes('BC_CALC'))).toBe(false);
-    expect(headers.some((h) => h.includes('SALE_PRICE_MAIN'))).toBe(true);
+    expect(headers.some((h) => h.includes(net.code) || h.includes(bc.code))).toBe(false);
+    expect(headers.some((h) => h.includes(price.code))).toBe(true);
   });
 });
 

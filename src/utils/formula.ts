@@ -104,6 +104,20 @@ export const parseFormula = (text: string): Formula => {
   return result;
 };
 
+/**
+ * The formula text with parameter codes replaced (`rename` gives the new code, or undefined to keep
+ * it). Spacing and everything else stay as written; IFEMPTY and numbers are never renamed. Used when
+ * codes change in bulk (the generated-code migration, seeding default formulas).
+ */
+export const renameFormulaCodes = (text: string, rename: (code: string) => string | undefined): string =>
+  text.replace(
+    /(\d+(?:\.\d+)?)|([A-Za-z][A-Za-z0-9_]*)/g,
+    (match, num: string | undefined, id: string | undefined) => {
+      if (num !== undefined || id === undefined) return match;
+      return rename(id.toUpperCase()) ?? match;
+    },
+  );
+
 /** The parameter codes a formula uses. */
 export const formulaCodes = (formula: Formula, into = new Set<string>()): Set<string> => {
   switch (formula.kind) {

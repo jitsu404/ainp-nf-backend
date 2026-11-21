@@ -81,6 +81,8 @@ export const MASTER_TYPE_IDS = Object.keys(MASTER_TYPES) as [MasterType, ...Mast
  * position in the list × 10; give it explicitly to place a later addition between existing items.
  * Sources: PCU master table (seasons), Annual Report 2025-26 (crops: Appendix 9 and 7.2.5;
  * inputs: 7.1.3 and 7.2.5), NF datasheets 2a/2b/2c (units).
+ * Crops and units get generated codes (CRP-001, UNT-001 …): for them `code` is only a key in this
+ * file (parameter defaults use the unit keys), and the seed matches them by name.
  */
 export interface MasterDefault {
   code: string;
