@@ -1040,170 +1040,94 @@ describe('experiment designs', () => {
       .expect(400);
   });
 
-  it('records every treatment × replication in each main × sub plot of a split-plot design', async () => {
+  it('split-split plot: each treatment is one main × sub × sub-sub combination, with its own ANOVA', async () => {
     const { pcu, piA, grain, experimentId, trialAId } = await setup();
-    await pcu
-      .patch(`/api/v1/experiments/${experimentId}`)
-      .send({ design: 'Split plot', mainPlotCount: 2, subPlotCount: 2 })
-      .expect(200);
-    const sheet = await piA
-      .post('/api/v1/sheets')
-      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
-      .expect(201);
-    const id = sheet.body.data.id as string;
-    const yields = { T1: [10, 13, 10], T2: [15, 16, 14], T3: [8, 9, 10] };
-    const inPlot = (mainPlot: number, subPlot: number, shift = 0) =>
-      fullPlotData(grain.id, yields).map((c) => ({ ...c, mainPlot, subPlot, value: c.value + shift }));
-
-    // A value without its plot, or outside the layout, is refused.
-    const noPlot = await piA
-      .put(`/api/v1/sheets/${id}/values`)
-      .send({ values: fullPlotData(grain.id, yields) })
-      .expect(400);
-    expect(noPlot.body.error.details.cells[0].message).toContain('Main plot must be 1–2');
-    await piA
-      .put(`/api/v1/sheets/${id}/values`)
-      .send({ values: inPlot(3, 1) })
-      .expect(400);
-
-    // Three of the four plots: the same T1 R1 is a separate cell in each plot.
-    await piA
-      .put(`/api/v1/sheets/${id}/values`)
-      .send({ values: [...inPlot(1, 1), ...inPlot(1, 2, 1), ...inPlot(2, 1, 2)] })
-      .expect(200);
-    const detail = await piA.get(`/api/v1/sheets/${id}`).expect(200);
-    expect(detail.body.data.values).toHaveLength(27);
-    const incomplete = await piA.post(`/api/v1/sheets/${id}/submit`).send({}).expect(400);
-    expect(incomplete.body.error.details.missing).toHaveLength(9);
-    expect(incomplete.body.error.details.missing[0]).toBe('M2·S2 T1 R1: Grain yield');
-
-    await piA
-      .put(`/api/v1/sheets/${id}/values`)
-      .send({ values: inPlot(2, 2, 3) })
-      .expect(200);
-
-    // Each plot is a complete RBD with its own ANOVA; the sheet's means are over all plots.
-    const analysis = await piA.get(`/api/v1/sheets/${id}/analysis`).expect(200);
-    const plots = analysis.body.data.plots as {
-      label: string;
-      parameters: { code: string; means: { mean: number }[]; anova: unknown }[];
-    }[];
-    expect(plots.map((p) => p.label)).toEqual(['M1·S1', 'M1·S2', 'M2·S1', 'M2·S2']);
-    const yieldIn = (label: string) =>
-      plots.find((p) => p.label === label)!.parameters.find((x) => x.code === 'GRAIN_YIELD')!;
-    expect(yieldIn('M1·S1').means.map((m) => m.mean)).toEqual([11, 15, 9]);
-    expect(yieldIn('M2·S2').means.map((m) => m.mean)).toEqual([14, 18, 12]);
-    expect(yieldIn('M1·S1').anova).not.toBeNull();
-    const overall = analysis.body.data.parameters.find((p: { code: string }) => p.code === 'GRAIN_YIELD');
-    expect(overall.means.map((m: { mean: number }) => m.mean)).toEqual([12.5, 16.5, 10.5]);
-    expect(overall.anova).toBeNull();
-
-    // The Excel template names the plot of every row: 4 plots × 3 treatments × 3 replications.
-    const download = await piA
-      .get(`/api/v1/sheets/${id}/template`)
-      .buffer(true)
-      .parse((res, cb) => {
-        const chunks: Buffer[] = [];
-        res.on('data', (c: Buffer) => chunks.push(c));
-        res.on('end', () => cb(null, Buffer.concat(chunks)));
-      })
-      .expect(200);
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(download.body as ArrayBuffer);
-    const tab = workbook.getWorksheet('Plot data')!;
-    expect(tab.getRow(1).getCell(1).value).toBe('Main plot');
-    expect(tab.getRow(1).getCell(2).value).toBe('Sub plot');
-    expect(tab.actualRowCount).toBe(1 + 36);
-    // Plots and replications are written as labels. Last row: M2 S2 T3 R3 = 10 + 3.
-    expect([1, 2, 3, 4, 5].map((c) => tab.getRow(2).getCell(c).value)).toEqual(['M1', 'S1', 'T1', 'R1', 10]);
-    expect([1, 2, 3, 4, 5].map((c) => tab.getRow(37).getCell(c).value)).toEqual(['M2', 'S2', 'T3', 'R3', 13]);
-
-    // A label that can't be read is reported for its row, and nothing is saved.
-    tab.getRow(2).getCell(1).value = 'S1';
-    const unreadable = await piA
-      .post(`/api/v1/sheets/${id}/import?dryRun=false`)
-      .attach('file', Buffer.from(await workbook.xlsx.writeBuffer()), 'data.xlsx')
-      .expect(200);
-    expect(unreadable.body.data.dryRun).toBe(true);
-    expect(unreadable.body.data.errors).toEqual([
-      expect.objectContaining({
-        row: 2,
-        message: expect.stringContaining('Main plot "S1" (write M1, M2 …)'),
-      }),
-    ]);
-    // Lower case and plain numbers are read too: m1 / 1.
-    tab.getRow(2).getCell(1).value = 'm1';
-    tab.getRow(2).getCell(4).value = 1;
-    tab.getRow(37).getCell(5).value = 20;
-    const imported = await piA
-      .post(`/api/v1/sheets/${id}/import?dryRun=false`)
-      .attach('file', Buffer.from(await workbook.xlsx.writeBuffer()), 'data.xlsx')
-      .expect(200);
-    expect(imported.body.data).toMatchObject({ dryRun: false, filled: 36, errors: [] });
-    const latest = await piA.get(`/api/v1/audit?entityId=${id}&limit=1`).expect(200);
-    expect(latest.body.data[0].cells).toEqual([
-      {
-        mainPlot: 2,
-        subPlot: 2,
-        treatmentCode: 'T3',
-        replication: 3,
-        parameterCode: 'GRAIN_YIELD',
-        from: 13,
-        to: 20,
-      },
-    ]);
-
-    // Once data exists the layout is frozen.
-    const frozen = await pcu
-      .patch(`/api/v1/experiments/${experimentId}`)
-      .send({ subPlotCount: 3 })
-      .expect(409);
-    expect(frozen.body.error.code).toBe('EXPERIMENT_HAS_DATA');
-  });
-  it('shows the names given to main and sub plots in the analysis and the Excel template', async () => {
-    const { pcu, piA, grain, experimentId, trialAId } = await setup();
-    await pcu
-      .patch(`/api/v1/experiments/${experimentId}`)
-      .send({ design: 'Split plot', mainPlotCount: 2, subPlotCount: 2 })
-      .expect(200);
+    // 2 main × 2 sub × 2 sub-sub plots = 8 treatments, T1 = M1·S1·SS1 …
+    const treatments = ['M1', 'M2']
+      .flatMap((m) => ['S1', 'S2'].flatMap((sp) => ['SS1', 'SS2'].map((ss) => ({ m, sp, ss }))))
+      .map(({ m, sp, ss }, i) => ({
+        code: `T${i + 1}`,
+        name: `${m} ${sp} ${ss}`,
+        mainPlotCode: m,
+        subPlotCode: sp,
+        subSubPlotCode: ss,
+      }));
     await pcu
       .patch(`/api/v1/experiments/${experimentId}`)
       .send({
+        design: 'Split-split plot',
+        mainPlotCount: 2,
+        subPlotCount: 2,
+        subSubPlotCount: 2,
         mainPlotData: [
           { code: 'M1', name: 'Conventional tillage' },
           { code: 'M2', name: 'Zero tillage' },
         ],
-        subPlotData: [
-          { code: 'S1', name: 'Jeevamrit' },
-          { code: 'S2', name: 'Ghanajeevamrit' },
-        ],
+        treatments,
       })
       .expect(200);
+    // A protocol with the wrong number of combinations is refused.
+    const wrong = await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({ treatments: treatments.slice(0, 5) })
+      .expect(400);
+    expect(wrong.body.error.code).toBe('TREATMENTS_COUNT_MISMATCH');
+
     const sheet = await piA
       .post('/api/v1/sheets')
       .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
       .expect(201);
     const id = sheet.body.data.id as string;
+    // Rows are treatment × replication, as in RBD: the treatment says which plot it is.
+    const yields: Record<string, number[]> = {};
+    treatments.forEach((t, i) => (yields[t.code] = [40 + i * 2, 42 + i * 2 + (i % 3), 39 + i * 2]));
+    await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({ values: fullPlotData(grain.id, yields) })
+      .expect(200);
+    // The old plot fields aren't part of a cell any more.
     await piA
       .put(`/api/v1/sheets/${id}/values`)
       .send({
-        values: fullPlotData(grain.id, { T1: [10, 13, 10], T2: [15, 16, 14], T3: [8, 9, 10] }).map((c) => ({
-          ...c,
-          mainPlot: 2,
-          subPlot: 1,
-        })),
+        values: [{ mainPlot: 1, treatmentCode: 'T1', replication: 1, parameterId: grain.id, value: 1 }],
       })
-      .expect(200);
+      .expect(400);
 
     const analysis = await piA.get(`/api/v1/sheets/${id}/analysis`).expect(200);
-    expect(analysis.body.data.plots[2]).toMatchObject({
-      label: 'M2·S1',
-      mainPlotName: 'Zero tillage',
-      subPlotName: 'Jeevamrit',
-      title: 'M2 Zero tillage · S1 Jeevamrit',
+    expect(analysis.body.data.factors.map((f: { label: string }) => f.label)).toEqual([
+      'Main plot',
+      'Sub plot',
+      'Sub-sub plot',
+    ]);
+    const result = analysis.body.data.parameters.find((p: { code: string }) => p.code === 'GRAIN_YIELD');
+    expect(result.anova).toBeNull();
+    expect(result.factorial.kind).toBe('split-split');
+    expect(result.factorial.table.map((r: { source: string }) => r.source)).toEqual([
+      'Replications',
+      'Main plot',
+      'Error (a)',
+      'Sub plot',
+      'Main plot × Sub plot',
+      'Error (b)',
+      'Sub-sub plot',
+      'Main plot × Sub-sub plot',
+      'Sub plot × Sub-sub plot',
+      'Main plot × Sub plot × Sub-sub plot',
+      'Error (c)',
+      'Total',
+    ]);
+    expect(result.factorial.table.map((r: { df: number }) => r.df)).toEqual([
+      2, 1, 2, 1, 1, 4, 1, 1, 1, 1, 8, 23,
+    ]);
+    expect(result.factorial.factorMeans[0]).toMatchObject({
+      label: 'Main plot',
+      levels: [
+        { code: 'M1', name: 'Conventional tillage' },
+        { code: 'M2', name: 'Zero tillage' },
+      ],
     });
 
-    // Each label has its name beside it; import goes by the label and ignores the name.
+    // Excel: the treatment's levels sit beside it (with names where given), as in ICAR B.5.
     const download = await piA
       .get(`/api/v1/sheets/${id}/template`)
       .buffer(true)
@@ -1218,28 +1142,82 @@ describe('experiment designs', () => {
     const tab = workbook.getWorksheet('Plot data')!;
     expect([1, 2, 3, 4, 5, 6].map((c) => tab.getRow(1).getCell(c).value)).toEqual([
       'Main plot',
-      'Main plot treatment',
+      'Main plot name',
       'Sub plot',
-      'Sub plot treatment',
+      'Sub-sub plot',
       'Treatment',
       'Replication',
     ]);
-    // Row 20 = M2 S1 T1 R1 (after the 18 rows of M1).
-    expect([1, 2, 3, 4, 5, 6, 7].map((c) => tab.getRow(20).getCell(c).value)).toEqual([
-      'M2',
-      'Zero tillage',
+    expect([1, 2, 3, 4, 5, 6].map((c) => tab.getRow(2).getCell(c).value)).toEqual([
+      'M1',
+      'Conventional tillage',
       'S1',
-      'Jeevamrit',
+      'SS1',
       'T1',
       'R1',
-      10,
     ]);
-    tab.getRow(20).getCell(2).value = 'anything';
-    const imported = await piA
+    // A level that doesn't match the treatment is reported; matching rows import.
+    tab.getRow(2).getCell(3).value = 'S2';
+    const bad = await piA
       .post(`/api/v1/sheets/${id}/import?dryRun=true`)
       .attach('file', Buffer.from(await workbook.xlsx.writeBuffer()), 'data.xlsx')
       .expect(200);
-    expect(imported.body.data).toMatchObject({ errors: [], filled: 9 });
+    expect(bad.body.data.errors).toEqual([
+      expect.objectContaining({
+        row: 2,
+        message: expect.stringContaining(`Sub plot "S2" doesn't match treatment T1`),
+      }),
+    ]);
+    tab.getRow(2).getCell(3).value = 'S1';
+    const ok = await piA
+      .post(`/api/v1/sheets/${id}/import?dryRun=true`)
+      .attach('file', Buffer.from(await workbook.xlsx.writeBuffer()), 'data.xlsx')
+      .expect(200);
+    expect(ok.body.data.errors).toEqual([]);
+  });
+
+  it('factorial: treatments are the combinations of factor levels, analysed by factor and interaction', async () => {
+    const { pcu, piA, grain, experimentId, trialAId } = await setup();
+    // Each factor needs at least 2 levels.
+    const few = await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({ design: 'Factorial', mainPlotCount: 1, subPlotCount: 2 })
+      .expect(400);
+    expect(few.body.error.code).toBe('PLOT_COUNTS_REQUIRED');
+    const treatments = ['M1', 'M2'].flatMap((m) =>
+      ['S1', 'S2', 'S3'].map((sp, j) => ({
+        code: `T${m === 'M1' ? j + 1 : j + 4}`,
+        name: `${m} ${sp}`,
+        mainPlotCode: m,
+        subPlotCode: sp,
+      })),
+    );
+    await pcu
+      .patch(`/api/v1/experiments/${experimentId}`)
+      .send({ design: 'Factorial', mainPlotCount: 2, subPlotCount: 3, treatments })
+      .expect(200);
+    const sheet = await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
+      .expect(201);
+    const yields: Record<string, number[]> = {};
+    treatments.forEach((t, i) => (yields[t.code] = [30 + i * 3, 31 + i * 3 + (i % 2), 29 + i * 3]));
+    await piA
+      .put(`/api/v1/sheets/${sheet.body.data.id}/values`)
+      .send({ values: fullPlotData(grain.id, yields) })
+      .expect(200);
+    const analysis = await piA.get(`/api/v1/sheets/${sheet.body.data.id}/analysis`).expect(200);
+    const result = analysis.body.data.parameters.find((p: { code: string }) => p.code === 'GRAIN_YIELD');
+    expect(result.factorial.kind).toBe('factorial');
+    expect(result.factorial.table.map((r: { source: string; df: number }) => [r.source, r.df])).toEqual([
+      ['Replications', 2],
+      ['Factor A', 1],
+      ['Factor B', 2],
+      ['Factor A × Factor B', 2],
+      ['Error', 10],
+      ['Total', 17],
+    ]);
+    expect(result.factorial.factorMeans.map((f: { levels: unknown[] }) => f.levels.length)).toEqual([2, 3]);
   });
 });
 

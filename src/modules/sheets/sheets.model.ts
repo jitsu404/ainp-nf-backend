@@ -4,7 +4,7 @@ import { Schema, type Types, model } from 'mongoose';
 // one trial (experiment at a centre) × year × season (× cropping system or crop). The year is the
 // one the season starts in: Kharif 2026 and Rabi 2026 (sown late 2026, harvested early 2027) are
 // both 2026. Any year from the experiment's start year to its end year can be recorded.
-// Its values live in `observations`, one row per plot × treatment × replication × parameter
+// Its values live in `observations`, one row per treatment × replication × parameter
 // ("long format"), which keeps validation, analysis, consolidation and export simple.
 
 export const SHEET_STATUSES = ['Draft', 'Submitted', 'Returned', 'Approved'] as const;
@@ -76,9 +76,6 @@ export const SheetModel = model<Sheet>('Sheet', sheetSchema);
 
 export interface Observation {
   sheetId: Types.ObjectId;
-  /** 1…mainPlotCount / 1…subPlotCount for split- and strip-plot designs; null for a single plot. */
-  mainPlot: number | null;
-  subPlot: number | null;
   treatmentCode: string;
   /** 1…r for plot-level parameters; null for treatment-level ones. */
   replication: number | null;
@@ -93,8 +90,6 @@ export interface Observation {
 const observationSchema = new Schema<Observation>(
   {
     sheetId: { type: Schema.Types.ObjectId, ref: 'Sheet', required: true },
-    mainPlot: { type: Number, min: 1, default: null },
-    subPlot: { type: Number, min: 1, default: null },
     treatmentCode: { type: String, required: true, uppercase: true },
     replication: { type: Number, min: 1, default: null },
     parameterId: { type: Schema.Types.ObjectId, ref: 'Parameter', required: true },
@@ -106,8 +101,8 @@ const observationSchema = new Schema<Observation>(
 );
 
 observationSchema.index(
-  { sheetId: 1, mainPlot: 1, subPlot: 1, treatmentCode: 1, replication: 1, parameterId: 1 },
-  { unique: true, name: 'one_value_per_plot_cell' },
+  { sheetId: 1, treatmentCode: 1, replication: 1, parameterId: 1 },
+  { unique: true, name: 'one_value_per_cell' },
 );
 observationSchema.index({ parameterId: 1 });
 

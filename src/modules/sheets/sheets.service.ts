@@ -7,17 +7,13 @@ import type { RowError } from '../../utils/importer.js';
 import { type CellChange, recordAudit } from '../audit/audit.service.js';
 import {
   DESIGNS_WITH_ANOVA,
-  DESIGNS_WITH_PLOTS,
-  type PlotRef,
-  experimentPlots,
+  DESIGNS_WITH_FACTORS,
+  experimentFactors,
   experimentSeasonCodes,
   experimentYears,
   findExperiment,
   getExperiment,
   markDataLocked,
-  plotLabel,
-  plotNames,
-  plotTitle,
   withParameterDetails,
 } from '../experiments/experiments.service.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
@@ -32,6 +28,7 @@ import {
 } from '../trials/trials.service.js';
 import { type ObsRow, calculatedIds, computeCalculated } from './sheets.calculated.js';
 import { type ParameterAnalysis, analyseParameter, pooledAnalysis } from './sheets.analysis.js';
+import { type FactorialKind, factorialAnalysis } from './sheets.factorial.js';
 import type { CellInput, CreateSheetDto, ListSheetsQuery, SummaryQuery } from './sheets.dto.js';
 import {
   EDITABLE_STATUSES,
@@ -76,18 +73,14 @@ export const listSheets = (ctx: RequestContext, query: ListSheetsQuery) => {
     .limit(1000);
 };
 
-/** Stored observation → ObsRow (the plot fields are null for single-plot designs). */
+/** Stored observation → ObsRow. */
 const toRow = (o: {
-  mainPlot?: number | null;
-  subPlot?: number | null;
   treatmentCode: string;
   replication: number | null;
   parameterId: unknown;
   valueNumber: number | null;
   valueText: string | null;
 }): ObsRow => ({
-  mainPlot: o.mainPlot ?? null,
-  subPlot: o.subPlot ?? null,
   treatmentCode: o.treatmentCode,
   replication: o.replication,
   parameterId: String(o.parameterId),
@@ -106,11 +99,7 @@ const withCalculated = async (
 ): Promise<(ObsRow & { calculated?: true })[]> => {
   const calcIds = calculatedIds(experiment);
   if (!calcIds.size) return entered;
-  const computed = computeCalculated(
-    { ...experiment, plots: experimentPlots(experiment) },
-    entered,
-    await calculatedParameters(),
-  );
+  const computed = computeCalculated(experiment, entered, await calculatedParameters());
   return [
     ...entered.filter((row) => !calcIds.has(row.parameterId)),
     ...computed.map((row) => ({ ...row, calculated: true as const })),
@@ -210,15 +199,6 @@ const checkCell = (
   if (!experiment.treatments.some((t) => t.code === cell.treatmentCode)) {
     return { ok: false, message: `Unknown treatment ${cell.treatmentCode}` };
   }
-  // Split / strip plot: every value belongs to one main plot × sub plot; other designs have none.
-  if (DESIGNS_WITH_PLOTS.includes(experiment.design)) {
-    const { mainPlotCount: m, subPlotCount: n } = experiment;
-    if (!cell.mainPlot || cell.mainPlot > m || !cell.subPlot || cell.subPlot > n) {
-      return { ok: false, message: `Main plot must be 1–${m} and sub plot 1–${n}` };
-    }
-  } else if (cell.mainPlot !== null || cell.subPlot !== null) {
-    return { ok: false, message: `A ${experiment.design} experiment has no main or sub plots` };
-  }
   const replicated = param.level === 'plot' && experiment.replications;
   if (replicated) {
     if (!cell.replication || cell.replication > experiment.replications!) {
@@ -267,9 +247,9 @@ const assertEditable = async (sheet: Sheet) => {
   }
 };
 
-/** One cell of a sheet: plot × treatment × replication × parameter. */
-const cellKey = (c: PlotRef & { treatmentCode: string; replication: number | null; parameterId: string }) =>
-  `${c.mainPlot}.${c.subPlot}|${c.treatmentCode}|${c.replication}|${c.parameterId}`;
+/** One cell of a sheet: treatment × replication × parameter. */
+const cellKey = (c: { treatmentCode: string; replication: number | null; parameterId: string }) =>
+  `${c.treatmentCode}|${c.replication}|${c.parameterId}`;
 
 /**
  * Writes checked cells and records, in the same transaction, every cell whose value changed
@@ -293,7 +273,6 @@ const writeCells = async (
     );
     const changed: CellChange[] = cells
       .map((c) => ({
-        ...(c.mainPlot === null ? {} : { mainPlot: c.mainPlot, subPlot: c.subPlot }),
         treatmentCode: c.treatmentCode,
         replication: c.replication,
         parameterCode: codes.get(c.parameterId) ?? c.parameterId,
@@ -304,8 +283,6 @@ const writeCells = async (
     const ops = cells.map((c) => {
       const filter = {
         sheetId,
-        mainPlot: c.mainPlot,
-        subPlot: c.subPlot,
         treatmentCode: c.treatmentCode,
         replication: c.replication,
         parameterId: c.parameterId,
@@ -359,10 +336,9 @@ export const saveValues = async (ctx: RequestContext, id: string, cells: CellInp
 
 // ── Workflow ─────────────────────────────────────────────────────────────────
 
-/** Required parameters with no value, as "T1 R2: Grain yield" (or "M1·S2 T1 R2: …") strings. */
+/** Required parameters with no value, as "T1 R2: Grain yield" strings. */
 const missingRequired = async (sheetId: string, experiment: ExperimentDetail) => {
   const have = new Set((await valuesOf(sheetId)).map(cellKey));
-  const plots = experimentPlots(experiment);
   const missing: string[] = [];
   // Calculated parameters are never entered, so they can't be missing.
   for (const p of experiment.parameters.filter((x) => x.required && !x.formula)) {
@@ -370,14 +346,10 @@ const missingRequired = async (sheetId: string, experiment: ExperimentDetail) =>
       p.level === 'plot' && experiment.replications
         ? Array.from({ length: experiment.replications }, (_, i) => i + 1)
         : [null];
-    for (const plot of plots) {
-      for (const t of experiment.treatments) {
-        for (const r of reps) {
-          const key = cellKey({ ...plot, treatmentCode: t.code, replication: r, parameterId: p.parameterId });
-          if (!have.has(key)) {
-            const where = [plotLabel(plot), t.code].filter(Boolean).join(' ');
-            missing.push(`${where}${r ? ` R${r}` : ''}: ${p.name}`);
-          }
+    for (const t of experiment.treatments) {
+      for (const r of reps) {
+        if (!have.has(cellKey({ treatmentCode: t.code, replication: r, parameterId: p.parameterId }))) {
+          missing.push(`${t.code}${r ? ` R${r}` : ''}: ${p.name}`);
         }
       }
     }
@@ -473,40 +445,35 @@ const layoutFor = (experiment: ExperimentDetail) => {
       .filter(Boolean)
       .join(' '),
   });
-  // Split / strip plot: each row also names its main plot and sub plot (the ICAR B.5 layout).
-  // Plots and replications are written as labels: M1, S2, R3.
-  const plotted = DESIGNS_WITH_PLOTS.includes(experiment.design);
+  // Split / split-split plot and factorial: each row also shows the treatment's level of every factor
+  // (Main plot M1, Sub plot S2 … or Factor A …), the ICAR B.5 layout, with the level's name beside
+  // it where the protocol names it. These columns come from the treatment: on import an empty one
+  // is fine, and a filled one must match the treatment.
+  const factors = experimentFactors(experiment);
   const range = (prefix: string, n: number | null) => `${prefix}1 … ${prefix}${n ?? 1}`;
-  // Where the protocol names the main / sub plots, a column beside each label shows the name.
-  // It is there to read while entering data; import ignores it (the label decides the plot).
-  const named = (list?: { name: string }[]) => (list ?? []).some((t) => t.name);
-  const nameColumn = (key: string, header: string): ExcelColumn[] => [
-    { key, header, width: 26, note: 'For reference; not read on import (the label decides the plot).' },
-  ];
-  const plotKeyColumns: ExcelColumn[] = plotted
-    ? [
-        {
-          key: 'mainPlot',
-          header: 'Main plot',
-          required: true,
-          note: `Main plot: ${range('M', experiment.mainPlotCount)}`,
-        },
-        ...(named(experiment.mainPlotData) ? nameColumn('mainPlotName', 'Main plot treatment') : []),
-        {
-          key: 'subPlot',
-          header: 'Sub plot',
-          required: true,
-          note: `Sub plot: ${range('S', experiment.subPlotCount)}`,
-        },
-        ...(named(experiment.subPlotData) ? nameColumn('subPlotName', 'Sub plot treatment') : []),
-      ]
-    : [];
+  const factorColumns: ExcelColumn[] = factors.flatMap((f) => [
+    {
+      key: `factor${f.key}`,
+      header: f.label,
+      note: `${f.label} of the treatment: ${f.levels[0]?.code} … ${f.levels.at(-1)?.code}. Set by the treatment; a different value is reported.`,
+    },
+    ...(f.levels.some((l) => l.name)
+      ? [
+          {
+            key: `factor${f.key}Name`,
+            header: `${f.label} name`,
+            width: 24,
+            note: 'For reference; not read on import.',
+          },
+        ]
+      : []),
+  ]);
   return {
-    plotted,
+    factors,
     plotParams,
     treatmentParams,
     plotColumns: [
-      ...plotKeyColumns,
+      ...factorColumns,
       { key: 'treatment', header: 'Treatment', required: true },
       {
         key: 'replication',
@@ -517,7 +484,7 @@ const layoutFor = (experiment: ExperimentDetail) => {
       ...plotParams.map(paramColumn),
     ] as ExcelColumn[],
     treatmentColumns: [
-      ...plotKeyColumns,
+      ...factorColumns,
       { key: 'treatment', header: 'Treatment', required: true },
       ...treatmentParams.map(paramColumn),
     ] as ExcelColumn[],
@@ -525,37 +492,38 @@ const layoutFor = (experiment: ExperimentDetail) => {
 };
 
 /**
- * Excel with the sheet's current values: one row per (plot ×) treatment × replication, plus a
- * treatment-level tab.
+ * Excel with the sheet's current values: one row per treatment × replication (with the treatment's
+ * factor levels for split plot and factorial designs), plus a treatment-level tab.
  */
 export const sheetTemplate = async (ctx: RequestContext, id: string) => {
   const { sheet, experiment } = await loadSheet(ctx, id);
   const values = new Map((await valuesOf(id)).map((v) => [cellKey(v), v.value]));
-  const plots = experimentPlots(experiment);
-  const at = (plot: PlotRef, t: string, r: number | null, p: string) =>
-    values.get(cellKey({ ...plot, treatmentCode: t, replication: r, parameterId: p })) ?? null;
-  const { plotted, plotParams, treatmentParams, plotColumns, treatmentColumns } = layoutFor(experiment);
-  const plotCells = (plot: PlotRef) =>
-    plotted
-      ? { mainPlot: `M${plot.mainPlot}`, subPlot: `S${plot.subPlot}`, ...plotNames(experiment, plot) }
-      : {};
+  const at = (t: string, r: number | null, p: string) =>
+    values.get(cellKey({ treatmentCode: t, replication: r, parameterId: p })) ?? null;
+  const { factors, plotParams, treatmentParams, plotColumns, treatmentColumns } = layoutFor(experiment);
+  const factorCells = (t: ExperimentDetail['treatments'][number]) =>
+    Object.fromEntries(
+      factors.flatMap((f) => {
+        const code = t[f.field];
+        return [
+          [`factor${f.key}`, code ?? null],
+          [`factor${f.key}Name`, f.levels.find((l) => l.code === code)?.name ?? null],
+        ];
+      }),
+    );
 
   const sheets = [];
   if (plotParams.length) {
     sheets.push({
       name: PLOT_SHEET,
       columns: plotColumns,
-      rows: plots.flatMap((plot) =>
-        experiment.treatments.flatMap((t) =>
-          Array.from({ length: experiment.replications ?? 0 }, (_, i) => ({
-            ...plotCells(plot),
-            treatment: t.code,
-            replication: `R${i + 1}`,
-            ...Object.fromEntries(
-              plotParams.map((p) => [p.parameterId, at(plot, t.code, i + 1, p.parameterId)]),
-            ),
-          })),
-        ),
+      rows: experiment.treatments.flatMap((t) =>
+        Array.from({ length: experiment.replications ?? 0 }, (_, i) => ({
+          ...factorCells(t),
+          treatment: t.code,
+          replication: `R${i + 1}`,
+          ...Object.fromEntries(plotParams.map((p) => [p.parameterId, at(t.code, i + 1, p.parameterId)])),
+        })),
       ),
     });
   }
@@ -563,15 +531,11 @@ export const sheetTemplate = async (ctx: RequestContext, id: string) => {
     sheets.push({
       name: TREATMENT_SHEET,
       columns: treatmentColumns,
-      rows: plots.flatMap((plot) =>
-        experiment.treatments.map((t) => ({
-          ...plotCells(plot),
-          treatment: t.code,
-          ...Object.fromEntries(
-            treatmentParams.map((p) => [p.parameterId, at(plot, t.code, null, p.parameterId)]),
-          ),
-        })),
-      ),
+      rows: experiment.treatments.map((t) => ({
+        ...factorCells(t),
+        treatment: t.code,
+        ...Object.fromEntries(treatmentParams.map((p) => [p.parameterId, at(t.code, null, p.parameterId)])),
+      })),
     });
   }
   const buffer = await buildMultiSheetWorkbook(sheets);
@@ -599,7 +563,8 @@ export const importSheet = async (ctx: RequestContext, id: string, buffer: Buffe
   const { sheet, experiment } = await loadSheet(ctx, id);
   await assertEditable(sheet);
   const params = new Map(experiment.parameters.map((p) => [p.parameterId, p]));
-  const { plotted, plotParams, treatmentParams, plotColumns, treatmentColumns } = layoutFor(experiment);
+  const { factors, plotParams, treatmentParams, plotColumns, treatmentColumns } = layoutFor(experiment);
+  const treatmentsByCode = new Map(experiment.treatments.map((t) => [t.code, t]));
 
   const errors: RowError[] = [];
   const cells: (CellInput & { valueNumber: number | null; valueText: string | null })[] = [];
@@ -618,26 +583,38 @@ export const importSheet = async (ctx: RequestContext, id: string, buffer: Buffe
         .trim()
         .toUpperCase();
       const replication = replicated ? fromLabel(values.replication, 'R') : null;
-      const mainPlot = plotted ? fromLabel(values.mainPlot, 'M') : null;
-      const subPlot = plotted ? fromLabel(values.subPlot, 'S') : null;
-      // Each label must be readable before any of the row's values is checked.
-      const unreadable = [
-        replicated && !replication
-          ? `Replication "${String(values.replication ?? '')}" (write R1, R2 …)`
-          : null,
-        plotted && !mainPlot ? `Main plot "${String(values.mainPlot ?? '')}" (write M1, M2 …)` : null,
-        plotted && !subPlot ? `Sub plot "${String(values.subPlot ?? '')}" (write S1, S2 …)` : null,
-      ].filter(Boolean);
-      if (unreadable.length) {
-        errors.push({ row, message: `${tab}: can't read ${unreadable.join(', ')}` });
-        continue;
-      }
-      const key = `${tab}|${mainPlot}.${subPlot}|${treatmentCode}|${replication}`;
-      if (seen.has(key)) {
-        const where = [plotLabel({ mainPlot, subPlot }), treatmentCode].filter(Boolean).join(' ');
+      if (replicated && !replication) {
         errors.push({
           row,
-          message: `${tab}: duplicate row for ${where}${replication ? ` R${replication}` : ''}`,
+          message: `${tab}: can't read Replication "${String(values.replication ?? '')}" (write R1, R2 …)`,
+        });
+        continue;
+      }
+      // Factor levels come from the treatment; a filled-in level that differs is a mistake.
+      const treatment = treatmentsByCode.get(treatmentCode);
+      const mismatched = treatment
+        ? factors.filter((f) => {
+            const given = String(values[`factor${f.key}`] ?? '')
+              .trim()
+              .toUpperCase();
+            const own = treatment[f.field];
+            return given !== '' && given !== (own ?? '').toUpperCase();
+          })
+        : [];
+      if (mismatched.length) {
+        errors.push({
+          row,
+          message: `${tab}: ${mismatched
+            .map((f) => `${f.label} "${String(values[`factor${f.key}`])}"`)
+            .join(', ')} doesn't match treatment ${treatmentCode}`,
+        });
+        continue;
+      }
+      const key = `${tab}|${treatmentCode}|${replication}`;
+      if (seen.has(key)) {
+        errors.push({
+          row,
+          message: `${tab}: duplicate row for ${treatmentCode}${replication ? ` R${replication}` : ''}`,
         });
         continue;
       }
@@ -645,8 +622,6 @@ export const importSheet = async (ctx: RequestContext, id: string, buffer: Buffe
       for (const p of tabParams) {
         const raw = values[p.parameterId] ?? null;
         const cell: CellInput = {
-          mainPlot,
-          subPlot,
           treatmentCode,
           replication,
           parameterId: p.parameterId,
@@ -676,11 +651,17 @@ export const importSheet = async (ctx: RequestContext, id: string, buffer: Buffe
 
 // ── Analysis ─────────────────────────────────────────────────────────────────
 
+const FACTORIAL_KIND: Partial<Record<ExperimentDetail['design'], FactorialKind>> = {
+  'Split plot': 'split',
+  'Split-split plot': 'split-split',
+  Factorial: 'factorial',
+};
+
 /**
- * One sheet's analysis. A single-plot design gets one analysis (`parameters`). In split and strip
- * plot every plot (main × sub) is a complete RBD, so each gets its own analysis in `plots`, and
- * `parameters` holds the treatment means over all plots (no ANOVA: what the main and sub plots
- * stand for, and so the combined model, isn't defined yet).
+ * One sheet's analysis. RBD: treatment ANOVA, CD and DMRT. Split plot, split-split plot and
+ * factorial: treatments are combinations of factor levels, so plot-level parameters get the
+ * design's own ANOVA (`factorial`: each factor, their interactions, the right error terms) and the
+ * means of every factor level.
  */
 export const analyseSheet = async (ctx: RequestContext, id: string) => {
   const { sheet, experiment } = await loadSheet(ctx, id);
@@ -688,25 +669,34 @@ export const analyseSheet = async (ctx: RequestContext, id: string) => {
     (o): o is ObsRow & { value: number } => typeof o.value === 'number',
   );
   const codes = experiment.treatments.map((t) => t.code);
-  const numeric = experiment.parameters.filter((p) => p.dataType === 'number');
-  const describe = (p: ParamDetail) => ({
-    parameterId: p.parameterId,
-    code: p.code,
-    name: p.name,
-    unitCode: p.unitCode,
-    section: p.section,
-    level: p.level,
-  });
-  const analyse = (rows: (ObsRow & { value: number })[]) =>
-    numeric.map((p) => {
+  const kind = FACTORIAL_KIND[experiment.design];
+  const factors = experimentFactors(experiment);
+  const treatmentLevels = experiment.treatments.map((t) => ({
+    code: t.code,
+    levels: Object.fromEntries(factors.map((f) => [f.key, t[f.field] ?? null])),
+  }));
+  const parameters = experiment.parameters
+    .filter((p) => p.dataType === 'number')
+    .map((p) => {
       const byTreatment = new Map<string, Map<number | null, number>>();
-      for (const o of rows.filter((x) => x.parameterId === p.parameterId)) {
+      for (const o of observations.filter((x) => x.parameterId === p.parameterId)) {
         if (!byTreatment.has(o.treatmentCode)) byTreatment.set(o.treatmentCode, new Map());
         byTreatment.get(o.treatmentCode)!.set(o.replication, o.value);
       }
       const replicated = p.level === 'plot' ? experiment.replications : null;
+      const describe = {
+        parameterId: p.parameterId,
+        code: p.code,
+        name: p.name,
+        unitCode: p.unitCode,
+        section: p.section,
+        level: p.level,
+      };
+      if (kind && replicated) {
+        const result = factorialAnalysis(byTreatment, treatmentLevels, factors, replicated, kind);
+        return { ...describe, ...result, anova: null };
+      }
       let analysis: ParameterAnalysis = analyseParameter(byTreatment, codes, replicated);
-      // The ANOVA is the RBD model (replications as blocks), run per plot in split / strip plot.
       if (replicated && !DESIGNS_WITH_ANOVA.includes(experiment.design)) {
         analysis = {
           ...analysis,
@@ -718,38 +708,7 @@ export const analyseSheet = async (ctx: RequestContext, id: string) => {
       if (!replicated && experiment.replications) {
         analysis = { ...analysis, reason: 'Recorded once per treatment, so there is no ANOVA; means only' };
       }
-      return { ...describe(p), ...analysis };
-    });
-
-  const layout = experimentPlots(experiment);
-  const plotted = layout[0]!.mainPlot !== null;
-  const plots = plotted
-    ? layout.map((plot) => ({
-        ...plot,
-        label: plotLabel(plot),
-        // What the plot's main and sub plot stand for, when the protocol names them.
-        ...plotNames(experiment, plot),
-        title: plotTitle(experiment, plot),
-        parameters: analyse(
-          observations.filter((o) => o.mainPlot === plot.mainPlot && o.subPlot === plot.subPlot),
-        ),
-      }))
-    : [];
-  // Over all plots: each value counts once (keyed by its position, not its replication).
-  const overall = () =>
-    numeric.map((p) => {
-      const byTreatment = new Map<string, Map<number | null, number>>();
-      observations
-        .filter((o) => o.parameterId === p.parameterId)
-        .forEach((o, i) => {
-          if (!byTreatment.has(o.treatmentCode)) byTreatment.set(o.treatmentCode, new Map());
-          byTreatment.get(o.treatmentCode)!.set(i, o.value);
-        });
-      return {
-        ...describe(p),
-        ...analyseParameter(byTreatment, codes, null),
-        reason: `Treatment means over all ${layout.length} plots; each plot has its own analysis of variance`,
-      };
+      return { ...describe, ...analysis, factorial: null };
     });
 
   return {
@@ -764,8 +723,8 @@ export const analyseSheet = async (ctx: RequestContext, id: string) => {
     year: sheet.year,
     seasonCode: sheet.seasonCode,
     treatments: experiment.treatments,
-    parameters: plotted ? overall() : analyse(observations),
-    plots,
+    factors: factors.map(({ key, label, levels }) => ({ key, label, levels })),
+    parameters,
   };
 };
 
@@ -838,7 +797,7 @@ export const experimentSummary = async (ctx: RequestContext, query: SummaryQuery
   const pooled: Record<string, ReturnType<typeof pooledAnalysis>> = {};
   if (
     DESIGNS_WITH_ANOVA.includes(experiment.design) &&
-    !DESIGNS_WITH_PLOTS.includes(experiment.design) &&
+    !DESIGNS_WITH_FACTORS.includes(experiment.design) &&
     reps >= 2
   ) {
     const centresWithSeveral = new Set(

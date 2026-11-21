@@ -2,7 +2,6 @@ import { z } from 'zod';
 import type { RequestSchemas } from '../../middlewares/validate.js';
 import { idParams, importQuery, objectId } from '../../utils/validators.js';
 import { masterCode } from '../masters/masters.dto.js';
-import { MAX_PLOT_COUNT } from '../experiments/experiments.dto.js';
 import { SHEET_STATUSES } from './sheets.model.js';
 
 /** Year the season starts in: Kharif 2026 and Rabi 2026 are both 2026. */
@@ -31,14 +30,6 @@ const valuesBody = z
       .array(
         z
           .object({
-            mainPlot: z.number().int().min(1).max(MAX_PLOT_COUNT).nullable().default(null).meta({
-              example: null,
-              description: 'Split / strip plot: 1…mainPlotCount; null for other designs',
-            }),
-            subPlot: z.number().int().min(1).max(MAX_PLOT_COUNT).nullable().default(null).meta({
-              example: null,
-              description: 'Split / strip plot: 1…subPlotCount; null for other designs',
-            }),
             treatmentCode: masterCode.meta({ example: 'T1' }),
             replication: z.number().int().min(1).max(20).nullable().default(null),
             parameterId: objectId,

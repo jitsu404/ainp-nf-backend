@@ -247,6 +247,16 @@ const plotCounts = (
   subPlotCount = 0,
   subSubPlotCount = 0,
 ) => {
+  if (design === 'Factorial') {
+    // Factor A and B levels (main / sub lists), optional factor C (sub-sub list).
+    if (mainPlotCount < 2 || subPlotCount < 2) {
+      throw AppError.badRequest(
+        'PLOT_COUNTS_REQUIRED',
+        'A factorial design needs at least 2 levels of factor A and of factor B',
+      );
+    }
+    return { mainPlotCount, subPlotCount, subSubPlotCount };
+  }
   if (!DESIGNS_WITH_PLOTS.includes(design)) {
     return { mainPlotCount: 0, subPlotCount: 0, subSubPlotCount: 0 };
   }
@@ -262,52 +272,56 @@ const plotCounts = (
   return { mainPlotCount, subPlotCount, subSubPlotCount: 0 };
 };
 
-/** A sheet cell's plot: both null for a single-plot design. */
-export interface PlotRef {
-  mainPlot: number | null;
-  subPlot: number | null;
-}
+/** Designs whose treatments are combinations of factor levels (each treatment one combination). */
+export const DESIGNS_WITH_FACTORS: readonly Experiment['design'][] = [
+  'Split plot',
+  'Split-split plot',
+  'Factorial',
+];
+
+export type FactorKey = 'A' | 'B' | 'C';
 
 /**
- * Every plot of the layout, main plot first (M1·S1, M1·S2, M2·S1 …); one `{ null, null }` plot
- * for designs that aren't split into plots. Each plot holds all treatments × replications.
+ * The experiment's factors, for sheets and analysis: in split / split-split plot the main, sub and
+ * sub-sub plots; in a factorial, factors A, B (and C). Levels are the codes M1 … / S1 … / SS1 …
+ * with the names given in mainPlotData / subPlotData / subSubPlotData. Each treatment carries its
+ * level of each factor (mainPlotCode / subPlotCode / subSubPlotCode). Empty for other designs.
  */
-export const experimentPlots = (
-  e: Pick<Experiment, 'design' | 'mainPlotCount' | 'subPlotCount'>,
-): PlotRef[] => {
-  if (!DESIGNS_WITH_PLOTS.includes(e.design) || !e.mainPlotCount || !e.subPlotCount) {
-    return [{ mainPlot: null, subPlot: null }];
-  }
-  return Array.from({ length: e.mainPlotCount }, (_, m) =>
-    Array.from({ length: e.subPlotCount }, (_, s) => ({ mainPlot: m + 1, subPlot: s + 1 })),
-  ).flat();
-};
-
-/** "M1·S2", or '' for a single-plot design. */
-export const plotLabel = (p: PlotRef) => (p.mainPlot === null ? '' : `M${p.mainPlot}·S${p.subPlot}`);
-
-/**
- * What a plot's main plot and sub plot stand for: the names given in mainPlotData / subPlotData
- * (codes M1 … / S1 …), or null where none is given.
- */
-export const plotNames = (
-  e: { mainPlotData?: { code: string; name: string }[]; subPlotData?: { code: string; name: string }[] },
-  p: PlotRef,
-) => ({
-  mainPlotName:
-    p.mainPlot === null
-      ? null
-      : ((e.mainPlotData ?? []).find((t) => t.code === `M${p.mainPlot}`)?.name ?? null),
-  subPlotName:
-    p.subPlot === null ? null : ((e.subPlotData ?? []).find((t) => t.code === `S${p.subPlot}`)?.name ?? null),
-});
-
-/** "M1 Conventional tillage · S2 Jeevamrit" (codes alone where no name is given); '' for one plot. */
-export const plotTitle = (e: Parameters<typeof plotNames>[0], p: PlotRef) => {
-  if (p.mainPlot === null) return '';
-  const { mainPlotName, subPlotName } = plotNames(e, p);
-  const part = (code: string, name: string | null) => (name ? `${code} ${name}` : code);
-  return `${part(`M${p.mainPlot}`, mainPlotName)} · ${part(`S${p.subPlot}`, subPlotName)}`;
+export const experimentFactors = (
+  e: Pick<Experiment, 'design' | 'mainPlotCount' | 'subPlotCount' | 'subSubPlotCount'> & {
+    mainPlotData?: { code: string; name: string }[];
+    subPlotData?: { code: string; name: string }[];
+    subSubPlotData?: { code: string; name: string }[];
+  },
+) => {
+  if (!DESIGNS_WITH_FACTORS.includes(e.design)) return [];
+  const factorial = e.design === 'Factorial';
+  const levels = (prefix: string, count: number, data?: { code: string; name: string }[]) =>
+    Array.from({ length: count }, (_, i) => {
+      const code = `${prefix}${i + 1}`;
+      return { code, name: data?.find((d) => d.code === code)?.name || null };
+    });
+  const list = [
+    {
+      key: 'A' as FactorKey,
+      label: factorial ? 'Factor A' : 'Main plot',
+      field: 'mainPlotCode' as const,
+      levels: levels('M', e.mainPlotCount ?? 0, e.mainPlotData),
+    },
+    {
+      key: 'B' as FactorKey,
+      label: factorial ? 'Factor B' : 'Sub plot',
+      field: 'subPlotCode' as const,
+      levels: levels('S', e.subPlotCount ?? 0, e.subPlotData),
+    },
+    {
+      key: 'C' as FactorKey,
+      label: factorial ? 'Factor C' : 'Sub-sub plot',
+      field: 'subSubPlotCode' as const,
+      levels: levels('SS', e.subSubPlotCount ?? 0, e.subSubPlotData),
+    },
+  ];
+  return list.filter((f) => f.levels.length > 0 && (f.key !== 'C' || e.design !== 'Split plot'));
 };
 
 /** The reference treatment, if set, must be one of the experiment's treatments. */
@@ -329,7 +343,7 @@ const assertPlotTreatmentsCount = (
   subPlotData?: { code: string }[],
   subSubPlotData?: { code: string }[],
 ) => {
-  if (design === 'Split plot' || design === 'Split-split plot') {
+  if (design === 'Split plot' || design === 'Split-split plot' || design === 'Factorial') {
     if (mainPlotData !== undefined && mainPlotData.length > 0) {
       if (mainPlotCount <= 0) {
         throw AppError.badRequest(
@@ -359,7 +373,7 @@ const assertPlotTreatmentsCount = (
       }
     }
   }
-  if (design === 'Split-split plot') {
+  if (design === 'Split-split plot' || design === 'Factorial') {
     if (subSubPlotData !== undefined && subSubPlotData.length > 0) {
       if (subSubPlotCount <= 0) {
         throw AppError.badRequest(
@@ -421,6 +435,23 @@ const normalizeTreatmentsForDesign = (
       mainPlotCode: t.mainPlotCode ?? null,
       subPlotCode: t.subPlotCode ?? null,
       subSubPlotCode: t.subSubPlotCode ?? null,
+    }));
+  }
+  if (design === 'Factorial') {
+    const expected = mainPlotCount * subPlotCount * (subSubPlotCount || 1);
+    if (mainPlotCount > 0 && subPlotCount > 0 && treatments.length > 0 && treatments.length !== expected) {
+      throw AppError.badRequest(
+        'TREATMENTS_COUNT_MISMATCH',
+        `Factorial treatments count (${treatments.length}) must match the number of level combinations (${expected})`,
+      );
+    }
+    return treatments.map((t) => ({
+      code: t.code,
+      name: t.name,
+      description: t.description ?? null,
+      mainPlotCode: t.mainPlotCode ?? null,
+      subPlotCode: t.subPlotCode ?? null,
+      subSubPlotCode: subSubPlotCount > 0 ? (t.subSubPlotCode ?? null) : null,
     }));
   }
   // For other designs, mainPlotCode, subPlotCode, and subSubPlotCode remain null
@@ -576,7 +607,7 @@ export const updateExperiment = async (
         experiment.subSubPlotCount ?? 0,
       );
       experiment.set('treatments', normalized);
-    } else if (dto.design && !['Split plot', 'Split-split plot'].includes(dto.design)) {
+    } else if (dto.design && !DESIGNS_WITH_FACTORS.includes(dto.design)) {
       experiment.treatments = (experiment.treatments ?? []).map((t) => ({
         ...t,
         mainPlotCode: null,

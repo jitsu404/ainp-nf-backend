@@ -63,42 +63,42 @@ const pct = (value: number | null, ref: number | null | undefined) =>
     : Math.round(((value - ref) / Math.abs(ref)) * 1000) / 10;
 
 /**
- * One sheet's analysis as Excel: means (with DMRT and % vs reference) and the ANOVA tables. Split
- * and strip plot list every plot's analysis after the means over all plots, with a Plot column.
+ * One sheet's analysis as Excel: treatment means (with DMRT and % vs reference) and the ANOVA
+ * tables. Split plot, split-split plot and factorial designs get their own ANOVA (each factor,
+ * interactions and error terms) and a "Factor means" tab with the mean of every factor level.
  */
 export const exportSheetAnalysis = async (ctx: RequestContext, id: string) => {
   const a = await analyseSheet(ctx, id);
   const ref = a.experiment.referenceTreatmentCode;
   const names = new Map(a.treatments.map((t) => [t.code, t.name]));
-  const plotted = a.plots.length > 0;
-  const groups = [
-    { plot: plotted ? 'All plots' : '', parameters: a.parameters },
-    ...a.plots.map((p) => ({ plot: p.title, parameters: p.parameters })),
-  ];
-  const meansRows = groups.flatMap(({ plot, parameters }) =>
-    parameters.flatMap((p) => {
-      const refMean = p.means.find((m) => m.treatmentCode === ref)?.mean;
-      return p.means.map((m) => ({
-        plot,
+  const meansRows = a.parameters.flatMap((p) => {
+    const refMean = p.means.find((m) => m.treatmentCode === ref)?.mean;
+    return p.means.map((m) => ({
+      parameter: label(p),
+      treatment: m.treatmentCode,
+      name: names.get(m.treatmentCode),
+      n: m.n,
+      mean: m.mean,
+      dmrt: p.anova?.groups?.[m.treatmentCode] ?? '',
+      vsRef: ref && m.treatmentCode !== ref ? pct(m.mean, refMean) : null,
+    }));
+  });
+  const anovaRows = a.parameters.flatMap((p) => anovaOf(p));
+  const factorRows = a.parameters.flatMap((p) =>
+    (p.factorial?.factorMeans ?? []).flatMap((f) =>
+      f.levels.map((l) => ({
         parameter: label(p),
-        treatment: m.treatmentCode,
-        name: names.get(m.treatmentCode),
-        n: m.n,
-        mean: m.mean,
-        dmrt: p.anova?.groups?.[m.treatmentCode] ?? '',
-        vsRef: ref && m.treatmentCode !== ref ? pct(m.mean, refMean) : null,
-      }));
-    }),
+        factor: f.label,
+        level: l.code,
+        name: l.name ?? '',
+        mean: l.mean,
+      })),
+    ),
   );
-  const anovaRows = groups.flatMap(({ plot, parameters }) =>
-    parameters.flatMap((p) => anovaOf(p).map((row) => ({ plot, ...row }))),
-  );
-  const plotColumn = plotted ? [{ key: 'plot', header: 'Plot', width: 34 }] : [];
   const buffer = await buildMultiSheetWorkbook([
     {
       name: 'Treatment means',
       columns: [
-        ...plotColumn,
         { key: 'parameter', header: 'Parameter', width: 36 },
         { key: 'treatment', header: 'Treatment' },
         { key: 'name', header: 'Name', width: 30 },
@@ -109,10 +109,24 @@ export const exportSheetAnalysis = async (ctx: RequestContext, id: string) => {
       ],
       rows: meansRows,
     },
+    ...(factorRows.length
+      ? [
+          {
+            name: 'Factor means',
+            columns: [
+              { key: 'parameter', header: 'Parameter', width: 36 },
+              { key: 'factor', header: 'Factor', width: 16 },
+              { key: 'level', header: 'Level' },
+              { key: 'name', header: 'Name', width: 28 },
+              { key: 'mean', header: 'Mean' },
+            ],
+            rows: factorRows,
+          },
+        ]
+      : []),
     {
       name: 'ANOVA',
       columns: [
-        ...plotColumn,
         { key: 'parameter', header: 'Parameter', width: 36 },
         { key: 'source', header: 'Source', width: 40 },
         { key: 'df', header: 'df' },
@@ -131,39 +145,52 @@ type SheetParameterAnalysis = Awaited<ReturnType<typeof analyseSheet>>['paramete
 
 /** The ANOVA table of one parameter as export rows (or one row giving the reason there is none). */
 const anovaOf = (p: SheetParameterAnalysis) =>
-  p.anova
+  p.factorial
     ? [
-        ...p.anova.table.map((r) => ({ parameter: label(p), ...r })),
-        {
+        ...p.factorial.table.map((r) => ({ parameter: label(p), ...r })),
+        ...p.factorial.cv.map((c) => ({
           parameter: label(p),
-          source: `CV ${p.anova.cv} %`,
+          source: `CV ${c.error === 'Error' ? '' : `${c.error.replace('Error ', '')} `}${c.value} %`,
           df: null,
           ss: null,
           ms: null,
           f: null,
           p: null,
-        },
-        {
-          parameter: label(p),
-          source: `SEm ± ${p.anova.sem}; SEd ± ${p.anova.sed}; CD (5 %) ${p.anova.cd5 ?? 'NS'}`,
-          df: null,
-          ss: null,
-          ms: null,
-          f: null,
-          p: null,
-        },
+        })),
       ]
-    : [
-        {
-          parameter: label(p),
-          source: p.reason ?? 'No analysis of variance',
-          df: null,
-          ss: null,
-          ms: null,
-          f: null,
-          p: null,
-        },
-      ];
+    : p.anova
+      ? [
+          ...p.anova.table.map((r) => ({ parameter: label(p), ...r })),
+          {
+            parameter: label(p),
+            source: `CV ${p.anova.cv} %`,
+            df: null,
+            ss: null,
+            ms: null,
+            f: null,
+            p: null,
+          },
+          {
+            parameter: label(p),
+            source: `SEm ± ${p.anova.sem}; SEd ± ${p.anova.sed}; CD (5 %) ${p.anova.cd5 ?? 'NS'}`,
+            df: null,
+            ss: null,
+            ms: null,
+            f: null,
+            p: null,
+          },
+        ]
+      : [
+          {
+            parameter: label(p),
+            source: p.reason ?? 'No analysis of variance',
+            df: null,
+            ss: null,
+            ms: null,
+            f: null,
+            p: null,
+          },
+        ];
 
 /** The cross-centre summary as Excel: one row per centre and parameter, and the pooled analyses. */
 export const exportSummary = async (ctx: RequestContext, q: SummaryQuery) => {

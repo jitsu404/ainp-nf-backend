@@ -88,7 +88,7 @@ sheetsRouter.put(
   apiDoc({
     name: 'Save values',
     description:
-      'Upserts cells ((main plot × sub plot ×) treatment × replication × parameter); `value: null` clears a cell. Split / strip plot cells need `mainPlot` and `subPlot`; other designs leave them null. Every cell is checked against the protocol and the parameter library; any error rejects the whole batch. Only Draft or Returned sheets in an open year.',
+      'Upserts cells (treatment × replication × parameter); `value: null` clears a cell. In split / split-split plot and factorial designs each treatment is one combination of factor levels, so it also says which plot. Every cell is checked against the protocol and the parameter library; any error rejects the whole batch. Only Draft or Returned sheets.',
   }),
   authorize('research.enter'),
   validate(saveValuesSchemas),
@@ -123,7 +123,7 @@ sheetsRouter.get(
   apiDoc({
     name: 'Download sheet template',
     description:
-      'Excel with the current values: "Plot data" (treatment × replication, in every main × sub plot for split / strip plot) and "Treatment data" tabs. Plots and replications are written as M1, S1, R1.',
+      'Excel with the current values: "Plot data" (treatment × replication) and "Treatment data" tabs. Split / split-split plot and factorial designs also show each treatment\'s factor levels (Main plot M1, Sub plot S1, Sub-sub plot SS1, or Factor A …); on import they must match the treatment. Replications are written as R1, R2 ….',
   }),
   validate(sheetTemplateSchemas),
   controller.template,
