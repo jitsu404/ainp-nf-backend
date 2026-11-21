@@ -283,6 +283,42 @@ describe('observation sheets', () => {
       .expect(200);
   });
 
+  it('refuses values in cells the trial protocol disabled for the season, and never requires them', async () => {
+    const { pcu, piA, grain, trialAId } = await setup();
+    await pcu
+      .patch(`/api/v1/trials/${trialAId}`)
+      .send({
+        disabledParameters: [
+          { treatment: 'T3', season: 'KHARIF', parameterId: grain.id },
+          { treatment: 'T1', season: 'RABI', parameterId: grain.id }, // another season: no effect here
+        ],
+      })
+      .expect(200);
+    const sheet = await piA
+      .post('/api/v1/sheets')
+      .send({ trialId: trialAId, year: YEAR, seasonCode: 'KHARIF' })
+      .expect(201);
+    const id = sheet.body.data.id as string;
+    expect(sheet.body.data.disabledCells).toEqual([{ treatmentCode: 'T3', parameterId: grain.id }]);
+
+    const refused = await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({ values: fullPlotData(grain.id, { T3: [3500] }) })
+      .expect(400);
+    expect(refused.body.error.details.cells[0].message).toMatch(/disabled for T3/);
+    // Clearing a disabled cell is allowed.
+    await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({ values: [{ treatmentCode: 'T3', replication: 1, parameterId: grain.id, value: null }] })
+      .expect(200);
+
+    await piA
+      .put(`/api/v1/sheets/${id}/values`)
+      .send({ values: fullPlotData(grain.id, { T1: [3200, 3400, 3300], T2: [3600, 3800, 3700] }) })
+      .expect(200);
+    await piA.post(`/api/v1/sheets/${id}/submit`).send({}).expect(200); // T3 grain isn't required
+  });
+
   it('keeps centres out of other centres’ sheets; any year of the experiment can be recorded', async () => {
     const { piA, piB, grain, trialAId } = await setup();
     const sheet = await piA

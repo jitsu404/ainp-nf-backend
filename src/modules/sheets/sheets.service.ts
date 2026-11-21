@@ -53,11 +53,34 @@ const getScopedSheet = async (ctx: RequestContext, id: string) => {
   return sheet;
 };
 
+/** Key of a treatment × parameter pair switched off in the trial protocol. */
+const disabledKey = (treatmentCode: string, parameterId: string) => `${treatmentCode}|${parameterId}`;
+
+/**
+ * The treatment × parameter pairs the trial protocol switched off for the sheet's season
+ * (the trial's own list, or the experiment's when the trial has none). Those cells take no value.
+ */
+const disabledCellsOf = async (
+  sheet: { trialId: unknown; seasonCode: string },
+  experiment: { disabledParameters?: { treatment: string; season: string; parameterId: unknown }[] },
+) => {
+  const trial = (await trialsByIds([String(sheet.trialId)])).get(String(sheet.trialId));
+  const list = trial?.disabledParameters?.length
+    ? trial.disabledParameters
+    : (experiment.disabledParameters ?? []);
+  return new Set(
+    list
+      .filter((d) => d.season === sheet.seasonCode)
+      .map((d) => disabledKey(d.treatment, String(d.parameterId))),
+  );
+};
+
 /** The sheet with its experiment protocol (access already checked through the sheet's centre). */
 const loadSheet = async (ctx: RequestContext, id: string) => {
   const sheet = await getScopedSheet(ctx, id);
   const experiment = await withParameterDetails(await findExperiment(String(sheet.experimentId)));
-  return { sheet, experiment };
+  const disabled = await disabledCellsOf(sheet, experiment);
+  return { sheet, experiment, disabled };
 };
 
 export const listSheets = (ctx: RequestContext, query: ListSheetsQuery) => {
@@ -107,8 +130,17 @@ const withCalculated = async (
 };
 
 export const getSheetDetail = async (ctx: RequestContext, id: string) => {
-  const { sheet, experiment } = await loadSheet(ctx, id);
-  return { ...sheet.toJSON(), experiment, values: await withCalculated(experiment, await valuesOf(id)) };
+  const { sheet, experiment, disabled } = await loadSheet(ctx, id);
+  return {
+    ...sheet.toJSON(),
+    experiment,
+    // Treatment × parameter cells switched off in the trial protocol for this season: no value.
+    disabledCells: [...disabled].map((k) => {
+      const [treatmentCode, parameterId] = k.split('|');
+      return { treatmentCode, parameterId };
+    }),
+    values: await withCalculated(experiment, await valuesOf(id)),
+  };
 };
 
 // ── Creating ─────────────────────────────────────────────────────────────────
@@ -189,6 +221,7 @@ export const createSheet = async (ctx: RequestContext, dto: CreateSheetDto) => {
 const checkCell = (
   experiment: ExperimentDetail,
   params: Map<string, ParamDetail>,
+  disabled: Set<string>,
   cell: CellInput,
 ): { ok: true; valueNumber: number | null; valueText: string | null } | { ok: false; message: string } => {
   const param = params.get(cell.parameterId);
@@ -208,6 +241,10 @@ const checkCell = (
     return { ok: false, message: `${param.name} is recorded once per treatment (no replication)` };
   }
   if (cell.value === null || cell.value === '') return { ok: true, valueNumber: null, valueText: null };
+  // Clearing a disabled cell is fine (a value typed before it was switched off); entering one isn't.
+  if (disabled.has(disabledKey(cell.treatmentCode, cell.parameterId))) {
+    return { ok: false, message: `${param.name} is disabled for ${cell.treatmentCode} in this season` };
+  }
 
   switch (param.dataType) {
     case 'number': {
@@ -318,13 +355,13 @@ const writeCells = async (
 };
 
 export const saveValues = async (ctx: RequestContext, id: string, cells: CellInput[]) => {
-  const { sheet, experiment } = await loadSheet(ctx, id);
+  const { sheet, experiment, disabled } = await loadSheet(ctx, id);
   await assertEditable(sheet);
   const params = new Map(experiment.parameters.map((p) => [p.parameterId, p]));
   const errors: { index: number; message: string }[] = [];
   const ready: (CellInput & { valueNumber: number | null; valueText: string | null })[] = [];
   cells.forEach((cell, index) => {
-    const result = checkCell(experiment, params, cell);
+    const result = checkCell(experiment, params, disabled, cell);
     if (result.ok) ready.push({ ...cell, valueNumber: result.valueNumber, valueText: result.valueText });
     else errors.push({ index, message: result.message });
   });
@@ -337,7 +374,7 @@ export const saveValues = async (ctx: RequestContext, id: string, cells: CellInp
 // ── Workflow ─────────────────────────────────────────────────────────────────
 
 /** Required parameters with no value, as "T1 R2: Grain yield" strings. */
-const missingRequired = async (sheetId: string, experiment: ExperimentDetail) => {
+const missingRequired = async (sheetId: string, experiment: ExperimentDetail, disabled: Set<string>) => {
   const have = new Set((await valuesOf(sheetId)).map(cellKey));
   const missing: string[] = [];
   // Calculated parameters are never entered, so they can't be missing.
@@ -347,6 +384,8 @@ const missingRequired = async (sheetId: string, experiment: ExperimentDetail) =>
         ? Array.from({ length: experiment.replications }, (_, i) => i + 1)
         : [null];
     for (const t of experiment.treatments) {
+      // A cell switched off in the trial protocol is never required.
+      if (disabled.has(disabledKey(t.code, p.parameterId))) continue;
       for (const r of reps) {
         if (!have.has(cellKey({ treatmentCode: t.code, replication: r, parameterId: p.parameterId }))) {
           missing.push(`${t.code}${r ? ` R${r}` : ''}: ${p.name}`);
@@ -400,8 +439,8 @@ const transition = async (
 };
 
 export const submitSheet = async (ctx: RequestContext, id: string, remark?: string) => {
-  const { experiment } = await loadSheet(ctx, id);
-  const missing = await missingRequired(id, experiment);
+  const { experiment, disabled } = await loadSheet(ctx, id);
+  const missing = await missingRequired(id, experiment, disabled);
   if (missing.length) {
     throw AppError.badRequest('INCOMPLETE_SHEET', `${missing.length} required value(s) are missing`, {
       missing: missing.slice(0, 200),
@@ -560,7 +599,7 @@ const fromLabel = (raw: unknown, prefix: 'M' | 'S' | 'R'): number | null => {
  * saved. Empty cells clear existing values, so the file is the complete picture of the sheet.
  */
 export const importSheet = async (ctx: RequestContext, id: string, buffer: Buffer, dryRun: boolean) => {
-  const { sheet, experiment } = await loadSheet(ctx, id);
+  const { sheet, experiment, disabled } = await loadSheet(ctx, id);
   await assertEditable(sheet);
   const params = new Map(experiment.parameters.map((p) => [p.parameterId, p]));
   const { factors, plotParams, treatmentParams, plotColumns, treatmentColumns } = layoutFor(experiment);
@@ -627,7 +666,7 @@ export const importSheet = async (ctx: RequestContext, id: string, buffer: Buffe
           parameterId: p.parameterId,
           value: raw instanceof Date ? raw.toISOString().slice(0, 10) : (raw as number | string | null),
         };
-        const result = checkCell(experiment, params, cell);
+        const result = checkCell(experiment, params, disabled, cell);
         if (result.ok) cells.push({ ...cell, valueNumber: result.valueNumber, valueText: result.valueText });
         else errors.push({ row, field: p.code, message: `${tab}: ${result.message}` });
       }
