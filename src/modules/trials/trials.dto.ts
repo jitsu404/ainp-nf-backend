@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { RequestSchemas } from '../../middlewares/validate.js';
 import { idParams, objectId } from '../../utils/validators.js';
+import { disabledParameter, treatment } from '../experiments/experiments.dto.js';
 import { masterCode } from '../masters/masters.dto.js';
 import { trialBody } from '../metadata/metadata.dto.js';
 import { ASSIGNMENT_STATUSES, TRIAL_STATUSES } from './trials.model.js';
@@ -74,6 +75,12 @@ const updateBody = z
       }),
     croppingSystems: z.array(croppingSystem).max(10).optional(),
     practices: z.array(practice).max(60).optional(),
+    treatments: z.array(treatment).optional(),
+    mainPlotData: z.array(treatment).optional(),
+    subPlotData: z.array(treatment).optional(),
+    subSubPlotData: z.array(treatment).optional(),
+    disabledParameters: z.array(disabledParameter).optional(),
+    locked: z.array(z.string().trim()).optional(),
     inChargeUserId: objectId.nullable().optional(),
     layoutNotes: z.string().trim().max(4000).nullable().optional(),
     status: z.enum(TRIAL_STATUSES).optional(),
@@ -102,6 +109,19 @@ export const updateTrialSchemas = { params: idParams, body: updateBody } satisfi
 export const getTrialMetadataSchemas = { params: idParams } satisfies RequestSchemas;
 export const saveTrialMetadataSchemas = { params: idParams, body: trialBody } satisfies RequestSchemas;
 
+const toggleLockBody = z
+  .object({
+    lockedKey: z.string().trim().min(1).max(50),
+    isLocked: z.boolean(),
+  })
+  .strict();
+
+export const toggleTrialLockSchemas = {
+  params: idParams,
+  body: toggleLockBody,
+} satisfies RequestSchemas;
+
+export type ToggleTrialLockDto = z.output<typeof toggleLockBody>;
 export type UpdateTrialDto = z.output<typeof updateBody>;
 export type ListTrialsQuery = z.output<typeof listQuery>;
 export type SaveTrialMetadataDto = z.output<typeof trialBody>;

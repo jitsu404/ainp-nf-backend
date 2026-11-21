@@ -73,6 +73,12 @@ export interface Treatment {
   subSubPlotCode?: string | null;
 }
 
+export interface DisabledParameter {
+  treatment: string;
+  season: string;
+  parameterId: Types.ObjectId;
+}
+
 export interface ExperimentParameter {
   parameterId: Types.ObjectId;
   /** Grouping in forms and reports: "Growth & yield", "Soil after crop cycle", "Economics" … */
@@ -144,6 +150,7 @@ export interface Experiment {
   mainPlotData: Treatment[];
   subPlotData: Treatment[];
   subSubPlotData: Treatment[];
+  disabledParameters: DisabledParameter[];
   /** The treatment others are compared with ("% vs reference"), e.g. the AI-NPOF package. */
   referenceTreatmentCode: string | null;
   /** The parameters every centre records (the library entries with section, level, required). */
@@ -175,7 +182,7 @@ export interface Experiment {
   updatedAt: Date;
 }
 
-const treatmentSchema = new Schema<Treatment>(
+export const treatmentSchema = new Schema<Treatment>(
   {
     code: { type: String, required: true, trim: true, uppercase: true, maxlength: 20 },
     name: { type: String, required: true, trim: true, maxlength: 200 },
@@ -183,6 +190,15 @@ const treatmentSchema = new Schema<Treatment>(
     mainPlotCode: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
     subPlotCode: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
     subSubPlotCode: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
+  },
+  { _id: false },
+);
+
+export const disabledParameterSchema = new Schema<DisabledParameter>(
+  {
+    treatment: { type: String, required: true, uppercase: true, trim: true },
+    season: { type: String, required: true, uppercase: true, trim: true },
+    parameterId: { type: Schema.Types.ObjectId, ref: 'Parameter', required: true },
   },
   { _id: false },
 );
@@ -267,6 +283,7 @@ const experimentSchema = new Schema<Experiment>(
     mainPlotData: { type: [treatmentSchema], default: [] },
     subPlotData: { type: [treatmentSchema], default: [] },
     subSubPlotData: { type: [treatmentSchema], default: [] },
+    disabledParameters: { type: [disabledParameterSchema], default: [] },
     referenceTreatmentCode: { type: String, default: null },
     defaultParameters: { type: [experimentParameterSchema], default: [] },
     seasons: {

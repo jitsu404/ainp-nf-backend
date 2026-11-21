@@ -1,4 +1,12 @@
 import { Schema, type Types, model } from 'mongoose';
+import {
+  type Treatment,
+  treatmentSchema,
+  type DisabledParameter,
+  disabledParameterSchema,
+} from '../experiments/experiments.model.js';
+
+export type { DisabledParameter };
 
 // A trial is one experiment as run at one centre. The PCU's protocol (experiment) fixes the design,
 // treatments and parameters; the centre fills in what is local: its cropping systems, crops and
@@ -54,6 +62,12 @@ export interface Trial {
   seasonCrops: Map<string, Types.ObjectId[]>;
   croppingSystems: CroppingSystem[];
   practices: TreatmentPractice[];
+  treatments: Treatment[];
+  mainPlotData: Treatment[];
+  subPlotData: Treatment[];
+  subSubPlotData: Treatment[];
+  disabledParameters: DisabledParameter[];
+  locked: string[];
   inChargeUserId?: Types.ObjectId | null;
   layoutNotes?: string | null;
   status: TrialStatus;
@@ -115,6 +129,12 @@ const trialSchema = new Schema<Trial>(
     },
     croppingSystems: { type: [croppingSystemSchema], default: [] },
     practices: { type: [practiceSchema], default: [] },
+    treatments: { type: [treatmentSchema], default: [] },
+    mainPlotData: { type: [treatmentSchema], default: [] },
+    subPlotData: { type: [treatmentSchema], default: [] },
+    subSubPlotData: { type: [treatmentSchema], default: [] },
+    disabledParameters: { type: [disabledParameterSchema], default: [] },
+    locked: { type: [String], default: [] },
     inChargeUserId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     layoutNotes: { type: String, trim: true, maxlength: 4000, default: null },
     status: { type: String, enum: TRIAL_STATUSES, default: 'Setup' },

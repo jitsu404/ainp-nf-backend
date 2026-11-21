@@ -18,6 +18,7 @@ import {
   DESIGNS_WITH_PLOTS,
   DESIGNS_WITHOUT_REPLICATIONS,
   EXPERIMENT_METADATA_KEYS,
+  type DisabledParameter,
   type Experiment,
   type ExperimentMetadata,
   ExperimentModel,
@@ -43,7 +44,15 @@ const scoped = (ctx: RequestContext, filter: QueryFilter<Experiment>): QueryFilt
  * service doesn't depend on the trials module, which depends on it.
  */
 export type SyncCentres = (
-  experiment: { id: string; code: string },
+  experiment: {
+    id: string;
+    code: string;
+    treatments?: Treatment[];
+    mainPlotData?: Treatment[];
+    subPlotData?: Treatment[];
+    subSubPlotData?: Treatment[];
+    disabledParameters?: DisabledParameter[];
+  },
   centreIds: string[],
   session: ClientSession,
   withdrawReason?: string | null,
@@ -498,7 +507,19 @@ export const createExperiment = async (
       session,
     );
     if (dto.centreIds?.length) {
-      await syncCentres({ id: experiment.id as string, code: experiment.code }, dto.centreIds, session);
+      await syncCentres(
+        {
+          id: experiment.id as string,
+          code: experiment.code,
+          treatments: experiment.treatments,
+          mainPlotData: experiment.mainPlotData,
+          subPlotData: experiment.subPlotData,
+          subSubPlotData: experiment.subSubPlotData,
+          disabledParameters: experiment.disabledParameters,
+        },
+        dto.centreIds,
+        session,
+      );
     }
     return experiment;
   });
@@ -586,7 +607,15 @@ export const updateExperiment = async (
     // Assigned centres: the trials are the record; centreIds caches their active centres.
     if (dto.centreIds !== undefined) {
       const active = await syncCentres(
-        { id: experiment.id as string, code: experiment.code },
+        {
+          id: experiment.id as string,
+          code: experiment.code,
+          treatments: experiment.treatments,
+          mainPlotData: experiment.mainPlotData,
+          subPlotData: experiment.subPlotData,
+          subSubPlotData: experiment.subSubPlotData,
+          disabledParameters: experiment.disabledParameters,
+        },
         dto.centreIds,
         session,
         withdrawReason,

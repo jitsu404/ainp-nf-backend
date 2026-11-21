@@ -8,7 +8,7 @@ import {
   findExperiment,
   withParameterDetails,
 } from '../experiments/experiments.service.js';
-import type { Experiment } from '../experiments/experiments.model.js';
+import type { DisabledParameter, Experiment, Treatment } from '../experiments/experiments.model.js';
 import { activeMasterCodes, masterItemsByIds } from '../masters/masters.service.js';
 import { getOwnProfile } from '../users/users.service.js';
 import type { ListTrialsQuery, UpdateTrialDto } from './trials.dto.js';
@@ -26,7 +26,15 @@ const scoped = (ctx: RequestContext, filter: QueryFilter<Trial>) => withScope(ct
  */
 export const syncTrials = async (
   ctx: RequestContext,
-  experiment: { id: string; code: string },
+  experiment: {
+    id: string;
+    code: string;
+    treatments?: Treatment[];
+    mainPlotData?: Treatment[];
+    subPlotData?: Treatment[];
+    subSubPlotData?: Treatment[];
+    disabledParameters?: DisabledParameter[];
+  },
   centreIds: string[],
   session: ClientSession,
   withdrawReason?: string | null,
@@ -49,6 +57,11 @@ export const syncTrials = async (
             assignmentStatus: 'Active',
             assignedAt: now,
             assignedBy: ctx.user.id,
+            treatments: experiment.treatments ?? [],
+            mainPlotData: experiment.mainPlotData ?? [],
+            subPlotData: experiment.subPlotData ?? [],
+            subSubPlotData: experiment.subSubPlotData ?? [],
+            disabledParameters: experiment.disabledParameters ?? [],
             createdBy: ctx.user.id,
             updatedBy: ctx.user.id,
           },
@@ -57,18 +70,41 @@ export const syncTrials = async (
       );
       if (!created) throw new Error('Trial was not created');
       await audit(created.id as string, centreId, `Assigned ${experiment.code} to the centre`);
-    } else if (trial.assignmentStatus === 'Withdrawn') {
-      trial.set({
-        assignmentStatus: 'Active',
-        assignedAt: now,
-        assignedBy: ctx.user.id,
-        withdrawnAt: null,
-        withdrawnBy: null,
-        withdrawReason: null,
-        updatedBy: ctx.user.id,
-      });
-      await trial.save({ session });
-      await audit(trial.id as string, centreId, `Assigned ${experiment.code} to the centre again`);
+    } else {
+      let needsSave = false;
+      if (!trial.treatments || trial.treatments.length === 0) {
+        trial.set({
+          treatments: experiment.treatments ?? [],
+          mainPlotData: experiment.mainPlotData ?? [],
+          subPlotData: experiment.subPlotData ?? [],
+          subSubPlotData: experiment.subSubPlotData ?? [],
+        });
+        needsSave = true;
+      }
+      if (
+        (!trial.disabledParameters || trial.disabledParameters.length === 0) &&
+        experiment.disabledParameters?.length
+      ) {
+        trial.set({
+          disabledParameters: experiment.disabledParameters,
+        });
+        needsSave = true;
+      }
+      if (trial.assignmentStatus === 'Withdrawn') {
+        trial.set({
+          assignmentStatus: 'Active',
+          assignedAt: now,
+          assignedBy: ctx.user.id,
+          withdrawnAt: null,
+          withdrawnBy: null,
+          withdrawReason: null,
+          updatedBy: ctx.user.id,
+        });
+        await trial.save({ session });
+        await audit(trial.id as string, centreId, `Assigned ${experiment.code} to the centre again`);
+      } else if (needsSave) {
+        await trial.save({ session });
+      }
     }
   }
 
@@ -310,6 +346,47 @@ export const updateTrial = async (ctx: RequestContext, id: string, dto: UpdateTr
       session,
     );
     return doc;
+  });
+};
+
+export const toggleTrialLock = async (
+  ctx: RequestContext,
+  id: string,
+  lockedKey: string,
+  isLocked: boolean,
+) => {
+  const trial = await getTrial(ctx, id);
+  assertTrialActive(trial);
+
+  return withTransaction(async (session) => {
+    const doc = await TrialModel.findById(id).session(session);
+    if (!doc) throw AppError.notFound('TRIAL_NOT_FOUND', 'Trial not found');
+
+    const before = [...(doc.locked ?? [])];
+    if (isLocked) {
+      if (!doc.locked.includes(lockedKey)) {
+        doc.locked.push(lockedKey);
+      }
+    } else {
+      doc.locked = doc.locked.filter((k) => k !== lockedKey);
+    }
+
+    doc.updatedBy = ctx.user.id as unknown as Types.ObjectId;
+    await doc.save({ session });
+
+    await recordAudit(
+      ctx,
+      {
+        action: `${isLocked ? 'Locked' : 'Unlocked'} ${lockedKey} for trial of centre ${doc.centreId}`,
+        module: MODULE,
+        entityId: id,
+        centreId: String(doc.centreId),
+        changes: { locked: { from: before, to: doc.locked } },
+      },
+      session,
+    );
+
+    return getTrialDetail(ctx, id);
   });
 };
 

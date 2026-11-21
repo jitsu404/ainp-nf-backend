@@ -13,7 +13,21 @@ import {
 
 export { MAX_PLOT_COUNT };
 
-const treatment = z
+export const shortCode = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9][A-Z0-9_-]{0,19}$/, 'Code: letters, digits, _ or -');
+
+export const disabledParameter = z
+  .object({
+    treatment: shortCode.meta({ example: 'T1' }),
+    season: masterCode.meta({ example: 'KHARIF' }),
+    parameterId: objectId,
+  })
+  .strict();
+
+export const treatment = z
   .object({
     code: z
       .string()
@@ -72,6 +86,7 @@ const shape = {
   mainPlotData: z.array(treatment).max(60).optional(),
   subPlotData: z.array(treatment).max(60).optional(),
   subSubPlotData: z.array(treatment).max(60).optional(),
+  disabledParameters: z.array(disabledParameter).optional(),
   defaultParameters: z.array(experimentParameter).max(300).optional(),
   seasons: z
     .union([

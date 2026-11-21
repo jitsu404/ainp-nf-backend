@@ -8,6 +8,7 @@ import type {
   getTrialSchemas,
   listTrialsSchemas,
   saveTrialMetadataSchemas,
+  toggleTrialLockSchemas,
   updateTrialSchemas,
 } from './trials.dto.js';
 import * as trialsService from './trials.service.js';
@@ -37,4 +38,15 @@ export const getMetadata = async (req: Request, res: Response) => {
 export const saveMetadata = async (req: Request, res: Response) => {
   const { params, body } = getValidated<typeof saveTrialMetadataSchemas>(req);
   ok(res, await metadataService.saveTrialMetadata(contextOf(req), params.id, body));
+};
+
+export const toggleLock = async (req: Request, res: Response) => {
+  const { params, body } = getValidated<typeof toggleTrialLockSchemas>(req);
+  const updated = await trialsService.toggleTrialLock(
+    contextOf(req),
+    params.id,
+    body.lockedKey,
+    body.isLocked,
+  );
+  ok(res, updated);
 };

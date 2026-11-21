@@ -9,6 +9,7 @@ import {
   getTrialSchemas,
   listTrialsSchemas,
   saveTrialMetadataSchemas,
+  toggleTrialLockSchemas,
   updateTrialSchemas,
 } from './trials.dto.js';
 
@@ -34,6 +35,16 @@ trialsRouter.patch(
   authorize('research.enter', 'research.assign'),
   validate(updateTrialSchemas),
   controller.update,
+);
+trialsRouter.patch(
+  '/:id/lock',
+  apiDoc({
+    name: 'Toggle trial lock',
+    description: 'Lock or unlock protocol sections (mainPlot, subPlot, treatments, parameters) for a trial.',
+  }),
+  authorize('research.assign', 'research.config', 'research.enter'),
+  validate(toggleTrialLockSchemas),
+  controller.toggleLock,
 );
 trialsRouter.get(
   '/:id/metadata',
