@@ -21,6 +21,7 @@ import {
   type Experiment,
   type ExperimentMetadata,
   ExperimentModel,
+  type Treatment,
 } from './experiments.model.js';
 
 const MODULE = 'experiments';
@@ -180,6 +181,8 @@ const assertCompatibleWithData = (existing: Experiment, dto: UpdateExperimentDto
     problems.push('the number of main plots');
   if (dto.subPlotCount !== undefined && dto.subPlotCount !== existing.subPlotCount)
     problems.push('the number of sub plots');
+  if (dto.subSubPlotCount !== undefined && dto.subSubPlotCount !== existing.subSubPlotCount)
+    problems.push('the number of sub-sub plots');
   if (dto.treatments) {
     const kept = new Set(dto.treatments.map((t) => t.code));
     const removed = existing.treatments.filter((t) => !kept.has(t.code)).map((t) => t.code);
@@ -195,6 +198,11 @@ const assertCompatibleWithData = (existing: Experiment, dto: UpdateExperimentDto
     const removed = (existing.subPlotData ?? []).filter((t) => !kept.has(t.code)).map((t) => t.code);
     if (removed.length) problems.push(`sub plot treatments ${removed.join(', ')} (they have data)`);
   }
+  if (dto.subSubPlotData) {
+    const kept = new Set(dto.subSubPlotData.map((t) => t.code));
+    const removed = (existing.subSubPlotData ?? []).filter((t) => !kept.has(t.code)).map((t) => t.code);
+    if (removed.length) problems.push(`sub-sub plot treatments ${removed.join(', ')} (they have data)`);
+  }
   if (dto.defaultParameters) {
     const kept = new Set(dto.defaultParameters.map((p) => p.parameterId));
     const removed = existing.defaultParameters.filter((p) => !kept.has(String(p.parameterId)));
@@ -209,15 +217,28 @@ const assertCompatibleWithData = (existing: Experiment, dto: UpdateExperimentDto
 };
 
 /**
- * Main and sub plot counts for the design: split and strip plot need at least one of each; every
- * other design is a single plot (both 0).
+ * Main, sub and sub-sub plot counts for the design: split and strip plot need at least one of each;
+ * split-split plot needs at least one of each three; every other design is a single plot (all 0).
  */
-const plotCounts = (design: Experiment['design'], mainPlotCount = 0, subPlotCount = 0) => {
-  if (!DESIGNS_WITH_PLOTS.includes(design)) return { mainPlotCount: 0, subPlotCount: 0 };
+const plotCounts = (
+  design: Experiment['design'],
+  mainPlotCount = 0,
+  subPlotCount = 0,
+  subSubPlotCount = 0,
+) => {
+  if (!DESIGNS_WITH_PLOTS.includes(design)) {
+    return { mainPlotCount: 0, subPlotCount: 0, subSubPlotCount: 0 };
+  }
   if (mainPlotCount < 1 || subPlotCount < 1) {
     throw AppError.badRequest('PLOT_COUNTS_REQUIRED', `${design} needs at least 1 main plot and 1 sub plot`);
   }
-  return { mainPlotCount, subPlotCount };
+  if (design === 'Split-split plot') {
+    if (subSubPlotCount < 1) {
+      throw AppError.badRequest('PLOT_COUNTS_REQUIRED', 'Split-split plot needs at least 1 sub-sub plot');
+    }
+    return { mainPlotCount, subPlotCount, subSubPlotCount };
+  }
+  return { mainPlotCount, subPlotCount, subSubPlotCount: 0 };
 };
 
 /** A sheet cell's plot: both null for a single-plot design. */
@@ -282,10 +303,12 @@ const assertPlotTreatmentsCount = (
   design: string,
   mainPlotCount: number,
   subPlotCount: number,
+  subSubPlotCount: number,
   mainPlotData?: { code: string }[],
   subPlotData?: { code: string }[],
+  subSubPlotData?: { code: string }[],
 ) => {
-  if (design === 'Split plot') {
+  if (design === 'Split plot' || design === 'Split-split plot') {
     if (mainPlotData !== undefined && mainPlotData.length > 0) {
       if (mainPlotCount <= 0) {
         throw AppError.badRequest(
@@ -315,6 +338,79 @@ const assertPlotTreatmentsCount = (
       }
     }
   }
+  if (design === 'Split-split plot') {
+    if (subSubPlotData !== undefined && subSubPlotData.length > 0) {
+      if (subSubPlotCount <= 0) {
+        throw AppError.badRequest(
+          'SUB_SUB_PLOT_COUNT_REQUIRED',
+          'Set subSubPlotCount before configuring sub-sub plot treatments',
+        );
+      }
+      if (subSubPlotData.length !== subSubPlotCount) {
+        throw AppError.badRequest(
+          'SUB_SUB_PLOT_COUNT_MISMATCH',
+          `Sub-sub plot treatments count (${subSubPlotData.length}) must match subSubPlotCount (${subSubPlotCount})`,
+        );
+      }
+    }
+  }
+};
+
+const normalizeTreatmentsForDesign = (
+  design: string,
+  treatments: Treatment[] | undefined,
+  mainPlotCount: number,
+  subPlotCount: number,
+  subSubPlotCount: number,
+): Treatment[] | undefined => {
+  if (!treatments) return treatments;
+  if (design === 'Split plot') {
+    if (mainPlotCount > 0 && subPlotCount > 0 && treatments.length > 0) {
+      const expected = mainPlotCount * subPlotCount;
+      if (treatments.length !== expected) {
+        throw AppError.badRequest(
+          'TREATMENTS_COUNT_MISMATCH',
+          `Split plot treatments count (${treatments.length}) must match mainPlotCount × subPlotCount (${expected})`,
+        );
+      }
+    }
+    return treatments.map((t) => ({
+      code: t.code,
+      name: t.name,
+      description: t.description ?? null,
+      mainPlotCode: t.mainPlotCode ?? null,
+      subPlotCode: t.subPlotCode ?? null,
+      subSubPlotCode: null,
+    }));
+  }
+  if (design === 'Split-split plot') {
+    if (mainPlotCount > 0 && subPlotCount > 0 && subSubPlotCount > 0 && treatments.length > 0) {
+      const expected = mainPlotCount * subPlotCount * subSubPlotCount;
+      if (treatments.length !== expected) {
+        throw AppError.badRequest(
+          'TREATMENTS_COUNT_MISMATCH',
+          `Split-split plot treatments count (${treatments.length}) must match mainPlotCount × subPlotCount × subSubPlotCount (${expected})`,
+        );
+      }
+    }
+    return treatments.map((t) => ({
+      code: t.code,
+      name: t.name,
+      description: t.description ?? null,
+      mainPlotCode: t.mainPlotCode ?? null,
+      subPlotCode: t.subPlotCode ?? null,
+      subSubPlotCode: t.subSubPlotCode ?? null,
+    }));
+  }
+  // For other designs, mainPlotCode, subPlotCode, and subSubPlotCode remain null
+  return treatments.map((t) => ({
+    code: t.code,
+    name: t.name,
+    description: t.description ?? null,
+    mainPlotCode: null,
+    subPlotCode: null,
+    subSubPlotCode: null,
+  }));
 };
 
 /**
@@ -365,8 +461,17 @@ export const createExperiment = async (
     dto.design,
     dto.mainPlotCount ?? 0,
     dto.subPlotCount ?? 0,
+    dto.subSubPlotCount ?? 0,
     dto.mainPlotData,
     dto.subPlotData,
+    dto.subSubPlotData,
+  );
+  const treatments = normalizeTreatmentsForDesign(
+    dto.design,
+    dto.treatments,
+    dto.mainPlotCount ?? 0,
+    dto.subPlotCount ?? 0,
+    dto.subSubPlotCount ?? 0,
   );
   return withTransaction(async (session) => {
     // A given code is kept; otherwise the next one in the sequence (AINP-NF-EXPT-001 …).
@@ -375,10 +480,11 @@ export const createExperiment = async (
       [
         {
           ...dto,
+          treatments: treatments ?? [],
           code,
           ...computeYearDates(dto.startYear, dto.endYear),
           replications: DESIGNS_WITHOUT_REPLICATIONS.includes(dto.design) ? null : (dto.replications ?? null),
-          ...plotCounts(dto.design, dto.mainPlotCount, dto.subPlotCount),
+          ...plotCounts(dto.design, dto.mainPlotCount, dto.subPlotCount, dto.subSubPlotCount),
           createdBy: ctx.user.id,
           updatedBy: ctx.user.id,
         },
@@ -419,6 +525,7 @@ export const updateExperiment = async (
         'replications',
         'mainPlotCount',
         'subPlotCount',
+        'subSubPlotCount',
         'startYearDate',
         'endYearDate',
       ]),
@@ -427,6 +534,23 @@ export const updateExperiment = async (
 
     // `dto` holds only the fields the request sent (validate parsed it; nothing is defaulted).
     experiment.set({ ...dto, updatedBy: ctx.user.id });
+    if (dto.treatments !== undefined) {
+      const normalized = normalizeTreatmentsForDesign(
+        experiment.design,
+        dto.treatments,
+        experiment.mainPlotCount ?? 0,
+        experiment.subPlotCount ?? 0,
+        experiment.subSubPlotCount ?? 0,
+      );
+      experiment.set('treatments', normalized);
+    } else if (dto.design && !['Split plot', 'Split-split plot'].includes(dto.design)) {
+      experiment.treatments = (experiment.treatments ?? []).map((t) => ({
+        ...t,
+        mainPlotCode: null,
+        subPlotCode: null,
+        subSubPlotCode: null,
+      }));
+    }
     if (dto.startYear !== undefined || dto.endYear !== undefined) {
       if (experiment.endYear < experiment.startYear) {
         throw AppError.badRequest('INVALID_YEARS', 'The end year must not be before the start year');
@@ -441,14 +565,23 @@ export const updateExperiment = async (
         `${experiment.design} needs at least 2 replications`,
       );
     }
-    experiment.set(plotCounts(experiment.design, experiment.mainPlotCount, experiment.subPlotCount));
+    experiment.set(
+      plotCounts(
+        experiment.design,
+        experiment.mainPlotCount,
+        experiment.subPlotCount,
+        experiment.subSubPlotCount,
+      ),
+    );
     assertReferenceTreatment(experiment.referenceTreatmentCode, experiment.treatments);
     assertPlotTreatmentsCount(
       experiment.design,
       experiment.mainPlotCount ?? 0,
       experiment.subPlotCount ?? 0,
+      experiment.subSubPlotCount ?? 0,
       dto.mainPlotData,
       dto.subPlotData,
+      dto.subSubPlotData,
     );
     // Assigned centres: the trials are the record; centreIds caches their active centres.
     if (dto.centreIds !== undefined) {

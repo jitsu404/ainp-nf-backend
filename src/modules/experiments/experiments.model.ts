@@ -12,6 +12,8 @@ export const EXPERIMENT_DESIGNS = [
   'RBD',
   'Split plot',
   'Strip plot',
+  'Split-split plot',
+  'Factorial',
   'Non-replicated',
   'Farmer participatory',
   'Survey',
@@ -19,7 +21,12 @@ export const EXPERIMENT_DESIGNS = [
 export type ExperimentDesign = (typeof EXPERIMENT_DESIGNS)[number];
 
 /** Must have at least 2 replications. */
-export const DESIGNS_NEEDING_REPLICATIONS: readonly ExperimentDesign[] = ['RBD', 'Split plot'];
+export const DESIGNS_NEEDING_REPLICATIONS: readonly ExperimentDesign[] = [
+  'RBD',
+  'Split plot',
+  'Split-split plot',
+  'Factorial',
+];
 /** Never replicated: data is one value per treatment. Strip plot may be either (both occur). */
 export const DESIGNS_WITHOUT_REPLICATIONS: readonly ExperimentDesign[] = [
   'Non-replicated',
@@ -31,11 +38,21 @@ export const DESIGNS_WITHOUT_REPLICATIONS: readonly ExperimentDesign[] = [
  * RBD of the treatments × replications. Their mainPlotCount and subPlotCount must be ≥ 1 (other
  * designs keep 0, a single plot). Strip plot uses the same layout (horizontal × vertical strips).
  */
-export const DESIGNS_WITH_PLOTS: readonly ExperimentDesign[] = ['Split plot', 'Strip plot'];
+export const DESIGNS_WITH_PLOTS: readonly ExperimentDesign[] = [
+  'Split plot',
+  'Strip plot',
+  'Split-split plot',
+];
 /** Largest number of main plots or sub plots, so the entry grid stays usable. */
 export const MAX_PLOT_COUNT = 10;
 /** Designs the analysis service can run an ANOVA for (per plot for split and strip plot). */
-export const DESIGNS_WITH_ANOVA: readonly ExperimentDesign[] = ['RBD', 'Split plot', 'Strip plot'];
+export const DESIGNS_WITH_ANOVA: readonly ExperimentDesign[] = [
+  'RBD',
+  'Split plot',
+  'Strip plot',
+  'Split-split plot',
+  'Factorial',
+];
 
 export const EXPERIMENT_STATUSES = ['Draft', 'Active', 'Closed'] as const;
 export type ExperimentStatus = (typeof EXPERIMENT_STATUSES)[number];
@@ -51,6 +68,9 @@ export interface Treatment {
   code: string;
   name: string;
   description?: string | null;
+  mainPlotCode?: string | null;
+  subPlotCode?: string | null;
+  subSubPlotCode?: string | null;
 }
 
 export interface ExperimentParameter {
@@ -116,12 +136,14 @@ export interface Experiment {
   design: ExperimentDesign;
   /** Replications for replicated designs; null for non-replicated trials and surveys. */
   replications: number | null;
-  /** Main plots and sub plots (DESIGNS_WITH_PLOTS); 0 for designs that are a single plot. */
+  /** Main plots, sub plots, sub-sub plots (DESIGNS_WITH_PLOTS); 0 for designs that are a single plot. */
   mainPlotCount: number;
   subPlotCount: number;
+  subSubPlotCount: number;
   treatments: Treatment[];
   mainPlotData: Treatment[];
   subPlotData: Treatment[];
+  subSubPlotData: Treatment[];
   /** The treatment others are compared with ("% vs reference"), e.g. the AI-NPOF package. */
   referenceTreatmentCode: string | null;
   /** The parameters every centre records (the library entries with section, level, required). */
@@ -158,6 +180,9 @@ const treatmentSchema = new Schema<Treatment>(
     code: { type: String, required: true, trim: true, uppercase: true, maxlength: 20 },
     name: { type: String, required: true, trim: true, maxlength: 200 },
     description: { type: String, trim: true, maxlength: 1000, default: null },
+    mainPlotCode: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
+    subPlotCode: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
+    subSubPlotCode: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
   },
   { _id: false },
 );
@@ -237,9 +262,11 @@ const experimentSchema = new Schema<Experiment>(
     replications: { type: Number, min: 1, max: 20, default: null },
     mainPlotCount: { type: Number, min: 0, max: MAX_PLOT_COUNT, default: 0 },
     subPlotCount: { type: Number, min: 0, max: MAX_PLOT_COUNT, default: 0 },
+    subSubPlotCount: { type: Number, min: 0, max: MAX_PLOT_COUNT, default: 0 },
     treatments: { type: [treatmentSchema], default: [] },
     mainPlotData: { type: [treatmentSchema], default: [] },
     subPlotData: { type: [treatmentSchema], default: [] },
+    subSubPlotData: { type: [treatmentSchema], default: [] },
     referenceTreatmentCode: { type: String, default: null },
     defaultParameters: { type: [experimentParameterSchema], default: [] },
     seasons: {

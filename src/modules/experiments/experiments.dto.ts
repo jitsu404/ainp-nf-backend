@@ -23,6 +23,9 @@ const treatment = z
       .meta({ example: 'T2' }),
     name: z.string().trim().min(1).max(200).meta({ example: 'Complete NF' }),
     description: z.string().trim().max(1000).optional(),
+    mainPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
+    subPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
+    subSubPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
   })
   .strict();
 
@@ -47,7 +50,10 @@ const shape = {
     .meta({ example: 'Long-term evaluation of natural farming practices' }),
   programmeCode: masterCode.meta({ example: 'P2' }),
   objectives: z.array(z.string().trim().min(3).max(500)).max(10).optional(),
-  design: z.enum(EXPERIMENT_DESIGNS),
+  design: z.preprocess(
+    (v) => (typeof v === 'string' && /^split[- ]split plot$/i.test(v.trim()) ? 'Split-split plot' : v),
+    z.enum(EXPERIMENT_DESIGNS),
+  ),
   replications: z.number().int().min(1).max(20).nullable().optional().meta({ example: 3 }),
   mainPlotCount: z.number().int().min(0).max(MAX_PLOT_COUNT).optional().meta({
     example: 0,
@@ -58,9 +64,14 @@ const shape = {
     example: 0,
     description: 'Split / strip plot: sub plots per main plot (≥ 1); other designs: 0',
   }),
+  subSubPlotCount: z.number().int().min(0).max(MAX_PLOT_COUNT).optional().meta({
+    example: 0,
+    description: 'Split-split plot: sub-sub plots per sub plot (≥ 1); other designs: 0',
+  }),
   treatments: z.array(treatment).max(60).optional(),
   mainPlotData: z.array(treatment).max(60).optional(),
   subPlotData: z.array(treatment).max(60).optional(),
+  subSubPlotData: z.array(treatment).max(60).optional(),
   defaultParameters: z.array(experimentParameter).max(300).optional(),
   seasons: z
     .union([
@@ -91,6 +102,7 @@ const checks = <
     treatments?: { code: string }[];
     mainPlotData?: { code: string }[];
     subPlotData?: { code: string }[];
+    subSubPlotData?: { code: string }[];
     defaultParameters?: { parameterId: string }[];
     design?: string;
     replications?: number | null;
@@ -113,6 +125,10 @@ const checks = <
     .refine((b) => uniqueBy(b.subPlotData, (t) => t.code), {
       message: 'Sub plot treatment codes must be unique',
       path: ['subPlotData'],
+    })
+    .refine((b) => uniqueBy(b.subSubPlotData, (t) => t.code), {
+      message: 'Sub-sub plot treatment codes must be unique',
+      path: ['subSubPlotData'],
     })
     .refine((b) => uniqueBy(b.defaultParameters, (p) => p.parameterId), {
       message: 'Each parameter can be added only once',
@@ -145,6 +161,7 @@ const createBody = checks(
       }),
       mainPlotCount: shape.mainPlotCount.default(0),
       subPlotCount: shape.subPlotCount.default(0),
+      subSubPlotCount: shape.subSubPlotCount.default(0),
     })
     .strict(),
 );
