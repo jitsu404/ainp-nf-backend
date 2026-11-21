@@ -1,4 +1,4 @@
-import { type ClientSession, type QueryFilter, type Types, trusted } from 'mongoose';
+import { type ClientSession, type QueryFilter, Types, trusted } from 'mongoose';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
 import { type RequestContext, withScope } from '../../utils/context.js';
@@ -396,3 +396,17 @@ export const trialsByIds = async (ids: string[]) =>
 
 /** For other modules: every trial of an experiment (unscoped; callers check access to the experiment). */
 export const trialsOfExperiment = (experimentId: string) => TrialModel.find({ experimentId });
+
+/** For the public summary: experiment id → number of centres running it (active trials). */
+export const activeTrialCounts = async (experimentIds: string[]): Promise<Map<string, number>> => {
+  const rows = await TrialModel.aggregate<{ _id: unknown; count: number }>([
+    {
+      $match: {
+        experimentId: { $in: experimentIds.map((id) => new Types.ObjectId(id)) },
+        assignmentStatus: { $ne: 'Withdrawn' },
+      },
+    },
+    { $group: { _id: '$experimentId', count: { $sum: 1 } } },
+  ]);
+  return new Map(rows.map((r) => [String(r._id), r.count]));
+};

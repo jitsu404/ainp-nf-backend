@@ -46,6 +46,30 @@
       ]
     },
     {
+      "name": "Public",
+      "description": "Open to everyone, no sign-in: figures for the public landing page (centres in the network, experiments running and how many centres run each).",
+      "item": [
+        {
+          "name": "Public summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "summary"
+              ]
+            },
+            "description": "No sign-in needed. The number of active centres and, for each Active experiment, its code, title, programme, design, years and how many centres run it. Used by the landing page.\n\n**Access:** public (no sign-in needed)\n\n**Endpoint:** `GET /api/v1/public/summary`"
+          }
+        }
+      ]
+    },
+    {
       "name": "Auth",
       "description": "Sign in and out. The session is an httpOnly cookie that Postman stores and resends.",
       "item": [

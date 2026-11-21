@@ -78,6 +78,18 @@ export const experimentYears = (e: Pick<Experiment, 'startYear' | 'endYear'>): n
     (_, i) => e.startYear + i,
   );
 
+/**
+ * For the public summary (no sign-in): the experiments running now (Active), with only what may be
+ * shown to anyone: code, title, programme, design and years.
+ */
+export const publicExperiments = () =>
+  ExperimentModel.find(
+    { status: 'Active' },
+    { code: 1, title: 1, programmeCode: 1, design: 1, startYear: 1, endYear: 1 },
+  )
+    .sort({ code: 1 })
+    .lean();
+
 export const listExperiments = (ctx: RequestContext, query: ListExperimentsQuery) => {
   const where: QueryFilter<Experiment> = {};
   if (query.programmeCode) where.programmeCode = query.programmeCode;

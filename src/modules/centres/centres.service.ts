@@ -108,3 +108,6 @@ export const centreExists = async (id: string): Promise<boolean> =>
 /** For other modules: centres by id (unscoped; callers check access another way). */
 export const centresByIds = async (ids: string[]) =>
   new Map((await CentreModel.find({ _id: trusted({ $in: ids }) })).map((c) => [c.id as string, c]));
+
+/** For the public summary: how many centres are active in the network. */
+export const activeCentreCount = () => CentreModel.countDocuments({ isActive: true });

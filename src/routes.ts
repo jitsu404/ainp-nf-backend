@@ -7,6 +7,7 @@ import { financialYearsRouter } from './modules/financialYears/financialYears.ro
 import { metadataRouter } from './modules/metadata/metadata.routes.js';
 import { mastersRouter } from './modules/masters/masters.routes.js';
 import { parametersRouter } from './modules/parameters/parameters.routes.js';
+import { publicRouter } from './modules/public/public.routes.js';
 import { experimentPisRouter } from './modules/experimentPis/experimentPis.routes.js';
 import { experimentsRouter } from './modules/experiments/experiments.routes.js';
 import { sheetsRouter } from './modules/sheets/sheets.routes.js';
@@ -31,6 +32,14 @@ export interface ApiModule {
  * the Postman collection, so add new modules here and nowhere else.
  */
 export const API_MODULES: readonly ApiModule[] = [
+  {
+    name: 'Public',
+    prefix: '/public',
+    router: publicRouter,
+    singular: 'public',
+    description:
+      'Open to everyone, no sign-in: figures for the public landing page (centres in the network, experiments running and how many centres run each).',
+  },
   {
     name: 'Auth',
     prefix: '/auth',
