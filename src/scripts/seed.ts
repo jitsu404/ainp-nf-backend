@@ -11,9 +11,11 @@ import { env } from '../config/env.js';
 import { CentreModel } from '../modules/centres/centres.model.js';
 import { ExperimentModel } from '../modules/experiments/experiments.model.js';
 import { FinancialYearModel, fyCodeFor, fyDates } from '../modules/financialYears/financialYears.model.js';
+import { CODE_SERIES, nextCode } from '../modules/counters/counters.service.js';
 import { MasterItemModel } from '../modules/masters/masters.model.js';
 import { MASTER_DEFAULTS, type MasterDefault, type MasterType } from '../modules/masters/masters.types.js';
 import { PARAMETER_DEFAULTS, PARAMETER_FORMULAS } from '../modules/parameters/parameters.defaults.js';
+import { renameFormulaCodes } from '../utils/formula.js';
 import { ParameterModel } from '../modules/parameters/parameters.model.js';
 import { passwordSchema } from '../modules/users/users.dto.js';
 import { UserModel } from '../modules/users/users.model.js';
@@ -275,11 +277,51 @@ const seedSuperAdmin = async (): Promise<void> => {
   devLog(`Created Super Admin ${email}`, true);
 };
 
+/** Same name in any case, ignoring outer spaces: how seeded defaults find items already there. */
+const nameKey = (name: string) => name.trim().toLowerCase();
+
+/**
+ * Crops and units have generated codes (CRP-001, UNT-001 …), so a default is matched by name: one
+ * already in the list is kept as it is, a missing one is added with the next code. Returns each
+ * default's key (its `code` in MASTER_DEFAULTS, e.g. KG_HA) → the code it has in the database,
+ * which the parameter defaults need for their units.
+ */
+const seedGeneratedList = async (type: 'crop' | 'unit') => {
+  const byName = new Map(
+    (await MasterItemModel.find({ type }, { code: 1, name: 1 }).lean()).map((m) => [nameKey(m.name), m.code]),
+  );
+  const codeOf = new Map<string, string>();
+  let added = 0;
+  for (const [i, item] of MASTER_DEFAULTS[type].entries()) {
+    let code = byName.get(nameKey(item.name));
+    if (!code) {
+      code = await nextCode(CODE_SERIES[type], async (c) =>
+        Boolean(await MasterItemModel.exists({ type, code: c })),
+      );
+      await MasterItemModel.create({
+        type,
+        ...item,
+        code,
+        group: item.group ?? null,
+        sortOrder: item.sortOrder ?? (i + 1) * 10,
+        isActive: true,
+      });
+      byName.set(nameKey(item.name), code);
+      added += 1;
+    }
+    codeOf.set(item.code, code);
+  }
+  return { codeOf, added };
+};
+
 // Lookup lists, financial years and the parameter library. Only missing items are inserted, so
 // anything the PCU changed in the app is never overwritten.
 const seedMasters = async (): Promise<void> => {
-  let added = 0;
+  const crops = await seedGeneratedList('crop');
+  const units = await seedGeneratedList('unit');
+  let added = crops.added + units.added;
   for (const [type, items] of Object.entries(MASTER_DEFAULTS) as [MasterType, MasterDefault[]][]) {
+    if (type === 'crop' || type === 'unit') continue;
     const result = await MasterItemModel.bulkWrite(
       items.map((item, i) => ({
         updateOne: {
@@ -314,22 +356,49 @@ const seedMasters = async (): Promise<void> => {
   }
   devLog(`Financial years ensured: ${years.join(', ')} (current ${current})`, true);
 
-  const params = await ParameterModel.bulkWrite(
-    PARAMETER_DEFAULTS.map((p) => ({
-      updateOne: {
-        filter: { code: p.code },
-        update: { $setOnInsert: { ...p, isActive: true } },
-        upsert: true,
-      },
-    })),
+  // Parameters have generated codes (PRM_001 …) too, so defaults are matched by name. The keys in
+  // PARAMETER_DEFAULTS (GRAIN_YIELD …) only link a default to its unit and to the default formulas,
+  // which are translated to the codes the parameters really have.
+  const paramByName = new Map(
+    (await ParameterModel.find({}, { code: 1, name: 1 }).lean()).map((p) => [nameKey(p.name), p.code]),
   );
-  devLog(`Parameters: ${params.upsertedCount} added`, true);
+  const paramCodeOf = new Map<string, string>();
+  const missing: (typeof PARAMETER_DEFAULTS)[number][] = [];
+  for (const p of PARAMETER_DEFAULTS) {
+    let code = paramByName.get(nameKey(p.name));
+    if (!code) {
+      code = await nextCode(CODE_SERIES.parameter, async (c) =>
+        Boolean(await ParameterModel.exists({ code: c })),
+      );
+      missing.push(p);
+    }
+    paramCodeOf.set(p.code, code);
+  }
+  const formulaFor = (key: string) => {
+    const text = PARAMETER_FORMULAS[key];
+    return text ? renameFormulaCodes(text, (c) => paramCodeOf.get(c)) : null;
+  };
+  if (missing.length) {
+    await ParameterModel.insertMany(
+      missing.map((p) => ({
+        ...p,
+        code: paramCodeOf.get(p.code)!,
+        unitCode: p.unitCode ? (units.codeOf.get(p.unitCode) ?? null) : null,
+        formula: formulaFor(p.code),
+        isActive: true,
+      })),
+    );
+  }
+  devLog(`Parameters: ${missing.length} added`, true);
 
   // Libraries seeded before formulas existed get the default formulas once. A parameter whose
   // formula field exists (even if the PCU cleared it) is left alone.
   const formulas = await ParameterModel.bulkWrite(
-    Object.entries(PARAMETER_FORMULAS).map(([code, formula]) => ({
-      updateOne: { filter: { code, formula: trusted({ $exists: false }) }, update: { $set: { formula } } },
+    Object.keys(PARAMETER_FORMULAS).map((key) => ({
+      updateOne: {
+        filter: { code: paramCodeOf.get(key)!, formula: trusted({ $exists: false }) },
+        update: { $set: { formula: formulaFor(key) } },
+      },
     })),
   );
   if (formulas.modifiedCount) devLog(`Parameters: formulas added to ${formulas.modifiedCount}`, true);

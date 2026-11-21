@@ -15,7 +15,10 @@ const typeParam = z.object({ type: z.enum(MASTER_TYPE_IDS).meta({ example: 'seas
 
 const itemBody = z
   .object({
-    code: masterCode,
+    code: masterCode.optional().meta({
+      example: 'KHARIF',
+      description: 'Required, except for crops and units, whose codes are generated (CRP-001, UNT-001 …)',
+    }),
     name: z.string().trim().min(1).max(200).meta({ example: 'Kharif' }),
     group: z
       .string()
@@ -52,7 +55,8 @@ const listQuery = z.object({
 
 /** One spreadsheet row of a masters import. */
 export const masterImportRow = z.object({
-  code: z.preprocess((v) => (v === undefined ? v : String(v)), masterCode),
+  // Crops and units: empty for a new item (its code is generated); an existing code updates it.
+  code: z.preprocess((v) => (v === undefined ? v : String(v)), masterCode).optional(),
   name: cell.text().pipe(z.string().min(1).max(200)),
   group: cell.text().pipe(z.string().max(60)).optional(),
   description: cell.text().pipe(z.string().max(500)).optional(),

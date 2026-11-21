@@ -1,4 +1,4 @@
-import { type QueryFilter, trusted } from 'mongoose';
+import { type ClientSession, type QueryFilter, trusted } from 'mongoose';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
 import type { RequestContext } from '../../utils/context.js';
@@ -13,6 +13,7 @@ import {
 } from '../../utils/formula.js';
 import { escapeRegex } from '../../utils/validators.js';
 import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
+import { CODE_SERIES, nextCode } from '../counters/counters.service.js';
 import { activeMasterCodes } from '../masters/masters.service.js';
 import {
   type CreateParameterDto,
@@ -28,6 +29,21 @@ import {
 } from './parameters.model.js';
 
 const MODULE = 'parameters';
+
+// Codes are generated (PRM_001 …) and never change: formulas refer to parameters by code.
+const codeTaken = (session?: ClientSession) => async (code: string) =>
+  Boolean(await ParameterModel.exists({ code }).session(session ?? null));
+
+/** Parameters with the same name (any case), so the library has no look-alikes. */
+const assertNameFree = async (name: string, exceptId?: string) => {
+  const other = await ParameterModel.findOne({
+    name: new RegExp(`^${escapeRegex(name.trim())}$`, 'i'),
+    ...(exceptId ? { _id: trusted({ $ne: exceptId }) } : {}),
+  }).lean();
+  if (other) {
+    throw AppError.conflict('DUPLICATE_NAME', `"${other.name}" is already in the library (${other.code})`);
+  }
+};
 
 const assertUnit = async (unitCode: string | null | undefined) => {
   if (!unitCode) return;
@@ -135,10 +151,14 @@ export const parametersByIds = async (ids: string[]) =>
 
 export const createParameter = async (ctx: RequestContext, dto: CreateParameterDto) => {
   await assertUnit(dto.unitCode);
-  await assertFormula(dto.code, dto.formula, dto.dataType ?? 'number');
+  await assertNameFree(dto.name);
+  // A new parameter has no code yet, so its formula can't refer to itself.
+  await assertFormula('', dto.formula, dto.dataType ?? 'number');
   return withTransaction(async (session) => {
+    // Generated inside the transaction: if the create fails, the counter isn't advanced.
+    const code = await nextCode(CODE_SERIES.parameter, codeTaken(session), session);
     const [parameter] = await ParameterModel.create(
-      [{ ...dto, createdBy: ctx.user.id, updatedBy: ctx.user.id }],
+      [{ ...dto, code, createdBy: ctx.user.id, updatedBy: ctx.user.id }],
       {
         session,
       },
@@ -155,6 +175,7 @@ export const createParameter = async (ctx: RequestContext, dto: CreateParameterD
 
 export const updateParameter = async (ctx: RequestContext, id: string, dto: UpdateParameterDto) => {
   await assertUnit(dto.unitCode);
+  if (dto.name !== undefined) await assertNameFree(dto.name, id);
   return withTransaction(async (session) => {
     const parameter = await ParameterModel.findById(id).session(session);
     if (!parameter) throw AppError.notFound('PARAMETER_NOT_FOUND', 'Parameter not found');
@@ -186,11 +207,10 @@ const COLUMNS: ExcelColumn[] = [
   {
     key: 'code',
     header: 'Code',
-    required: true,
-    note: 'Unique. Letters, digits or _. Existing codes are updated.',
+    note: 'Leave empty for a new parameter: its code is generated (PRM_001 …). A row with an existing code updates that parameter.',
   },
   { key: 'name', header: 'Name', required: true, width: 36 },
-  { key: 'unitCode', header: 'Unit code', note: 'Code from the Units master, e.g. KG_HA, PCT, NO_M2.' },
+  { key: 'unitCode', header: 'Unit code', note: 'Code from the Units master, e.g. UNT-001.' },
   { key: 'category', header: 'Category', required: true, note: `One of: ${PARAMETER_CATEGORIES.join(', ')}` },
   {
     key: 'dataType',
@@ -206,7 +226,7 @@ const COLUMNS: ExcelColumn[] = [
     key: 'formula',
     header: 'Formula',
     width: 40,
-    note: 'Only for calculated parameters, e.g. NET_RETURNS / COST_CULTIVATION. Leave empty for entered ones.',
+    note: 'Only for calculated parameters: codes of other parameters, e.g. PRM_012 / PRM_013. Leave empty for entered ones.',
   },
   { key: 'isActive', header: 'Active', note: 'Yes or No (default Yes).' },
 ];
@@ -226,7 +246,32 @@ export const importParameters = async (
   dryRun: boolean,
 ): Promise<ImportResult> => {
   const rows = await readRows(buffer, COLUMNS);
-  const { valid, errors } = validateRows(rows, parameterImportRow, (r) => r.code);
+  // Rows are told apart by code, or (new parameters) by name.
+  const { valid, errors } = validateRows(
+    rows,
+    parameterImportRow,
+    (r) => r.code ?? `new: ${r.name.toLowerCase()}`,
+  );
+  const all = await ParameterModel.find({}, { code: 1, name: 1 }).lean();
+  const existingCodes = new Set(all.map((p) => p.code));
+  const byName = new Map(all.map((p) => [p.name.trim().toLowerCase(), p.code]));
+  for (const { row, data } of valid) {
+    if (data.code && !existingCodes.has(data.code)) {
+      errors.push({
+        row,
+        field: 'code',
+        message: `No parameter has code ${data.code}; leave the code empty to add a new one`,
+      });
+    }
+    const twin = byName.get(data.name.trim().toLowerCase());
+    if (!data.code && twin) {
+      errors.push({
+        row,
+        field: 'name',
+        message: `"${data.name}" already exists as ${twin}; give that code to update it`,
+      });
+    }
+  }
   const units = await activeMasterCodes('unit');
   for (const { row, data } of valid) {
     if (data.unitCode && !units.has(data.unitCode)) {
@@ -236,9 +281,10 @@ export const importParameters = async (
       errors.push({ row, field: 'choices', message: 'A choice parameter needs at least one choice' });
     }
   }
-  // A formula may refer to parameters in the library or elsewhere in the same file.
+  // A formula may refer to parameters in the library or to other rows of the file that have a code
+  // (a new row has no code until it is saved, so nothing can refer to it yet).
   const library = await libraryIndex();
-  const inFile = new Map(valid.map(({ data }) => [data.code, data]));
+  const inFile = new Map(valid.filter(({ data }) => data.code).map(({ data }) => [data.code!, data]));
   const numeric = (c: string) =>
     inFile.has(c) ? (inFile.get(c)!.dataType ?? 'number') === 'number' : library.numeric(c);
   const usesOf = (c: string) => (inFile.has(c) ? codesIn(inFile.get(c)!.formula) : library.usesOf(c));
@@ -247,31 +293,31 @@ export const importParameters = async (
     const problem =
       (data.dataType ?? 'number') !== 'number'
         ? 'Only number parameters can be calculated'
-        : formulaProblem(data.code, data.formula, numeric, usesOf);
+        : formulaProblem(data.code ?? '', data.formula, numeric, usesOf);
     if (problem) errors.push({ row, field: 'formula', message: problem });
   }
-  const existing = new Set(
-    (
-      await ParameterModel.find({ code: trusted({ $in: valid.map((v) => v.data.code) }) }, { code: 1 }).lean()
-    ).map((p) => p.code),
-  );
+  const isUpdate = (code: string | undefined) => Boolean(code && existingCodes.has(code));
   const result: ImportResult = {
     dryRun: dryRun || errors.length > 0,
     total: rows.length,
-    created: valid.filter((v) => !existing.has(v.data.code)).length,
-    updated: valid.filter((v) => existing.has(v.data.code)).length,
+    created: valid.filter((v) => !isUpdate(v.data.code)).length,
+    updated: valid.filter((v) => isUpdate(v.data.code)).length,
     errors: errors.sort((a, b) => a.row - b.row),
   };
   if (result.dryRun) return result;
 
   await withTransaction(async (session) => {
-    await ParameterModel.bulkWrite(
-      valid.map(({ data }) => ({
+    // New parameters get their codes here, in file order.
+    const ops = [];
+    for (const { data } of valid) {
+      const code = data.code ?? (await nextCode(CODE_SERIES.parameter, codeTaken(session), session));
+      ops.push({
         updateOne: {
-          filter: { code: data.code },
+          filter: { code },
           update: {
             $set: {
               ...data,
+              code,
               unitCode: data.unitCode ?? null,
               formula: data.formula ?? null,
               updatedBy: ctx.user.id,
@@ -280,9 +326,9 @@ export const importParameters = async (
           },
           upsert: true,
         },
-      })),
-      { session },
-    );
+      });
+    }
+    await ParameterModel.bulkWrite(ops, { session });
     await recordAudit(
       ctx,
       { action: `Imported parameters: ${result.created} added, ${result.updated} updated`, module: MODULE },

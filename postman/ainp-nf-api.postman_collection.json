@@ -811,7 +811,7 @@
                 }
               ]
             },
-            "description": "**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/masters/:type`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `name` | string | yes | 1–200 chars |  |\n| `group` | string | no | 0–60 chars | Allowed values depend on the type (see /masters/types) |\n| `linkedTo` | string | no | ObjectId; nullable | Optional ID of linked master item (e.g. fundCategory for budgetHead) |\n| `description` | string | no | 0–500 chars |  |\n| `sortOrder` | integer | no | min 0; max 9999 |  |\n\nUnknown fields are rejected."
+            "description": "**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/masters/:type`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` | Required, except for crops and units, whose codes are generated (CRP-001, UNT-001 …) |\n| `name` | string | yes | 1–200 chars |  |\n| `group` | string | no | 0–60 chars | Allowed values depend on the type (see /masters/types) |\n| `linkedTo` | string | no | ObjectId; nullable | Optional ID of linked master item (e.g. fundCategory for budgetHead) |\n| `description` | string | no | 0–500 chars |  |\n| `sortOrder` | integer | no | min 0; max 9999 |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -856,7 +856,7 @@
                 }
               ]
             },
-            "description": "Deactivate with `isActive: false`; items are never deleted.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `PATCH /api/v1/masters/:type/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `name` | string | no | 1–200 chars |  |\n| `group` | string | no | 0–60 chars | Allowed values depend on the type (see /masters/types) |\n| `linkedTo` | string | no | ObjectId; nullable | Optional ID of linked master item (e.g. fundCategory for budgetHead) |\n| `description` | string | no | 0–500 chars |  |\n| `sortOrder` | integer | no | min 0; max 9999 |  |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
+            "description": "Deactivate with `isActive: false`; items are never deleted.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `PATCH /api/v1/masters/:type/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` | Required, except for crops and units, whose codes are generated (CRP-001, UNT-001 …) |\n| `name` | string | no | 1–200 chars |  |\n| `group` | string | no | 0–60 chars | Allowed values depend on the type (see /masters/types) |\n| `linkedTo` | string | no | ObjectId; nullable | Optional ID of linked master item (e.g. fundCategory for budgetHead) |\n| `description` | string | no | 0–500 chars |  |\n| `sortOrder` | integer | no | min 0; max 9999 |  |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -1095,7 +1095,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"GRAIN_YIELD\",\n  \"name\": \"Grain yield\",\n  \"unitCode\": \"KG_HA\",\n  \"category\": \"Yield\",\n  \"dataType\": \"number\",\n  \"decimals\": 0,\n  \"min\": 1,\n  \"max\": 1,\n  \"choices\": [\n    \"Sample choices\"\n  ],\n  \"method\": \"Sample method\",\n  \"formula\": null\n}",
+              "raw": "{\n  \"name\": \"Grain yield\",\n  \"unitCode\": \"UNT-001\",\n  \"category\": \"Yield\",\n  \"dataType\": \"number\",\n  \"decimals\": 0,\n  \"min\": 1,\n  \"max\": 1,\n  \"choices\": [\n    \"Sample choices\"\n  ],\n  \"method\": \"Sample method\",\n  \"formula\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1111,7 +1111,7 @@
                 "parameters"
               ]
             },
-            "description": "**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/parameters`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | yes | pattern `^[A-Z0-9][A-Z0-9_]{0,39}$` |  |\n| `name` | string | yes | 2–200 chars |  |\n| `unitCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable | Code of a unit master item |\n| `category` | string | yes | one of `Growth`, `Yield`, `Quality`, `Soil chemical`, `Soil physical`, `Soil biological`, `Plant nutrient`, `Pest & disease`, `Weed`, `Water`, `Economics`, `Input use`, `Weather`, `Other` |  |\n| `dataType` | string | no | one of `number`, `text`, `date`, `choice` | Default: number |\n| `decimals` | integer | no | min 0; max 6 |  |\n| `min` | number | null | no | — |  |\n| `max` | number | null | no | — |  |\n| `choices` | string[] | no | — |  |\n| `method` | string | no | 0–1000 chars; nullable |  |\n| `formula` | string | no | 0–500 chars; nullable | Makes it a calculated parameter: parameter codes, numbers, + - * /, brackets and IFEMPTY(x, 0), e.g. \"NET_RETURNS / COST_CULTIVATION\". null clears it. |\n\nUnknown fields are rejected."
+            "description": "**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/parameters`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `name` | string | yes | 2–200 chars |  |\n| `unitCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable | Code of a unit master item |\n| `category` | string | yes | one of `Growth`, `Yield`, `Quality`, `Soil chemical`, `Soil physical`, `Soil biological`, `Plant nutrient`, `Pest & disease`, `Weed`, `Water`, `Economics`, `Input use`, `Weather`, `Other` |  |\n| `dataType` | string | no | one of `number`, `text`, `date`, `choice` | Default: number |\n| `decimals` | integer | no | min 0; max 6 |  |\n| `min` | number | null | no | — |  |\n| `max` | number | null | no | — |  |\n| `choices` | string[] | no | — |  |\n| `method` | string | no | 0–1000 chars; nullable |  |\n| `formula` | string | no | 0–500 chars; nullable | Makes it a calculated parameter: parameter codes, numbers, + - * /, brackets and IFEMPTY(x, 0), e.g. \"PRM_012 / PRM_013\". null clears it. |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -1126,7 +1126,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"GRAIN_YIELD\",\n  \"name\": \"Grain yield\",\n  \"unitCode\": \"KG_HA\",\n  \"category\": \"Yield\",\n  \"dataType\": \"number\",\n  \"decimals\": 0,\n  \"min\": 1,\n  \"max\": 1,\n  \"choices\": [\n    \"Sample choices\"\n  ],\n  \"method\": \"Sample method\",\n  \"formula\": null,\n  \"isActive\": true\n}",
+              "raw": "{\n  \"name\": \"Grain yield\",\n  \"unitCode\": \"UNT-001\",\n  \"category\": \"Yield\",\n  \"dataType\": \"number\",\n  \"decimals\": 0,\n  \"min\": 1,\n  \"max\": 1,\n  \"choices\": [\n    \"Sample choices\"\n  ],\n  \"method\": \"Sample method\",\n  \"formula\": null,\n  \"isActive\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1150,7 +1150,7 @@
                 }
               ]
             },
-            "description": "Deactivate with `isActive: false`; parameters are never deleted.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `PATCH /api/v1/parameters/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_]{0,39}$` |  |\n| `name` | string | no | 2–200 chars |  |\n| `unitCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable | Code of a unit master item |\n| `category` | string | no | one of `Growth`, `Yield`, `Quality`, `Soil chemical`, `Soil physical`, `Soil biological`, `Plant nutrient`, `Pest & disease`, `Weed`, `Water`, `Economics`, `Input use`, `Weather`, `Other` |  |\n| `dataType` | string | no | one of `number`, `text`, `date`, `choice` | Default: number |\n| `decimals` | integer | no | min 0; max 6 |  |\n| `min` | number | null | no | — |  |\n| `max` | number | null | no | — |  |\n| `choices` | string[] | no | — |  |\n| `method` | string | no | 0–1000 chars; nullable |  |\n| `formula` | string | no | 0–500 chars; nullable | Makes it a calculated parameter: parameter codes, numbers, + - * /, brackets and IFEMPTY(x, 0), e.g. \"NET_RETURNS / COST_CULTIVATION\". null clears it. |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
+            "description": "Deactivate with `isActive: false`; parameters are never deleted.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `PATCH /api/v1/parameters/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `name` | string | no | 2–200 chars |  |\n| `unitCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable | Code of a unit master item |\n| `category` | string | no | one of `Growth`, `Yield`, `Quality`, `Soil chemical`, `Soil physical`, `Soil biological`, `Plant nutrient`, `Pest & disease`, `Weed`, `Water`, `Economics`, `Input use`, `Weather`, `Other` |  |\n| `dataType` | string | no | one of `number`, `text`, `date`, `choice` | Default: number |\n| `decimals` | integer | no | min 0; max 6 |  |\n| `min` | number | null | no | — |  |\n| `max` | number | null | no | — |  |\n| `choices` | string[] | no | — |  |\n| `method` | string | no | 0–1000 chars; nullable |  |\n| `formula` | string | no | 0–500 chars; nullable | Makes it a calculated parameter: parameter codes, numbers, + - * /, brackets and IFEMPTY(x, 0), e.g. \"PRM_012 / PRM_013\". null clears it. |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
           }
         },
         {

@@ -4,6 +4,9 @@ import type { ParameterCategory } from './parameters.model.js';
 // 2a (production systems, varietal evaluation), 2b (long-term NF experiment) and
 // 2c (deep insights study, which also gives the measurement methods).
 // `npm run seed` inserts any that are missing; the PCU maintains the list in the app afterwards.
+// The first column (GRAIN_YIELD …) is only a key inside this file: it links a row to its unit (a
+// key of MASTER_DEFAULTS.unit) and to PARAMETER_FORMULAS. In the database parameters get generated
+// codes (PRM_001 …); the seed matches defaults by name and translates the formulas.
 
 type Row = [
   code: string,

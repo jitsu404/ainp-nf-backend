@@ -10,15 +10,16 @@ const parameterCode = z
   .trim()
   .toUpperCase()
   .regex(/^[A-Z0-9][A-Z0-9_]{0,39}$/, 'Code: letters, digits or _, up to 40 characters')
-  .meta({ example: 'GRAIN_YIELD' });
+  .meta({ example: 'PRM_001' });
 
+// No `code`: it is generated (PRM_001 …) when a parameter is created and never changes, so the
+// formulas that use it stay valid.
 const shape = {
-  code: parameterCode,
   name: z.string().trim().min(2).max(200).meta({ example: 'Grain yield' }),
   unitCode: masterCode
     .nullable()
     .optional()
-    .meta({ example: 'KG_HA', description: 'Code of a unit master item' }),
+    .meta({ example: 'UNT-001', description: 'Code of a unit master item' }),
   category: z.enum(PARAMETER_CATEGORIES).meta({ example: 'Yield' }),
   dataType: z.enum(PARAMETER_DATA_TYPES).optional().meta({ description: 'Default: number' }),
   decimals: z.number().int().min(0).max(6).optional(),
@@ -29,7 +30,7 @@ const shape = {
   formula: z.string().trim().max(500).nullable().optional().meta({
     example: null,
     description:
-      'Makes it a calculated parameter: parameter codes, numbers, + - * /, brackets and IFEMPTY(x, 0), e.g. "NET_RETURNS / COST_CULTIVATION". null clears it.',
+      'Makes it a calculated parameter: parameter codes, numbers, + - * /, brackets and IFEMPTY(x, 0), e.g. "PRM_012 / PRM_013". null clears it.',
   }),
 };
 
@@ -61,7 +62,8 @@ const listQuery = z.object({
 /** One spreadsheet row of a parameter import. Choices are separated by "|". */
 export const parameterImportRow = z
   .object({
-    code: z.preprocess((v) => (v === undefined ? v : String(v)), parameterCode),
+    // Empty for a new parameter (its code is generated); an existing code updates that parameter.
+    code: z.preprocess((v) => (v === undefined ? v : String(v)), parameterCode).optional(),
     name: cell.text().pipe(z.string().min(2).max(200)),
     unitCode: z.preprocess((v) => (v === undefined ? v : String(v)), masterCode).optional(),
     category: cell.text().pipe(z.enum(PARAMETER_CATEGORIES)),

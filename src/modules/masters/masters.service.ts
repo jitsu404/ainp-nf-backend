@@ -1,4 +1,4 @@
-import { type QueryFilter, Types, trusted } from 'mongoose';
+import { type ClientSession, type QueryFilter, Types, trusted } from 'mongoose';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
 import type { RequestContext } from '../../utils/context.js';
@@ -6,6 +6,7 @@ import { type ExcelColumn, buildWorkbook, readRows } from '../../utils/excel.js'
 import { type ImportResult, type RowError, validateRows } from '../../utils/importer.js';
 import { escapeRegex } from '../../utils/validators.js';
 import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
+import { CODE_SERIES, type CodeSeries, nextCode } from '../counters/counters.service.js';
 import {
   masterImportRow,
   type CreateMasterDto,
@@ -16,6 +17,39 @@ import { type MasterItem, MasterItemModel } from './masters.model.js';
 import { MASTER_TYPES, type MasterType } from './masters.types.js';
 
 const MODULE = 'masters';
+
+/**
+ * Lists whose codes the system generates (CRP-001, UNT-001 …). Their codes are never typed and
+ * never change, so the records that refer to them (cropping systems, sheets, parameters' units)
+ * stay valid. Other lists (seasons, programmes …) keep the codes people give them.
+ */
+const GENERATED_CODES: Partial<Record<MasterType, CodeSeries>> = {
+  crop: CODE_SERIES.crop,
+  unit: CODE_SERIES.unit,
+};
+export const generatesCodes = (type: MasterType) => Boolean(GENERATED_CODES[type]);
+
+const codeTaken = (type: MasterType, session?: ClientSession) => async (code: string) =>
+  Boolean(await MasterItemModel.exists({ type, code }).session(session ?? null));
+
+/** Items of a list with the same name (any case), so a generated-code list has no look-alikes. */
+const sameName = (type: MasterType, name: string, exceptId?: string) =>
+  MasterItemModel.findOne({
+    type,
+    name: new RegExp(`^${escapeRegex(name.trim())}$`, 'i'),
+    ...(exceptId ? { _id: trusted({ $ne: exceptId }) } : {}),
+  }).lean();
+
+const assertNameFree = async (type: MasterType, name: string, exceptId?: string) => {
+  if (!generatesCodes(type)) return;
+  const other = await sameName(type, name, exceptId);
+  if (other) {
+    throw AppError.conflict(
+      'DUPLICATE_NAME',
+      `${MASTER_TYPES[type].label}: "${other.name}" already exists (${other.code})`,
+    );
+  }
+};
 
 export const masterTypes = () => Object.entries(MASTER_TYPES).map(([id, config]) => ({ id, ...config }));
 
@@ -80,12 +114,24 @@ export const masterNames = async (type: MasterType): Promise<Map<string, string>
 export const activeMasterCodes = async (type: MasterType): Promise<Set<string>> =>
   new Set((await MasterItemModel.find({ type, isActive: true }, { code: 1 }).lean()).map((m) => m.code));
 
-export const createMaster = (ctx: RequestContext, type: MasterType, dto: CreateMasterDto) =>
-  withTransaction(async (session) => {
+export const createMaster = async (ctx: RequestContext, type: MasterType, dto: CreateMasterDto) => {
+  const series = GENERATED_CODES[type];
+  if (series && dto.code) {
+    throw AppError.badRequest(
+      'CODE_IS_GENERATED',
+      `${MASTER_TYPES[type].label} get their code automatically (${series.format(1)} …); leave the code out`,
+    );
+  }
+  if (!series && !dto.code) throw AppError.badRequest('CODE_REQUIRED', 'Give the item a code');
+  await assertNameFree(type, dto.name);
+  return withTransaction(async (session) => {
+    // Generated inside the transaction: if the create fails, the counter isn't advanced.
+    const code = series ? await nextCode(series, codeTaken(type, session), session) : dto.code!;
     const [item] = await MasterItemModel.create(
       [
         {
           ...dto,
+          code,
           type,
           group: checkGroup(type, dto.group),
           linkedTo: dto.linkedTo ? new Types.ObjectId(dto.linkedTo) : null,
@@ -104,11 +150,24 @@ export const createMaster = (ctx: RequestContext, type: MasterType, dto: CreateM
     );
     return item;
   });
+};
 
-export const updateMaster = (ctx: RequestContext, type: MasterType, id: string, dto: UpdateMasterDto) =>
-  withTransaction(async (session) => {
+export const updateMaster = async (
+  ctx: RequestContext,
+  type: MasterType,
+  id: string,
+  dto: UpdateMasterDto,
+) => {
+  if (dto.name !== undefined) await assertNameFree(type, dto.name, id);
+  return withTransaction(async (session) => {
     const item = await MasterItemModel.findOne({ _id: id, type }).session(session);
     if (!item) throw AppError.notFound('MASTER_NOT_FOUND', `${MASTER_TYPES[type].label}: item not found`);
+    if (generatesCodes(type) && dto.code !== undefined && dto.code !== item.code) {
+      throw AppError.badRequest(
+        'CODE_IS_GENERATED',
+        `${MASTER_TYPES[type].label} codes are generated and can't be changed`,
+      );
+    }
     const before = snapshot(item, Object.keys(dto));
     item.set({
       ...dto,
@@ -132,18 +191,26 @@ export const updateMaster = (ctx: RequestContext, type: MasterType, id: string, 
     );
     return item;
   });
+};
 
 // ── Excel ────────────────────────────────────────────────────────────────────
 
 const columnsFor = (type: MasterType): ExcelColumn[] => {
   const config = MASTER_TYPES[type];
+  const series = GENERATED_CODES[type];
   return [
-    {
-      key: 'code',
-      header: 'Code',
-      required: true,
-      note: 'Unique. Letters, digits, _ or -. Existing codes are updated.',
-    },
+    series
+      ? {
+          key: 'code',
+          header: 'Code',
+          note: `Leave empty for a new item: its code is generated (${series.format(1)} …). A row with an existing code updates that item.`,
+        }
+      : {
+          key: 'code',
+          header: 'Code',
+          required: true,
+          note: 'Unique. Letters, digits, _ or -. Existing codes are updated.',
+        },
     { key: 'name', header: 'Name', required: true, width: 40 },
     // The group column only appears for lists that have groups (e.g. "Crop group" for crops).
     ...('groups' in config
@@ -165,54 +232,83 @@ export const masterTemplate = async (type: MasterType): Promise<Buffer> => {
   );
 };
 
-/** Validates every row; saves only when there are no errors and dryRun is false. Upserts by code. */
+/**
+ * Validates every row; saves only when there are no errors and dryRun is false. Upserts by code.
+ * Crops and units: a row without a code is a new item and gets a generated code; a row with a code
+ * must be an existing item.
+ */
 export const importMasters = async (
   ctx: RequestContext,
   type: MasterType,
   buffer: Buffer,
   dryRun: boolean,
 ): Promise<ImportResult> => {
+  const series = GENERATED_CODES[type];
   const rows = await readRows(buffer, columnsFor(type));
-  const { valid, errors } = validateRows(rows, masterImportRow, (r) => r.code);
+  // Rows are told apart by code, or (new items of a generated list) by name.
+  const { valid, errors } = validateRows(
+    rows,
+    masterImportRow,
+    (r) => r.code ?? `new: ${r.name.toLowerCase()}`,
+  );
   for (const { row, data } of valid) {
     try {
       checkGroup(type, data.group);
     } catch (err) {
       errors.push({ row, field: 'group', message: (err as Error).message } satisfies RowError);
     }
+    if (!series && !data.code) errors.push({ row, field: 'code', message: 'Code is required' });
   }
 
-  const existing = new Set(
-    (
-      await MasterItemModel.find(
-        { type, code: trusted({ $in: valid.map((v) => v.data.code) }) },
-        { code: 1 },
-      ).lean()
-    ).map((m) => m.code),
-  );
+  const all = await MasterItemModel.find({ type }, { code: 1, name: 1 }).lean();
+  const existing = new Set(all.map((m) => m.code));
+  const byName = new Map(all.map((m) => [m.name.trim().toLowerCase(), m.code]));
+  if (series) {
+    for (const { row, data } of valid) {
+      if (data.code && !existing.has(data.code)) {
+        errors.push({
+          row,
+          field: 'code',
+          message: `No item has code ${data.code}; leave the code empty to add a new one`,
+        });
+      }
+      const twin = byName.get(data.name.trim().toLowerCase());
+      if (!data.code && twin) {
+        errors.push({
+          row,
+          field: 'name',
+          message: `"${data.name}" already exists as ${twin}; give that code to update it`,
+        });
+      }
+    }
+  }
+  const isUpdate = (code: string | undefined) => Boolean(code && existing.has(code));
   const result: ImportResult = {
     dryRun,
     total: rows.length,
-    created: valid.filter((v) => !existing.has(v.data.code)).length,
-    updated: valid.filter((v) => existing.has(v.data.code)).length,
+    created: valid.filter((v) => !isUpdate(v.data.code)).length,
+    updated: valid.filter((v) => isUpdate(v.data.code)).length,
     errors: errors.sort((a, b) => a.row - b.row),
   };
   if (dryRun || errors.length) return { ...result, dryRun: dryRun || errors.length > 0 };
 
   await withTransaction(async (session) => {
-    await MasterItemModel.bulkWrite(
-      valid.map(({ data }) => ({
+    // New items of a generated list get their codes here, in file order.
+    const ops = [];
+    for (const { data } of valid) {
+      const code = data.code ?? (await nextCode(series!, codeTaken(type, session), session));
+      ops.push({
         updateOne: {
-          filter: { type, code: data.code },
+          filter: { type, code },
           update: {
-            $set: { ...data, group: data.group ?? null, updatedBy: ctx.user.id },
+            $set: { ...data, code, group: data.group ?? null, updatedBy: ctx.user.id },
             $setOnInsert: { type, createdBy: ctx.user.id },
           },
           upsert: true,
         },
-      })),
-      { session },
-    );
+      });
+    }
+    await MasterItemModel.bulkWrite(ops, { session });
     await recordAudit(
       ctx,
       {

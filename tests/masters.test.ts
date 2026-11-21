@@ -56,7 +56,37 @@ describe('masters', () => {
       .send({ code: 'RE', name: 'Again', group: 'General' })
       .expect(409);
     // The same code is fine in another type.
-    await agent.post('/api/v1/masters/unit').send({ code: 'RE', name: 'Something' }).expect(201);
+    await agent.post('/api/v1/masters/fundCategory').send({ code: 'RE', name: 'Something' }).expect(201);
+  });
+
+  it('generates crop and unit codes, which are never typed or changed; names stay unique', async () => {
+    const { agent } = await signedInAgent('pc');
+    const rice = await agent.post('/api/v1/masters/crop').send({ name: 'Rice', group: 'Cereal' }).expect(201);
+    const wheat = await agent
+      .post('/api/v1/masters/crop')
+      .send({ name: 'Wheat', group: 'Cereal' })
+      .expect(201);
+    expect([rice.body.data.code, wheat.body.data.code]).toEqual(['CRP-001', 'CRP-002']);
+    const kg = await agent.post('/api/v1/masters/unit').send({ name: 'kg/ha' }).expect(201);
+    expect(kg.body.data.code).toBe('UNT-001');
+
+    const typed = await agent.post('/api/v1/masters/crop').send({ code: 'MAIZE', name: 'Maize' }).expect(400);
+    expect(typed.body.error.code).toBe('CODE_IS_GENERATED');
+    const twin = await agent.post('/api/v1/masters/crop').send({ name: ' rice ' }).expect(409);
+    expect(twin.body.error.code).toBe('DUPLICATE_NAME');
+    const recode = await agent
+      .patch(`/api/v1/masters/crop/${rice.body.data.id}`)
+      .send({ code: 'PADDY' })
+      .expect(400);
+    expect(recode.body.error.code).toBe('CODE_IS_GENERATED');
+    await agent.patch(`/api/v1/masters/crop/${rice.body.data.id}`).send({ name: 'Paddy' }).expect(200);
+
+    // A code already used (e.g. put in by hand) is skipped, and other lists still need a code.
+    await MasterItemModel.create({ type: 'crop', code: 'CRP-003', name: 'Barley' });
+    const next = await agent.post('/api/v1/masters/crop').send({ name: 'Maize' }).expect(201);
+    expect(next.body.data.code).toBe('CRP-004');
+    const noCode = await agent.post('/api/v1/masters/season').send({ name: 'Kharif' }).expect(400);
+    expect(noCode.body.error.code).toBe('CODE_REQUIRED');
   });
 
   it('has a group only for lists that use one (seasons have none; crops have "Crop group")', async () => {
@@ -88,13 +118,14 @@ describe('masters', () => {
 
   it('imports from Excel: dry run reports row errors and saves nothing; a clean file saves everything', async () => {
     const { agent } = await signedInAgent('pc');
-    await MasterItemModel.create({ type: 'crop', code: 'RICE', name: 'Paddy', group: 'Cereal' });
+    await MasterItemModel.create({ type: 'crop', code: 'CRP-001', name: 'Paddy', group: 'Cereal' });
 
+    // Crops: an existing code updates that crop; an empty code adds a new one with a generated code.
     const withErrors = await xlsx([
-      { Code: 'RICE', Name: 'Rice', 'Crop group': 'Cereal' },
-      { Code: 'WHEAT', Name: 'Wheat', 'Crop group': 'Grass' }, // bad group
-      { Code: '', Name: 'No code' }, // missing code
-      { Code: 'RICE', Name: 'Duplicate' }, // duplicate in file
+      { Code: 'CRP-001', Name: 'Rice', 'Crop group': 'Cereal' },
+      { Code: '', Name: 'Wheat', 'Crop group': 'Grass' }, // bad group
+      { Code: 'CRP-099', Name: 'Unknown' }, // no such crop
+      { Code: 'CRP-001', Name: 'Duplicate' }, // duplicate in file
     ]);
     const preview = await agent
       .post('/api/v1/masters/crop/import?dryRun=false')
@@ -102,11 +133,11 @@ describe('masters', () => {
       .expect(200);
     expect(preview.body.data).toMatchObject({ dryRun: true, total: 4 });
     expect(preview.body.data.errors.map((e: { row: number }) => e.row)).toEqual([3, 4, 5]);
-    expect(await MasterItemModel.findOne({ type: 'crop', code: 'RICE' })).toMatchObject({ name: 'Paddy' });
+    expect(await MasterItemModel.findOne({ type: 'crop', code: 'CRP-001' })).toMatchObject({ name: 'Paddy' });
 
     const clean = await xlsx([
-      { Code: 'RICE', Name: 'Rice', 'Crop group': 'Cereal', Active: 'Yes' },
-      { Code: 'WHEAT', Name: 'Wheat', 'Crop group': 'Cereal', 'Sort order': '20' },
+      { Code: 'CRP-001', Name: 'Rice', 'Crop group': 'Cereal', Active: 'Yes' },
+      { Code: '', Name: 'Wheat', 'Crop group': 'Cereal', 'Sort order': '20' },
     ]);
     const dry = await agent
       .post('/api/v1/masters/crop/import')
@@ -120,8 +151,18 @@ describe('masters', () => {
       .attach('file', clean, 'crops.xlsx')
       .expect(200);
     expect(saved.body.data).toMatchObject({ dryRun: false, created: 1, updated: 1 });
-    expect(await MasterItemModel.findOne({ type: 'crop', code: 'RICE' })).toMatchObject({ name: 'Rice' });
-    expect(await MasterItemModel.findOne({ type: 'crop', code: 'WHEAT' })).toMatchObject({ sortOrder: 20 });
+    expect(await MasterItemModel.findOne({ type: 'crop', code: 'CRP-001' })).toMatchObject({ name: 'Rice' });
+    // CRP-001 is taken, so the new crop gets CRP-002.
+    expect(await MasterItemModel.findOne({ type: 'crop', code: 'CRP-002' })).toMatchObject({
+      name: 'Wheat',
+      sortOrder: 20,
+    });
+    // A new row whose name is already in the list is refused (give its code to update it).
+    const twin = await agent
+      .post('/api/v1/masters/crop/import?dryRun=false')
+      .attach('file', await xlsx([{ Code: '', Name: 'wheat', 'Crop group': 'Cereal' }]), 'crops.xlsx')
+      .expect(200);
+    expect(twin.body.data.errors).toEqual([expect.objectContaining({ row: 2, field: 'name' })]);
   });
 
   it('downloads a pre-filled template and rejects files that are not .xlsx', async () => {
@@ -227,71 +268,81 @@ describe('financial years', () => {
 describe('parameter library', () => {
   it('adds parameters linked to a unit, validates ranges and choices', async () => {
     const { agent } = await signedInAgent('pc');
-    await MasterItemModel.create({ type: 'unit', code: 'KG_HA', name: 'kg/ha' });
+    await MasterItemModel.create({ type: 'unit', code: 'UNT-001', name: 'kg/ha' });
 
+    // The code is generated (PRM_001 …); one can't be given or changed.
     const p = await agent
       .post('/api/v1/parameters')
-      .send({
-        code: 'grain_yield',
-        name: 'Grain yield',
-        unitCode: 'KG_HA',
-        category: 'Yield',
-        min: 0,
-        max: 20000,
-      })
+      .send({ name: 'Grain yield', unitCode: 'UNT-001', category: 'Yield', min: 0, max: 20000 })
       .expect(201);
-    expect(p.body.data).toMatchObject({ code: 'GRAIN_YIELD', dataType: 'number', unitCode: 'KG_HA' });
+    expect(p.body.data).toMatchObject({ code: 'PRM_001', dataType: 'number', unitCode: 'UNT-001' });
+    const second = await agent
+      .post('/api/v1/parameters')
+      .send({ name: 'Straw yield', category: 'Yield' })
+      .expect(201);
+    expect(second.body.data.code).toBe('PRM_002');
+    await agent.post('/api/v1/parameters').send({ code: 'X', name: 'Xyz', category: 'Yield' }).expect(400);
+    await agent.patch(`/api/v1/parameters/${p.body.data.id}`).send({ code: 'Y' }).expect(400);
+    const twin = await agent
+      .post('/api/v1/parameters')
+      .send({ name: 'GRAIN YIELD', category: 'Yield' })
+      .expect(409);
+    expect(twin.body.error.code).toBe('DUPLICATE_NAME');
 
     const unknownUnit = await agent
       .post('/api/v1/parameters')
-      .send({ code: 'X', name: 'Xyz', unitCode: 'NOPE', category: 'Yield' })
+      .send({ name: 'Xyz', unitCode: 'NOPE', category: 'Yield' })
       .expect(400);
     expect(unknownUnit.body.error.code).toBe('UNKNOWN_UNIT');
     await agent
       .post('/api/v1/parameters')
-      .send({ code: 'Y', name: 'Yyy', category: 'Yield', min: 5, max: 1 })
+      .send({ name: 'Yyy', category: 'Yield', min: 5, max: 1 })
       .expect(400);
     await agent
       .post('/api/v1/parameters')
-      .send({ code: 'Z', name: 'Zzz', category: 'Other', dataType: 'choice' })
+      .send({ name: 'Zzz', category: 'Other', dataType: 'choice' })
       .expect(400);
   });
 
   it('imports parameters from Excel with unit checks', async () => {
     const { agent } = await signedInAgent('superadmin');
-    await MasterItemModel.create({ type: 'unit', code: 'PCT', name: '%' });
+    await MasterItemModel.create({ type: 'unit', code: 'UNT-001', name: '%' });
     const file = await xlsx([
       {
-        Code: 'SOC',
+        Code: '',
         Name: 'Soil organic carbon',
-        'Unit code': 'PCT',
+        'Unit code': 'UNT-001',
         Category: 'Soil chemical',
         Min: '0',
         Max: '15',
       },
       {
-        Code: 'TEXTURE',
+        Code: '',
         Name: 'Soil texture',
         Category: 'Soil physical',
         'Data type': 'choice',
         Choices: 'Sandy | Loam | Clay',
       },
-      { Code: 'BAD', Name: 'Bad unit', 'Unit code': 'NOPE', Category: 'Other' },
+      { Code: '', Name: 'Bad unit', 'Unit code': 'NOPE', Category: 'Other' },
+      { Code: 'PRM_077', Name: 'Not in the library', Category: 'Other' },
     ]);
     const preview = await agent.post('/api/v1/parameters/import').attach('file', file, 'p.xlsx').expect(200);
-    expect(preview.body.data.errors).toEqual([expect.objectContaining({ row: 4, field: 'unitCode' })]);
+    expect(preview.body.data.errors).toEqual([
+      expect.objectContaining({ row: 4, field: 'unitCode' }),
+      expect.objectContaining({ row: 5, field: 'code' }),
+    ]);
 
     const good = await xlsx([
       {
-        Code: 'SOC',
+        Code: '',
         Name: 'Soil organic carbon',
-        'Unit code': 'PCT',
+        'Unit code': 'UNT-001',
         Category: 'Soil chemical',
         Min: '0',
         Max: '15',
       },
       {
-        Code: 'TEXTURE',
+        Code: '',
         Name: 'Soil texture',
         Category: 'Soil physical',
         'Data type': 'choice',
@@ -299,8 +350,9 @@ describe('parameter library', () => {
       },
     ]);
     await agent.post('/api/v1/parameters/import?dryRun=false').attach('file', good, 'p.xlsx').expect(200);
+    // New rows get codes in file order.
     const list = await agent.get('/api/v1/parameters?category=Soil%20physical').expect(200);
-    expect(list.body.data[0]).toMatchObject({ code: 'TEXTURE', choices: ['Sandy', 'Loam', 'Clay'] });
+    expect(list.body.data[0]).toMatchObject({ code: 'PRM_002', choices: ['Sandy', 'Loam', 'Clay'] });
   });
 });
 
@@ -326,7 +378,6 @@ describe('partial updates keep fields that were not sent', () => {
     const p = await agent
       .post('/api/v1/parameters')
       .send({
-        code: 'TEXTURE',
         name: 'Texture',
         category: 'Soil physical',
         dataType: 'choice',
