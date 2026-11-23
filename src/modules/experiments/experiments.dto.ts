@@ -40,6 +40,25 @@ export const treatment = z
     mainPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
     subPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
     subSubPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
+    factor1Code: z.string().trim().toUpperCase().max(20).nullable().optional(),
+    factor2Code: z.string().trim().toUpperCase().max(20).nullable().optional(),
+    factor3Code: z.string().trim().toUpperCase().max(20).nullable().optional(),
+  })
+  .strict();
+
+export const subPlotItem = z
+  .object({
+    code: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(/^[A-Z0-9][A-Z0-9_-]{0,19}$/, 'Code: letters, digits, _ or -')
+      .meta({ example: 'S1' }),
+    croppingSystem: objectId.nullable().optional(),
+    description: z.string().trim().max(1000).optional(),
+    mainPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
+    subPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
+    subSubPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
   })
   .strict();
 
@@ -84,8 +103,11 @@ const shape = {
   }),
   treatments: z.array(treatment).max(60).optional(),
   mainPlotData: z.array(treatment).max(60).optional(),
-  subPlotData: z.array(treatment).max(60).optional(),
+  subPlotData: z.array(subPlotItem).max(60).optional(),
   subSubPlotData: z.array(treatment).max(60).optional(),
+  factor1Data: z.array(treatment).max(60).optional(),
+  factor2Data: z.array(treatment).max(60).optional(),
+  factor3Data: z.array(treatment).max(60).optional(),
   disabledParameters: z.array(disabledParameter).optional(),
   defaultParameters: z.array(experimentParameter).max(300).optional(),
   seasons: z
@@ -118,6 +140,9 @@ const checks = <
     mainPlotData?: { code: string }[];
     subPlotData?: { code: string }[];
     subSubPlotData?: { code: string }[];
+    factor1Data?: { code: string }[];
+    factor2Data?: { code: string }[];
+    factor3Data?: { code: string }[];
     defaultParameters?: { parameterId: string }[];
     design?: string;
     replications?: number | null;
@@ -144,6 +169,18 @@ const checks = <
     .refine((b) => uniqueBy(b.subSubPlotData, (t) => t.code), {
       message: 'Sub-sub plot treatment codes must be unique',
       path: ['subSubPlotData'],
+    })
+    .refine((b) => uniqueBy(b.factor1Data, (t) => t.code), {
+      message: 'Factor 1 codes must be unique',
+      path: ['factor1Data'],
+    })
+    .refine((b) => uniqueBy(b.factor2Data, (t) => t.code), {
+      message: 'Factor 2 codes must be unique',
+      path: ['factor2Data'],
+    })
+    .refine((b) => uniqueBy(b.factor3Data, (t) => t.code), {
+      message: 'Factor 3 codes must be unique',
+      path: ['factor3Data'],
     })
     .refine((b) => uniqueBy(b.defaultParameters, (p) => p.parameterId), {
       message: 'Each parameter can be added only once',

@@ -8,7 +8,12 @@ import {
   findExperiment,
   withParameterDetails,
 } from '../experiments/experiments.service.js';
-import type { DisabledParameter, Experiment, Treatment } from '../experiments/experiments.model.js';
+import type {
+  DisabledParameter,
+  Experiment,
+  SubPlotItem,
+  Treatment,
+} from '../experiments/experiments.model.js';
 import { activeMasterCodes, masterItemsByIds } from '../masters/masters.service.js';
 import { getOwnProfile } from '../users/users.service.js';
 import type { ListTrialsQuery, UpdateTrialDto } from './trials.dto.js';
@@ -31,8 +36,11 @@ export const syncTrials = async (
     code: string;
     treatments?: Treatment[];
     mainPlotData?: Treatment[];
-    subPlotData?: Treatment[];
+    subPlotData?: SubPlotItem[];
     subSubPlotData?: Treatment[];
+    factor1Data?: Treatment[];
+    factor2Data?: Treatment[];
+    factor3Data?: Treatment[];
     disabledParameters?: DisabledParameter[];
   },
   centreIds: string[],
@@ -61,6 +69,9 @@ export const syncTrials = async (
             mainPlotData: experiment.mainPlotData ?? [],
             subPlotData: experiment.subPlotData ?? [],
             subSubPlotData: experiment.subSubPlotData ?? [],
+            factor1Data: experiment.factor1Data ?? [],
+            factor2Data: experiment.factor2Data ?? [],
+            factor3Data: experiment.factor3Data ?? [],
             disabledParameters: experiment.disabledParameters ?? [],
             createdBy: ctx.user.id,
             updatedBy: ctx.user.id,
@@ -78,6 +89,9 @@ export const syncTrials = async (
           mainPlotData: experiment.mainPlotData ?? [],
           subPlotData: experiment.subPlotData ?? [],
           subSubPlotData: experiment.subSubPlotData ?? [],
+          factor1Data: experiment.factor1Data ?? [],
+          factor2Data: experiment.factor2Data ?? [],
+          factor3Data: experiment.factor3Data ?? [],
         });
         needsSave = true;
       }

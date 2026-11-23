@@ -22,6 +22,7 @@ import {
   type Experiment,
   type ExperimentMetadata,
   ExperimentModel,
+  type SubPlotItem,
   type Treatment,
 } from './experiments.model.js';
 
@@ -49,8 +50,11 @@ export type SyncCentres = (
     code: string;
     treatments?: Treatment[];
     mainPlotData?: Treatment[];
-    subPlotData?: Treatment[];
+    subPlotData?: SubPlotItem[];
     subSubPlotData?: Treatment[];
+    factor1Data?: Treatment[];
+    factor2Data?: Treatment[];
+    factor3Data?: Treatment[];
     disabledParameters?: DisabledParameter[];
   },
   centreIds: string[],
@@ -224,6 +228,21 @@ const assertCompatibleWithData = (existing: Experiment, dto: UpdateExperimentDto
     const removed = (existing.subSubPlotData ?? []).filter((t) => !kept.has(t.code)).map((t) => t.code);
     if (removed.length) problems.push(`sub-sub plot treatments ${removed.join(', ')} (they have data)`);
   }
+  if (dto.factor1Data) {
+    const kept = new Set(dto.factor1Data.map((t) => t.code));
+    const removed = (existing.factor1Data ?? []).filter((t) => !kept.has(t.code)).map((t) => t.code);
+    if (removed.length) problems.push(`factor 1 levels ${removed.join(', ')} (they have data)`);
+  }
+  if (dto.factor2Data) {
+    const kept = new Set(dto.factor2Data.map((t) => t.code));
+    const removed = (existing.factor2Data ?? []).filter((t) => !kept.has(t.code)).map((t) => t.code);
+    if (removed.length) problems.push(`factor 2 levels ${removed.join(', ')} (they have data)`);
+  }
+  if (dto.factor3Data) {
+    const kept = new Set(dto.factor3Data.map((t) => t.code));
+    const removed = (existing.factor3Data ?? []).filter((t) => !kept.has(t.code)).map((t) => t.code);
+    if (removed.length) problems.push(`factor 3 levels ${removed.join(', ')} (they have data)`);
+  }
   if (dto.defaultParameters) {
     const kept = new Set(dto.defaultParameters.map((p) => p.parameterId));
     const removed = existing.defaultParameters.filter((p) => !kept.has(String(p.parameterId)));
@@ -290,33 +309,59 @@ export type FactorKey = 'A' | 'B' | 'C';
 export const experimentFactors = (
   e: Pick<Experiment, 'design' | 'mainPlotCount' | 'subPlotCount' | 'subSubPlotCount'> & {
     mainPlotData?: { code: string; name: string }[];
-    subPlotData?: { code: string; name: string }[];
+    subPlotData?: { code: string }[];
     subSubPlotData?: { code: string; name: string }[];
+    factor1Data?: { code: string; name: string }[];
+    factor2Data?: { code: string; name: string }[];
+    factor3Data?: { code: string; name: string }[];
   },
 ) => {
   if (!DESIGNS_WITH_FACTORS.includes(e.design)) return [];
   const factorial = e.design === 'Factorial';
-  const levels = (prefix: string, count: number, data?: { code: string; name: string }[]) =>
+  const levels = (prefix: string, count: number, data?: { code: string; name?: string }[]) =>
     Array.from({ length: count }, (_, i) => {
       const code = `${prefix}${i + 1}`;
       return { code, name: data?.find((d) => d.code === code)?.name || null };
     });
+  if (factorial) {
+    const list = [
+      {
+        key: 'A' as FactorKey,
+        label: 'Factor 1',
+        field: 'factor1Code' as const,
+        levels: levels('F1_', e.mainPlotCount ?? 0, e.factor1Data),
+      },
+      {
+        key: 'B' as FactorKey,
+        label: 'Factor 2',
+        field: 'factor2Code' as const,
+        levels: levels('F2_', e.subPlotCount ?? 0, e.factor2Data),
+      },
+      {
+        key: 'C' as FactorKey,
+        label: 'Factor 3',
+        field: 'factor3Code' as const,
+        levels: levels('F3_', e.subSubPlotCount ?? 0, e.factor3Data),
+      },
+    ];
+    return list.filter((f) => f.levels.length > 0 && (f.key !== 'C' || (e.subSubPlotCount ?? 0) > 0));
+  }
   const list = [
     {
       key: 'A' as FactorKey,
-      label: factorial ? 'Factor A' : 'Main plot',
+      label: 'Main plot',
       field: 'mainPlotCode' as const,
       levels: levels('M', e.mainPlotCount ?? 0, e.mainPlotData),
     },
     {
       key: 'B' as FactorKey,
-      label: factorial ? 'Factor B' : 'Sub plot',
+      label: 'Sub plot',
       field: 'subPlotCode' as const,
       levels: levels('S', e.subPlotCount ?? 0, e.subPlotData),
     },
     {
       key: 'C' as FactorKey,
-      label: factorial ? 'Factor C' : 'Sub-sub plot',
+      label: 'Sub-sub plot',
       field: 'subSubPlotCode' as const,
       levels: levels('SS', e.subSubPlotCount ?? 0, e.subSubPlotData),
     },
@@ -342,8 +387,47 @@ const assertPlotTreatmentsCount = (
   mainPlotData?: { code: string }[],
   subPlotData?: { code: string }[],
   subSubPlotData?: { code: string }[],
+  factor1Data?: { code: string }[],
+  factor2Data?: { code: string }[],
+  factor3Data?: { code: string }[],
 ) => {
-  if (design === 'Split plot' || design === 'Split-split plot' || design === 'Factorial') {
+  if (design === 'Factorial') {
+    if (factor1Data !== undefined && factor1Data.length > 0) {
+      if (mainPlotCount <= 0) {
+        throw AppError.badRequest('FACTOR1_COUNT_REQUIRED', 'Set Factor 1 count before configuring Factor 1');
+      }
+      if (factor1Data.length !== mainPlotCount) {
+        throw AppError.badRequest(
+          'FACTOR1_COUNT_MISMATCH',
+          `Factor 1 count (${factor1Data.length}) must match ${mainPlotCount}`,
+        );
+      }
+    }
+    if (factor2Data !== undefined && factor2Data.length > 0) {
+      if (subPlotCount <= 0) {
+        throw AppError.badRequest('FACTOR2_COUNT_REQUIRED', 'Set Factor 2 count before configuring Factor 2');
+      }
+      if (factor2Data.length !== subPlotCount) {
+        throw AppError.badRequest(
+          'FACTOR2_COUNT_MISMATCH',
+          `Factor 2 count (${factor2Data.length}) must match ${subPlotCount}`,
+        );
+      }
+    }
+    if (factor3Data !== undefined && factor3Data.length > 0) {
+      if (subSubPlotCount <= 0) {
+        throw AppError.badRequest('FACTOR3_COUNT_REQUIRED', 'Set Factor 3 count before configuring Factor 3');
+      }
+      if (factor3Data.length !== subSubPlotCount) {
+        throw AppError.badRequest(
+          'FACTOR3_COUNT_MISMATCH',
+          `Factor 3 count (${factor3Data.length}) must match ${subSubPlotCount}`,
+        );
+      }
+    }
+    return;
+  }
+  if (design === 'Split plot' || design === 'Split-split plot') {
     if (mainPlotData !== undefined && mainPlotData.length > 0) {
       if (mainPlotCount <= 0) {
         throw AppError.badRequest(
@@ -373,7 +457,7 @@ const assertPlotTreatmentsCount = (
       }
     }
   }
-  if (design === 'Split-split plot' || design === 'Factorial') {
+  if (design === 'Split-split plot') {
     if (subSubPlotData !== undefined && subSubPlotData.length > 0) {
       if (subSubPlotCount <= 0) {
         throw AppError.badRequest(
@@ -416,6 +500,9 @@ const normalizeTreatmentsForDesign = (
       mainPlotCode: t.mainPlotCode ?? null,
       subPlotCode: t.subPlotCode ?? null,
       subSubPlotCode: null,
+      factor1Code: null,
+      factor2Code: null,
+      factor3Code: null,
     }));
   }
   if (design === 'Split-split plot') {
@@ -435,6 +522,9 @@ const normalizeTreatmentsForDesign = (
       mainPlotCode: t.mainPlotCode ?? null,
       subPlotCode: t.subPlotCode ?? null,
       subSubPlotCode: t.subSubPlotCode ?? null,
+      factor1Code: null,
+      factor2Code: null,
+      factor3Code: null,
     }));
   }
   if (design === 'Factorial') {
@@ -449,12 +539,15 @@ const normalizeTreatmentsForDesign = (
       code: t.code,
       name: t.name,
       description: t.description ?? null,
-      mainPlotCode: t.mainPlotCode ?? null,
-      subPlotCode: t.subPlotCode ?? null,
-      subSubPlotCode: subSubPlotCount > 0 ? (t.subSubPlotCode ?? null) : null,
+      mainPlotCode: null,
+      subPlotCode: null,
+      subSubPlotCode: null,
+      factor1Code: t.factor1Code ?? null,
+      factor2Code: t.factor2Code ?? null,
+      factor3Code: subSubPlotCount > 0 ? (t.factor3Code ?? null) : null,
     }));
   }
-  // For other designs, mainPlotCode, subPlotCode, and subSubPlotCode remain null
+  // For other designs, all plot and factor codes remain null
   return treatments.map((t) => ({
     code: t.code,
     name: t.name,
@@ -462,6 +555,9 @@ const normalizeTreatmentsForDesign = (
     mainPlotCode: null,
     subPlotCode: null,
     subSubPlotCode: null,
+    factor1Code: null,
+    factor2Code: null,
+    factor3Code: null,
   }));
 };
 
@@ -517,6 +613,9 @@ export const createExperiment = async (
     dto.mainPlotData,
     dto.subPlotData,
     dto.subSubPlotData,
+    dto.factor1Data,
+    dto.factor2Data,
+    dto.factor3Data,
   );
   const treatments = normalizeTreatmentsForDesign(
     dto.design,
@@ -558,6 +657,9 @@ export const createExperiment = async (
           mainPlotData: experiment.mainPlotData,
           subPlotData: experiment.subPlotData,
           subSubPlotData: experiment.subSubPlotData,
+          factor1Data: experiment.factor1Data,
+          factor2Data: experiment.factor2Data,
+          factor3Data: experiment.factor3Data,
           disabledParameters: experiment.disabledParameters,
         },
         dto.centreIds,
@@ -646,6 +748,9 @@ export const updateExperiment = async (
       dto.mainPlotData,
       dto.subPlotData,
       dto.subSubPlotData,
+      dto.factor1Data,
+      dto.factor2Data,
+      dto.factor3Data,
     );
     // Assigned centres: the trials are the record; centreIds caches their active centres.
     if (dto.centreIds !== undefined) {
@@ -657,6 +762,9 @@ export const updateExperiment = async (
           mainPlotData: experiment.mainPlotData,
           subPlotData: experiment.subPlotData,
           subSubPlotData: experiment.subSubPlotData,
+          factor1Data: experiment.factor1Data,
+          factor2Data: experiment.factor2Data,
+          factor3Data: experiment.factor3Data,
           disabledParameters: experiment.disabledParameters,
         },
         dto.centreIds,

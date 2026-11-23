@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { RequestSchemas } from '../../middlewares/validate.js';
 import { idParams, objectId } from '../../utils/validators.js';
-import { disabledParameter, treatment } from '../experiments/experiments.dto.js';
+import { disabledParameter, subPlotItem, treatment } from '../experiments/experiments.dto.js';
 import { masterCode } from '../masters/masters.dto.js';
 import { trialBody } from '../metadata/metadata.dto.js';
 import { ASSIGNMENT_STATUSES, TRIAL_STATUSES } from './trials.model.js';
@@ -77,8 +77,11 @@ const updateBody = z
     practices: z.array(practice).max(60).optional(),
     treatments: z.array(treatment).optional(),
     mainPlotData: z.array(treatment).optional(),
-    subPlotData: z.array(treatment).optional(),
+    subPlotData: z.array(subPlotItem).optional(),
     subSubPlotData: z.array(treatment).optional(),
+    factor1Data: z.array(treatment).optional(),
+    factor2Data: z.array(treatment).optional(),
+    factor3Data: z.array(treatment).optional(),
     disabledParameters: z.array(disabledParameter).optional(),
     locked: z.array(z.string().trim()).optional(),
     inChargeUserId: objectId.nullable().optional(),

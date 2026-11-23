@@ -71,6 +71,18 @@ export interface Treatment {
   mainPlotCode?: string | null;
   subPlotCode?: string | null;
   subSubPlotCode?: string | null;
+  factor1Code?: string | null;
+  factor2Code?: string | null;
+  factor3Code?: string | null;
+}
+
+export interface SubPlotItem {
+  code: string;
+  croppingSystem?: Types.ObjectId | null;
+  description?: string | null;
+  mainPlotCode?: string | null;
+  subPlotCode?: string | null;
+  subSubPlotCode?: string | null;
 }
 
 export interface DisabledParameter {
@@ -148,8 +160,11 @@ export interface Experiment {
   subSubPlotCount: number;
   treatments: Treatment[];
   mainPlotData: Treatment[];
-  subPlotData: Treatment[];
+  subPlotData: SubPlotItem[];
   subSubPlotData: Treatment[];
+  factor1Data: Treatment[];
+  factor2Data: Treatment[];
+  factor3Data: Treatment[];
   disabledParameters: DisabledParameter[];
   /** The treatment others are compared with ("% vs reference"), e.g. the AI-NPOF package. */
   referenceTreatmentCode: string | null;
@@ -186,6 +201,25 @@ export const treatmentSchema = new Schema<Treatment>(
   {
     code: { type: String, required: true, trim: true, uppercase: true, maxlength: 20 },
     name: { type: String, required: true, trim: true, maxlength: 200 },
+    description: { type: String, trim: true, maxlength: 1000, default: null },
+    mainPlotCode: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
+    subPlotCode: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
+    subSubPlotCode: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
+    factor1Code: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
+    factor2Code: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
+    factor3Code: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
+  },
+  { _id: false },
+);
+
+export const subPlotItemSchema = new Schema<SubPlotItem>(
+  {
+    code: { type: String, required: true, trim: true, uppercase: true, maxlength: 20 },
+    croppingSystem: {
+      type: Schema.Types.ObjectId,
+      ref: 'CroppingSystem',
+      default: null,
+    },
     description: { type: String, trim: true, maxlength: 1000, default: null },
     mainPlotCode: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
     subPlotCode: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },
@@ -281,8 +315,11 @@ const experimentSchema = new Schema<Experiment>(
     subSubPlotCount: { type: Number, min: 0, max: MAX_PLOT_COUNT, default: 0 },
     treatments: { type: [treatmentSchema], default: [] },
     mainPlotData: { type: [treatmentSchema], default: [] },
-    subPlotData: { type: [treatmentSchema], default: [] },
+    subPlotData: { type: [subPlotItemSchema], default: [] },
     subSubPlotData: { type: [treatmentSchema], default: [] },
+    factor1Data: { type: [treatmentSchema], default: [] },
+    factor2Data: { type: [treatmentSchema], default: [] },
+    factor3Data: { type: [treatmentSchema], default: [] },
     disabledParameters: { type: [disabledParameterSchema], default: [] },
     referenceTreatmentCode: { type: String, default: null },
     defaultParameters: { type: [experimentParameterSchema], default: [] },

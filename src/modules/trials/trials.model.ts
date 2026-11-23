@@ -2,6 +2,8 @@ import { Schema, type Types, model } from 'mongoose';
 import {
   type Treatment,
   treatmentSchema,
+  type SubPlotItem,
+  subPlotItemSchema,
   type DisabledParameter,
   disabledParameterSchema,
 } from '../experiments/experiments.model.js';
@@ -64,8 +66,11 @@ export interface Trial {
   practices: TreatmentPractice[];
   treatments: Treatment[];
   mainPlotData: Treatment[];
-  subPlotData: Treatment[];
+  subPlotData: SubPlotItem[];
   subSubPlotData: Treatment[];
+  factor1Data: Treatment[];
+  factor2Data: Treatment[];
+  factor3Data: Treatment[];
   disabledParameters: DisabledParameter[];
   locked: string[];
   inChargeUserId?: Types.ObjectId | null;
@@ -131,8 +136,11 @@ const trialSchema = new Schema<Trial>(
     practices: { type: [practiceSchema], default: [] },
     treatments: { type: [treatmentSchema], default: [] },
     mainPlotData: { type: [treatmentSchema], default: [] },
-    subPlotData: { type: [treatmentSchema], default: [] },
+    subPlotData: { type: [subPlotItemSchema], default: [] },
     subSubPlotData: { type: [treatmentSchema], default: [] },
+    factor1Data: { type: [treatmentSchema], default: [] },
+    factor2Data: { type: [treatmentSchema], default: [] },
+    factor3Data: { type: [treatmentSchema], default: [] },
     disabledParameters: { type: [disabledParameterSchema], default: [] },
     locked: { type: [String], default: [] },
     inChargeUserId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
