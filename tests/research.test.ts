@@ -811,7 +811,7 @@ describe('assigning and withdrawing centres', () => {
     ];
     await pcu
       .patch(`/api/v1/experiments/${experimentId}`)
-      .send({ seasons: { KHARIF: [rice] } })
+      .send({ seasons: ['KHARIF'] })
       .expect(200);
 
     const before = await piA.get(`/api/v1/trials/${trialAId}`).expect(200);
@@ -819,11 +819,11 @@ describe('assigning and withdrawing centres', () => {
       expect.objectContaining({
         seasonCode: 'KHARIF',
         changed: false,
-        crops: [expect.objectContaining({ id: rice, code: 'RICE' })],
+        crops: [],
       }),
     ]);
 
-    // Rice isn't available at centre A, so it grows wheat in Kharif.
+    // Centre A records that it grows wheat in Kharif.
     const changed = await piA
       .patch(`/api/v1/trials/${trialAId}`)
       .send({ seasonCrops: { KHARIF: [wheat] } })
@@ -831,7 +831,7 @@ describe('assigning and withdrawing centres', () => {
     expect(changed.body.data.cropsBySeason[0]).toMatchObject({
       changed: true,
       crops: [{ id: wheat, code: 'WHEAT' }],
-      defaultCrops: [{ id: rice, code: 'RICE' }],
+      defaultCrops: [],
     });
     const audit = await piA.get('/api/v1/audit?module=trials').expect(200);
     expect(

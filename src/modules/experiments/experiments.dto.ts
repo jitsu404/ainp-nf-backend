@@ -127,13 +127,10 @@ const shape = {
   disabledParameters: z.array(disabledParameter).optional(),
   defaultParameters: z.array(experimentParameter).max(300).optional(),
   seasons: z
-    .union([
-      z.record(masterCode, z.array(objectId)),
-      // A plain list of season codes means: these seasons, with no items yet.
-      z.array(masterCode).transform((codes) => Object.fromEntries(codes.map((c) => [c, []]))),
-    ])
+    .array(masterCode)
+    .max(10)
     .optional()
-    .meta({ example: { KHARIF: [], RABI: [] } }),
+    .meta({ example: ['KHARIF', 'RABI'] }),
   startYear: z.number().int().min(1900).max(2100).meta({ example: 2026 }),
   endYear: z.number().int().min(1900).max(2100).meta({ example: 2029 }),
   centreIds: z

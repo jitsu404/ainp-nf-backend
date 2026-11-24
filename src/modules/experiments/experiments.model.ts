@@ -186,10 +186,9 @@ export interface Experiment {
   /** The parameters every centre records (the library entries with section, level, required). */
   defaultParameters: ExperimentParameter[];
   /**
-   * Seasons in which data is recorded: season master code → master item ids for that season.
-   * An empty map means any season.
+   * Seasons in which data is recorded (e.g. ['KHARIF', 'RABI']). An empty array means any season.
    */
-  seasons: Map<string, Types.ObjectId[]>;
+  seasons: string[];
   /** Calendar years the experiment runs (2026 covers financial year 2026-27). */
   startYear: number;
   startYearDate: Date;
@@ -346,14 +345,8 @@ const experimentSchema = new Schema<Experiment>(
     referenceTreatmentCode: { type: String, default: null },
     defaultParameters: { type: [experimentParameterSchema], default: [] },
     seasons: {
-      type: Map,
-      of: [
-        {
-          type: Schema.Types.ObjectId,
-          ref: 'MasterItem',
-        },
-      ],
-      default: () => new Map(),
+      type: [String],
+      default: [],
     },
     startYear: { type: Number, required: true },
     startYearDate: { type: Date, required: true },

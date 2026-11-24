@@ -267,26 +267,19 @@ export const trialSeasonCrops = async (
   experiment: Pick<Experiment, 'seasons'>,
   trial: Pick<Trial, 'seasonCrops'>,
 ) => {
-  const defaults = seasonMap(experiment.seasons);
+  const protocolSeasons = experimentSeasonCodes(experiment);
   const own = seasonMap(trial.seasonCrops);
-  const codes = [...new Set([...defaults.keys(), ...own.keys()])];
-  const items = await masterItemsByIds(
-    codes.flatMap((c) => [...(defaults.get(c) ?? []), ...(own.get(c) ?? [])]),
-  );
+  const codes = [...new Set([...protocolSeasons, ...own.keys()])];
+  const items = await masterItemsByIds(codes.flatMap((c) => own.get(c) ?? []));
   const describe = (ids: string[]) =>
     ids.map((id) => ({ id, code: items.get(id)?.code ?? null, name: items.get(id)?.name ?? null }));
-  return codes.map((seasonCode) => {
-    const defaultCrops = defaults.get(seasonCode) ?? [];
-    const changed = own.has(seasonCode);
-    return {
-      seasonCode,
-      crops: describe(changed ? own.get(seasonCode)! : defaultCrops),
-      defaultCrops: describe(defaultCrops),
-      changed,
-      /** In the trial but no longer one of the experiment's seasons. */
-      inProtocol: defaults.has(seasonCode) || defaults.size === 0,
-    };
-  });
+  return codes.map((seasonCode) => ({
+    seasonCode,
+    crops: describe(own.get(seasonCode) ?? []),
+    defaultCrops: [],
+    changed: own.has(seasonCode) && (own.get(seasonCode)?.length ?? 0) > 0,
+    inProtocol: protocolSeasons.length === 0 || protocolSeasons.includes(seasonCode),
+  }));
 };
 
 /** The trial together with its experiment protocol (treatments, parameters with library details). */
@@ -354,12 +347,9 @@ const validateAgainstProtocol = async (experiment: Experiment, trial: Trial, dto
     }
     const ids = Object.values(dto.seasonCrops).flatMap((v) => v ?? []);
     const items = await masterItemsByIds(ids);
-    // A crop already used here (the experiment's or the centre's own) may stay after it was
+    // A crop already used here (the centre's own) may stay after it was
     // deactivated in the master; only newly chosen crops must be active.
-    const inUse = new Set([
-      ...[...seasonMap(experiment.seasons).values()].flat(),
-      ...[...seasonMap(trial.seasonCrops).values()].flat(),
-    ]);
+    const inUse = new Set([...[...seasonMap(trial.seasonCrops).values()].flat()]);
     const bad = [...new Set(ids)].filter((id) => {
       const item = items.get(id);
       return !item || item.type !== 'crop' || (!item.isActive && !inUse.has(id));

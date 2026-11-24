@@ -9,7 +9,7 @@ import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { centreExists } from '../centres/centres.service.js';
 import { generateExperimentCode } from '../counters/counters.service.js';
 import { croppingSystemsByIds } from '../croppingSystems/croppingSystems.service.js';
-import { activeMasterCodes, masterItemsExist } from '../masters/masters.service.js';
+import { activeMasterCodes } from '../masters/masters.service.js';
 import { parametersByIds } from '../parameters/parameters.service.js';
 import { findExperimentPi } from '../users/users.service.js';
 import type { CreateExperimentDto, ListExperimentsQuery, UpdateExperimentDto } from './experiments.dto.js';
@@ -74,12 +74,9 @@ export const computeYearDates = (startYear: number, endYear: number) => ({
   endYearDate: moment.utc(String(endYear), 'YYYY').endOf('year').toDate(),
 });
 
-/** The season codes an experiment records in (keys of its seasons map); empty = any season. */
-export const experimentSeasonCodes = (experiment: Pick<Experiment, 'seasons'>): string[] => {
-  const seasons = experiment.seasons as unknown;
-  if (seasons instanceof Map) return [...seasons.keys()];
-  return seasons && typeof seasons === 'object' ? Object.keys(seasons) : [];
-};
+/** The season codes an experiment records in; empty = any season. */
+export const experimentSeasonCodes = (experiment: Pick<Experiment, 'seasons'>): string[] =>
+  Array.isArray(experiment?.seasons) ? experiment.seasons : [];
 
 /** Every year the experiment runs, start to end (2026, 2027 …). Sheets are recorded per year. */
 export const experimentYears = (e: Pick<Experiment, 'startYear' | 'endYear'>): number[] =>
@@ -176,7 +173,7 @@ type SubPlotSystems = { code: string; croppingSystems?: { seasonCode: string; cr
  * or removed (409 EXPERIMENT_HAS_DATA), so recorded sheets keep their crops.
  */
 export const assertSubPlotSystems = async (
-  dto: { design?: Experiment['design']; seasons?: unknown; subPlotData?: SubPlotSystems[] },
+  dto: { design?: Experiment['design']; seasons?: string[]; subPlotData?: SubPlotSystems[] },
   existing?: Pick<Experiment, 'design' | 'seasons' | 'dataLocked'> & { subPlotData?: SubPlotSystems[] },
   alsoInUse: SubPlotSystems[] = [],
 ) => {
@@ -216,7 +213,7 @@ export const assertSubPlotSystems = async (
   }
   if (!entries.length) return;
   const protocolSeasons = experimentSeasonCodes({
-    seasons: (dto.seasons ?? existing?.seasons ?? {}) as Experiment['seasons'],
+    seasons: dto.seasons ?? existing?.seasons ?? [],
   });
   const inUse = new Set([
     ...before.values(),
@@ -252,13 +249,9 @@ const validateReferences = async (dto: Partial<CreateExperimentDto>) => {
   }
   if (dto.seasons) {
     const known = await activeMasterCodes('season');
-    const unknown = Object.keys(dto.seasons).filter((code) => !known.has(code));
+    const unknown = dto.seasons.filter((code) => !known.has(code));
     if (unknown.length)
       throw AppError.badRequest('UNKNOWN_SEASON', `Unknown season(s): ${unknown.join(', ')}`);
-    const itemIds = [...new Set(Object.values(dto.seasons).flat())];
-    if (itemIds.length && !(await masterItemsExist(itemIds))) {
-      throw AppError.badRequest('UNKNOWN_SEASON_ITEM', 'One or more season master items not found');
-    }
   }
   if (dto.defaultParameters?.length) {
     const library = await parametersByIds(dto.defaultParameters.map((p) => p.parameterId));
