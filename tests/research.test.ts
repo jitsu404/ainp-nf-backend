@@ -138,53 +138,17 @@ describe('experiments and trials', () => {
       .expect(400);
   });
 
-  it('lets the centre set up cropping systems and practices, checked against masters and protocol', async () => {
+  it('lets the centre set up practices and status', async () => {
     const { piA, trialAId } = await setup();
     const ok = await piA
       .patch(`/api/v1/trials/${trialAId}`)
       .send({
-        croppingSystems: [
-          {
-            code: 'cs1',
-            name: 'Rice – Wheat',
-            seasons: [
-              {
-                seasonCode: 'KHARIF',
-                mainCropCode: 'RICE',
-                mainVariety: 'Pusa Basmati 1121',
-                rowRatio: '2:1',
-              },
-            ],
-          },
-        ],
         practices: [{ treatmentCode: 'T2', nutrientDetails: 'Jeevamrit 500 l/ha at 15-day interval' }],
         status: 'Running',
       })
       .expect(200);
-    expect(ok.body.data.croppingSystems[0]).toMatchObject({
-      code: 'CS1',
-      seasons: [{ mainCropCode: 'RICE' }],
-    });
+    expect(ok.body.data.practices[0]).toMatchObject({ treatmentCode: 'T2' });
     expect(ok.body.data.experiment.treatments).toHaveLength(3);
-
-    const badCrop = await piA
-      .patch(`/api/v1/trials/${trialAId}`)
-      .send({
-        croppingSystems: [
-          { code: 'CS1', name: 'Test system', seasons: [{ seasonCode: 'KHARIF', mainCropCode: 'MANGO' }] },
-        ],
-      })
-      .expect(400);
-    expect(badCrop.body.error.code).toBe('UNKNOWN_CROP');
-    const badSeason = await piA
-      .patch(`/api/v1/trials/${trialAId}`)
-      .send({
-        croppingSystems: [
-          { code: 'CS1', name: 'Test system', seasons: [{ seasonCode: 'RABI', mainCropCode: 'WHEAT' }] },
-        ],
-      })
-      .expect(400);
-    expect(badSeason.body.error.code).toBe('SEASON_NOT_IN_PROTOCOL');
   });
 });
 
@@ -675,7 +639,24 @@ describe('experiment codes and years', () => {
       .post('/api/v1/experiments')
       .send({ ...body, startYear: START_YEAR, endYear: END_YEAR })
       .expect(201);
-    expect([first.body.data.code, second.body.data.code]).toEqual(['AINP-NF-EXPT-001', 'AINP-NF-EXPT-002']);
+    expect([first.body.data.code, second.body.data.code]).toEqual([
+      'AINP-NF-P2-EXPT-001',
+      'AINP-NF-P2-EXPT-002',
+    ]);
+
+    // Programme codes are generated (P1, P2 … skipping taken ones), and each programme numbers its
+    // own experiments.
+    await pcu.post('/api/v1/masters/programme').send({ code: 'P9', name: 'Typed code' }).expect(400);
+    const programme = await pcu
+      .post('/api/v1/masters/programme')
+      .send({ name: 'Natural farming value chains' })
+      .expect(201);
+    expect(programme.body.data.code).toBe('P1');
+    const other = await pcu
+      .post('/api/v1/experiments')
+      .send({ ...body, programmeCode: 'P1', startYear: START_YEAR, endYear: END_YEAR })
+      .expect(201);
+    expect(other.body.data.code).toBe('AINP-NF-P1-EXPT-001');
     const end = await pcu
       .post('/api/v1/experiments')
       .send({ ...body, startYear: 2027, endYear: 2026 })
@@ -880,38 +861,7 @@ describe('assigning and withdrawing centres', () => {
     await MasterItemModel.updateOne({ _id: wheat }, { isActive: false });
     await piA
       .patch(`/api/v1/trials/${trialAId}`)
-      .send({
-        seasonCrops: { KHARIF: [wheat] },
-        croppingSystems: [
-          { code: 'CS1', name: 'Wheat', seasons: [{ seasonCode: 'KHARIF', mainCropCode: 'WHEAT' }] },
-        ],
-      })
-      .expect(400); // WHEAT isn't in this trial's cropping systems yet, and it's inactive
-    await piA
-      .patch(`/api/v1/trials/${trialAId}`)
       .send({ seasonCrops: { KHARIF: [wheat] } })
-      .expect(200);
-    await MasterItemModel.updateOne({ _id: wheat }, { isActive: true });
-    await piA
-      .patch(`/api/v1/trials/${trialAId}`)
-      .send({
-        croppingSystems: [
-          { code: 'CS1', name: 'Wheat', seasons: [{ seasonCode: 'KHARIF', mainCropCode: 'WHEAT' }] },
-        ],
-      })
-      .expect(200);
-    await MasterItemModel.updateOne({ _id: wheat }, { isActive: false });
-    await piA
-      .patch(`/api/v1/trials/${trialAId}`)
-      .send({
-        croppingSystems: [
-          {
-            code: 'CS1',
-            name: 'Wheat system',
-            seasons: [{ seasonCode: 'KHARIF', mainCropCode: 'WHEAT' }],
-          },
-        ],
-      })
       .expect(200);
     const newCrop = await piB
       .patch(`/api/v1/trials/${(await piB.get('/api/v1/trials').expect(200)).body.data[0].id}`)

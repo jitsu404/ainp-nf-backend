@@ -8,6 +8,7 @@ import { escapeRegex } from '../../utils/validators.js';
 import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import { centreExists } from '../centres/centres.service.js';
 import { generateExperimentCode } from '../counters/counters.service.js';
+import { croppingSystemsByIds } from '../croppingSystems/croppingSystems.service.js';
 import { activeMasterCodes, masterItemsExist } from '../masters/masters.service.js';
 import { parametersByIds } from '../parameters/parameters.service.js';
 import { findExperimentPi } from '../users/users.service.js';
@@ -63,6 +64,11 @@ export type SyncCentres = (
 ) => Promise<string[]>;
 
 /** First and last moment of the experiment's calendar years (stored for date-range queries). */
+export type PushSubPlots = (
+  experiment: { id: string; code: string; subPlotData: SubPlotItem[] },
+  session: ClientSession,
+) => Promise<void>;
+
 export const computeYearDates = (startYear: number, endYear: number) => ({
   startYearDate: moment.utc(String(startYear), 'YYYY').startOf('year').toDate(),
   endYearDate: moment.utc(String(endYear), 'YYYY').endOf('year').toDate(),
@@ -159,6 +165,82 @@ export const withParameterDetails = async (experiment: Awaited<ReturnType<typeof
     // Read-only alias for the sheets and analysis code, which work on "the parameters to record".
     parameters: defaultParameters,
   };
+};
+
+type SubPlotSystems = { code: string; croppingSystems?: { seasonCode: string; croppingSystem: unknown }[] };
+
+/**
+ * Sub plots of split / split-split plots name one cropping system (masters) per season. Each must
+ * be a system of that season, the season one of the protocol's, and the system active unless it
+ * was already in use. Once the experiment has data, a season's choice can be set but not changed
+ * or removed (409 EXPERIMENT_HAS_DATA), so recorded sheets keep their crops.
+ */
+export const assertSubPlotSystems = async (
+  dto: { design?: Experiment['design']; seasons?: unknown; subPlotData?: SubPlotSystems[] },
+  existing?: Pick<Experiment, 'design' | 'seasons' | 'dataLocked'> & { subPlotData?: SubPlotSystems[] },
+  alsoInUse: SubPlotSystems[] = [],
+) => {
+  if (!dto.subPlotData) return;
+  const entries = dto.subPlotData.flatMap((sp) =>
+    (sp.croppingSystems ?? []).map((x) => ({
+      sub: sp.code,
+      season: x.seasonCode,
+      id: String(x.croppingSystem),
+    })),
+  );
+  const design = dto.design ?? existing?.design;
+  if (entries.length && design !== 'Split plot' && design !== 'Split-split plot') {
+    throw AppError.badRequest(
+      'CROPPING_SYSTEM_NOT_ALLOWED',
+      'Cropping systems can be sub plots of split and split-split plot designs only',
+    );
+  }
+  const before = new Map(
+    (existing?.subPlotData ?? []).flatMap((sp) =>
+      (sp.croppingSystems ?? []).map(
+        (x) => [`${sp.code}|${x.seasonCode}`, String(x.croppingSystem)] as const,
+      ),
+    ),
+  );
+  if (existing?.dataLocked) {
+    const now = new Map(entries.map((e) => [`${e.sub}|${e.season}`, e.id]));
+    const changed = [...before]
+      .filter(([key, id]) => now.get(key) !== id)
+      .map(([key]) => key.replace('|', ' in '));
+    if (changed.length) {
+      throw AppError.conflict(
+        'EXPERIMENT_HAS_DATA',
+        `Data has been recorded, so these cropping systems can't change: ${changed.join(', ')}`,
+      );
+    }
+  }
+  if (!entries.length) return;
+  const protocolSeasons = experimentSeasonCodes({
+    seasons: (dto.seasons ?? existing?.seasons ?? {}) as Experiment['seasons'],
+  });
+  const inUse = new Set([
+    ...before.values(),
+    ...alsoInUse.flatMap((sp) => (sp.croppingSystems ?? []).map((x) => String(x.croppingSystem))),
+  ]);
+  const systems = await croppingSystemsByIds(entries.map((e) => e.id));
+  for (const e of entries) {
+    const system = systems.get(e.id);
+    if (!system || (!system.isActive && !inUse.has(e.id))) {
+      throw AppError.badRequest(
+        'UNKNOWN_CROPPING_SYSTEM',
+        `${e.sub} in ${e.season}: not an active cropping system in the masters`,
+      );
+    }
+    if (system.seasonCode !== e.season) {
+      throw AppError.badRequest(
+        'SEASON_MISMATCH',
+        `${e.sub} in ${e.season}: ${system.code} is a ${system.seasonCode} system`,
+      );
+    }
+    if (protocolSeasons.length && !protocolSeasons.includes(e.season)) {
+      throw AppError.badRequest('SEASON_NOT_IN_PROTOCOL', `${e.season} is not a season of this experiment`);
+    }
+  }
 };
 
 const validateReferences = async (dto: Partial<CreateExperimentDto>) => {
@@ -604,6 +686,7 @@ export const createExperiment = async (
 ) => {
   await assertAssignment(ctx, dto);
   await validateReferences(dto);
+  await assertSubPlotSystems(dto);
   assertReferenceTreatment(dto.referenceTreatmentCode, dto.treatments ?? []);
   assertPlotTreatmentsCount(
     dto.design,
@@ -625,8 +708,14 @@ export const createExperiment = async (
     dto.subSubPlotCount ?? 0,
   );
   return withTransaction(async (session) => {
-    // A given code is kept; otherwise the next one in the sequence (AINP-NF-EXPT-001 …).
-    const code = dto.code ?? (await generateExperimentCode(session));
+    // A given code is kept; otherwise the programme's next one (AINP-NF-P2-EXPT-001 …).
+    const code =
+      dto.code ??
+      (await generateExperimentCode(
+        dto.programmeCode,
+        async (c) => Boolean(await ExperimentModel.exists({ code: c }).session(session)),
+        session,
+      ));
     const [experiment] = await ExperimentModel.create(
       [
         {
@@ -675,11 +764,14 @@ export const updateExperiment = async (
   id: string,
   { withdrawReason, ...dto }: UpdateExperimentDto,
   syncCentres: SyncCentres,
+  /** Applies the sub plots' cropping systems to the active trials (trials service). */
+  pushSubPlots?: PushSubPlots,
 ) => {
   // Scoped: an Experiment PI may edit only the experiment they lead (others: 404).
-  await getExperiment(ctx, id);
+  const current = await getExperiment(ctx, id);
   await assertAssignment(ctx, dto, id);
   await validateReferences(dto);
+  await assertSubPlotSystems(dto, current);
   return withTransaction(async (session) => {
     const experiment = await ExperimentModel.findById(id).session(session);
     if (!experiment) throw AppError.notFound('EXPERIMENT_NOT_FOUND', 'Experiment not found');
@@ -774,6 +866,12 @@ export const updateExperiment = async (
       experiment.set('centreIds', active);
     }
     await experiment.save({ session });
+    if (dto.subPlotData && pushSubPlots) {
+      await pushSubPlots(
+        { id: experiment.id as string, code: experiment.code, subPlotData: experiment.subPlotData },
+        session,
+      );
+    }
     await recordAudit(
       ctx,
       {

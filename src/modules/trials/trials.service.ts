@@ -1,9 +1,11 @@
 import { type ClientSession, type QueryFilter, Types, trusted } from 'mongoose';
+import { hasCapability } from '../../config/constants.js';
 import { withTransaction } from '../../config/db.js';
 import { AppError } from '../../utils/AppError.js';
 import { type RequestContext, withScope } from '../../utils/context.js';
 import { fieldChanges, recordAudit, snapshot } from '../audit/audit.service.js';
 import {
+  assertSubPlotSystems,
   experimentSeasonCodes,
   findExperiment,
   withParameterDetails,
@@ -14,6 +16,7 @@ import type {
   SubPlotItem,
   Treatment,
 } from '../experiments/experiments.model.js';
+import { croppingSystemsByIds } from '../croppingSystems/croppingSystems.service.js';
 import { activeMasterCodes, masterItemsByIds } from '../masters/masters.service.js';
 import { getOwnProfile } from '../users/users.service.js';
 import type { ListTrialsQuery, UpdateTrialDto } from './trials.dto.js';
@@ -143,6 +146,59 @@ export const syncTrials = async (
 };
 
 /** Writes to a withdrawn trial (its setup, sheets, metadata) are refused; its data stays readable. */
+/**
+ * The experiment's sub plot cropping systems take priority: each one set there (sub plot × season)
+ * replaces the trial's own for every active trial. Seasons the experiment leaves empty keep what the
+ * centre chose, and sub plots the trial lacks are added. Runs inside the experiment's update.
+ */
+export const pushSubPlotSystems = async (
+  ctx: RequestContext,
+  experiment: { id: string; code: string; subPlotData: SubPlotItem[] },
+  session: ClientSession,
+) => {
+  const trials = await TrialModel.find({ experimentId: experiment.id, assignmentStatus: 'Active' }).session(
+    session,
+  );
+  for (const trial of trials) {
+    const own = new Map((trial.subPlotData ?? []).map((sp) => [sp.code, sp]));
+    let changed = false;
+    const next: SubPlotItem[] = experiment.subPlotData.map((sp) => {
+      const mine = own.get(sp.code);
+      const seasons = new Map(
+        (mine?.croppingSystems ?? []).map((x) => [x.seasonCode, String(x.croppingSystem)]),
+      );
+      for (const x of sp.croppingSystems ?? []) {
+        if (seasons.get(x.seasonCode) !== String(x.croppingSystem)) changed = true;
+        seasons.set(x.seasonCode, String(x.croppingSystem));
+      }
+      if (!mine) changed = true;
+      const base = mine ?? sp;
+      return {
+        code: sp.code,
+        description: base.description ?? null,
+        croppingSystems: [...seasons].map(([seasonCode, croppingSystem]) => ({ seasonCode, croppingSystem })),
+      } as SubPlotItem;
+    });
+    // Sub plots the trial has beyond the experiment's stay as they are.
+    for (const sp of trial.subPlotData ?? []) {
+      if (!experiment.subPlotData.some((x) => x.code === sp.code)) next.push(sp);
+    }
+    if (!changed) continue;
+    trial.set({ subPlotData: next, updatedBy: ctx.user.id });
+    await trial.save({ session });
+    await recordAudit(
+      ctx,
+      {
+        action: `Applied ${experiment.code}'s sub plot cropping systems to the trial`,
+        module: MODULE,
+        entityId: trial.id as string,
+        centreId: String(trial.centreId),
+      },
+      session,
+    );
+  }
+};
+
 export const assertTrialActive = (trial: { assignmentStatus?: string | null }) => {
   if (trial.assignmentStatus === 'Withdrawn') {
     throw AppError.conflict(
@@ -249,7 +305,44 @@ export const getTrialDetail = async (ctx: RequestContext, id: string) => {
   };
 };
 
+/** Protocol sections the PCU can lock per trial (`trial.locked`), and the fields each covers. */
+const LOCKABLE: Record<string, (keyof UpdateTrialDto)[]> = {
+  mainPlot: ['mainPlotData'],
+  subPlot: ['subPlotData'],
+  subSubPlot: ['subSubPlotData'],
+  factor1: ['factor1Data'],
+  factor2: ['factor2Data'],
+  factor3: ['factor3Data'],
+  treatments: ['treatments'],
+  parameters: ['disabledParameters'],
+};
+
+/** A locked section can be changed only by the PCU (research.assign / research.config). */
+const assertUnlocked = (ctx: RequestContext, trial: Trial, dto: UpdateTrialDto) => {
+  if (hasCapability(ctx.user.roleId, 'research.assign') || hasCapability(ctx.user.roleId, 'research.config'))
+    return;
+  const locked = Object.entries(LOCKABLE)
+    .filter(([key, fields]) => trial.locked?.includes(key) && fields.some((f) => dto[f] !== undefined))
+    .map(([key]) => key);
+  if (locked.length) {
+    throw AppError.conflict(
+      'SECTION_LOCKED',
+      `Locked by the PCU, ask them to unlock it first: ${locked.join(', ')}`,
+    );
+  }
+};
+
 const validateAgainstProtocol = async (experiment: Experiment, trial: Trial, dto: UpdateTrialDto) => {
+  await assertSubPlotSystems(
+    { design: experiment.design, subPlotData: dto.subPlotData },
+    {
+      design: experiment.design,
+      seasons: experiment.seasons,
+      dataLocked: experiment.dataLocked,
+      subPlotData: trial.subPlotData,
+    },
+    experiment.subPlotData,
+  );
   if (dto.seasonCrops) {
     const protocolSeasons = experimentSeasonCodes(experiment);
     const known = await activeMasterCodes('season');
@@ -276,29 +369,32 @@ const validateAgainstProtocol = async (experiment: Experiment, trial: Trial, dto
     }
   }
   if (dto.croppingSystems) {
-    const [seasons, active] = await Promise.all([activeMasterCodes('season'), activeMasterCodes('crop')]);
-    // Crops already in this trial's cropping systems may stay after being deactivated.
-    const crops = new Set([
-      ...active,
-      ...(trial.croppingSystems ?? []).flatMap((cs) =>
-        cs.seasons.flatMap((s) => [s.mainCropCode, s.intercropCode].filter(Boolean) as string[]),
-      ),
-    ]);
+    // The master fixes each system's season and crops; the centre fills in how it grows them. A
+    // system the trial already has may stay after being deactivated in the master.
+    const systems = await croppingSystemsByIds(dto.croppingSystems.map((cs) => cs.croppingSystemId));
+    const kept = new Set((trial.croppingSystems ?? []).map((cs) => String(cs.croppingSystemId)));
     for (const cs of dto.croppingSystems) {
-      for (const s of cs.seasons) {
-        if (!seasons.has(s.seasonCode))
-          throw AppError.badRequest('UNKNOWN_SEASON', `Unknown season ${s.seasonCode}`);
-        const protocolSeasons = experimentSeasonCodes(experiment);
-        if (protocolSeasons.length && !protocolSeasons.includes(s.seasonCode)) {
-          throw AppError.badRequest(
-            'SEASON_NOT_IN_PROTOCOL',
-            `${s.seasonCode} is not a season of this experiment`,
-          );
-        }
-        for (const crop of [s.mainCropCode, s.intercropCode].filter(Boolean) as string[]) {
-          if (!crops.has(crop))
-            throw AppError.badRequest('UNKNOWN_CROP', `Crop ${crop} is not in the crops master`);
-        }
+      const system = systems.get(cs.croppingSystemId);
+      if (!system || (!system.isActive && !kept.has(cs.croppingSystemId))) {
+        throw AppError.badRequest(
+          'UNKNOWN_CROPPING_SYSTEM',
+          `Cropping system ${cs.croppingSystemId} is not an active cropping system in the masters`,
+        );
+      }
+      // The crops sent must be exactly the system's main crop and intercrops (none = not filled in).
+      if (!cs.crops.length) continue;
+      const expected = [
+        `${system.mainCropCode}:main`,
+        ...system.intercropCodes.map((c) => `${c}:intercrop`),
+      ].sort();
+      const sent = cs.crops.map((c) => `${c.cropCode}:${c.role}`).sort();
+      if (expected.join() !== sent.join()) {
+        throw AppError.badRequest(
+          'CROPS_NOT_IN_SYSTEM',
+          `The crops must be those of ${system.code}: main ${system.mainCropCode}${
+            system.intercropCodes.length ? `, intercrops ${system.intercropCodes.join(', ')}` : ''
+          }`,
+        );
       }
     }
   }
@@ -325,6 +421,7 @@ export const updateTrial = async (ctx: RequestContext, id: string, dto: UpdateTr
   const experiment = await findExperiment(String(trial.experimentId));
   if (experiment.status === 'Closed')
     throw AppError.conflict('EXPERIMENT_CLOSED', 'This experiment is closed');
+  assertUnlocked(ctx, trial, dto);
   await validateAgainstProtocol(experiment, trial, dto);
   return withTransaction(async (session) => {
     const doc = await TrialModel.findById(id).session(session);

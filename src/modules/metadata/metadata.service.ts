@@ -124,13 +124,7 @@ const autoValues = (
   const centre = src.centres.get(String(trial.centreId));
   const pi = src.pis.get(String(trial.centreId));
   const coverage = src.coverage.get(trial.id as string);
-  const cropCodes = [
-    ...new Set(
-      trial.croppingSystems.flatMap((cs) =>
-        cs.seasons.flatMap((s) => [s.mainCropCode, s.intercropCode].filter((c): c is string => !!c)),
-      ),
-    ),
-  ];
+  const cropCodes = [...new Set(trial.croppingSystems.flatMap((cs) => cs.crops.map((c) => c.cropCode)))];
   const ongoing = experiment.status !== 'Closed';
   const years = coverage?.years ?? [];
   const temporal = years.length

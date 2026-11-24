@@ -4,7 +4,7 @@ import { idParams, objectId } from '../../utils/validators.js';
 import { disabledParameter, subPlotItem, treatment } from '../experiments/experiments.dto.js';
 import { masterCode } from '../masters/masters.dto.js';
 import { trialBody } from '../metadata/metadata.dto.js';
-import { ASSIGNMENT_STATUSES, TRIAL_STATUSES } from './trials.model.js';
+import { ASSIGNMENT_STATUSES, SYSTEM_CROP_ROLES, TRIAL_STATUSES } from './trials.model.js';
 
 const shortCode = z
   .string()
@@ -12,26 +12,32 @@ const shortCode = z
   .toUpperCase()
   .regex(/^[A-Z0-9][A-Z0-9_-]{0,19}$/, 'Code: letters, digits, _ or -');
 
-const seasonCrop = z
+const measure = (max: number, description: string, example: number) =>
+  z.number().min(0).max(max).nullable().optional().meta({ description, example });
+
+const systemCrop = z
   .object({
-    seasonCode: masterCode.meta({ example: 'KHARIF' }),
-    mainCropCode: masterCode.meta({ example: 'RICE' }),
-    mainVariety: z.string().trim().max(100).nullable().optional(),
-    intercropCode: masterCode.nullable().optional(),
-    intercropVariety: z.string().trim().max(100).nullable().optional(),
+    cropCode: masterCode.meta({ example: 'CRP-001' }),
+    role: z.enum(SYSTEM_CROP_ROLES),
+    variety: z.string().trim().max(100).nullable().optional().meta({ example: 'PB 1509' }),
+    plantSpacing: measure(1000, 'Plant to plant spacing, cm', 15),
+    rowSpacing: measure(1000, 'Row to row spacing, cm', 20),
     rowRatio: z
-      .string()
-      .trim()
-      .regex(/^\d{1,2}:\d{1,2}$/, 'Row ratio like 2:1')
-      .nullable()
-      .optional(),
-    seedRate: z
       .number()
-      .min(0)
-      .max(10000)
+      .int()
+      .min(1)
+      .max(20)
       .nullable()
       .optional()
-      .meta({ example: 40, description: 'Seed rate in kg/ha' }),
+      .meta({ description: "This crop's rows in the row ratio (main 2, intercrop 1 → 2:1)", example: 2 }),
+    seedRate: measure(10000, 'Seed rate, kg/ha', 40),
+  })
+  .strict();
+
+const croppingSystem = z
+  .object({
+    croppingSystemId: objectId.meta({ description: 'A cropping system from the masters' }),
+    crops: z.array(systemCrop).max(6).default([]),
     sowingDate: z.coerce.date().nullable().optional(),
     harvestDate: z.coerce.date().nullable().optional(),
   })
@@ -39,18 +45,6 @@ const seasonCrop = z
   .refine((s) => !s.sowingDate || !s.harvestDate || s.sowingDate <= s.harvestDate, {
     message: 'Harvest date must be after sowing',
     path: ['harvestDate'],
-  });
-
-const croppingSystem = z
-  .object({
-    code: shortCode.meta({ example: 'CS1' }),
-    name: z.string().trim().min(2).max(200).meta({ example: 'Rice – Wheat' }),
-    seasons: z.array(seasonCrop).max(6).default([]),
-  })
-  .strict()
-  .refine((cs) => new Set(cs.seasons.map((s) => s.seasonCode)).size === cs.seasons.length, {
-    message: 'Each season appears once per cropping system',
-    path: ['seasons'],
   });
 
 const practice = z
@@ -92,9 +86,10 @@ const updateBody = z
   .refine((b) => Object.keys(b).length > 0, { message: 'Provide at least one field to update' })
   .refine(
     (b) =>
-      !b.croppingSystems || new Set(b.croppingSystems.map((c) => c.code)).size === b.croppingSystems.length,
+      !b.croppingSystems ||
+      new Set(b.croppingSystems.map((c) => c.croppingSystemId)).size === b.croppingSystems.length,
     {
-      message: 'Cropping system codes must be unique',
+      message: 'Each cropping system appears once',
       path: ['croppingSystems'],
     },
   );

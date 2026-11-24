@@ -76,9 +76,16 @@ export interface Treatment {
   factor3Code?: string | null;
 }
 
+/** A sub plot's cropping system (masters) in one season of the experiment. */
+export interface SeasonSystem {
+  seasonCode: string;
+  croppingSystem: Types.ObjectId | string;
+}
+
 export interface SubPlotItem {
   code: string;
-  croppingSystem?: Types.ObjectId | null;
+  /** Split / split-split plots: at most one cropping system per season. */
+  croppingSystems?: SeasonSystem[];
   description?: string | null;
   mainPlotCode?: string | null;
   subPlotCode?: string | null;
@@ -215,10 +222,17 @@ export const treatmentSchema = new Schema<Treatment>(
 export const subPlotItemSchema = new Schema<SubPlotItem>(
   {
     code: { type: String, required: true, trim: true, uppercase: true, maxlength: 20 },
-    croppingSystem: {
-      type: Schema.Types.ObjectId,
-      ref: 'CroppingSystem',
-      default: null,
+    croppingSystems: {
+      type: [
+        new Schema<SeasonSystem>(
+          {
+            seasonCode: { type: String, required: true, uppercase: true, trim: true },
+            croppingSystem: { type: Schema.Types.ObjectId, ref: 'CroppingSystem', required: true },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
     },
     description: { type: String, trim: true, maxlength: 1000, default: null },
     mainPlotCode: { type: String, trim: true, uppercase: true, maxlength: 20, default: null },

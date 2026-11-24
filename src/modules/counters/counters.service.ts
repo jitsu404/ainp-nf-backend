@@ -28,9 +28,14 @@ const series = (key: string, prefix: string): CodeSeries => ({
   pattern: new RegExp(`^${prefix}(\\d+)$`),
 });
 
-/** Crops CRP-001 …, units UNT-001 …, parameters PRM_001 … (formulas can't contain "-"). */
+/**
+ * Crops CRP-001 …, units UNT-001 …, parameters PRM_001 … (formulas can't contain "-"), cropping
+ * systems CSY-001 …, programmes P1, P2 … (no padding: they appear inside experiment codes).
+ */
 export const CODE_SERIES = {
+  programme: { key: 'programme', format: (n: number) => `P${n}`, pattern: /^P(\d+)$/ },
   crop: series('crop', 'CRP-'),
+  croppingSystem: series('croppingSystem', 'CSY-'),
   unit: series('unit', 'UNT-'),
   parameter: series('parameter', 'PRM_'),
 } as const satisfies Record<string, CodeSeries>;
@@ -61,8 +66,21 @@ export const raiseCounter = async (key: string, count: number, session?: ClientS
   await CounterModel.updateOne({ key }, { $max: { lastCount: count } }, { upsert: true, session });
 };
 
-/** The next experiment code: AINP-NF-EXPT-001, AINP-NF-EXPT-002 … */
-export const generateExperimentCode = async (session?: ClientSession): Promise<string> => {
-  const seq = await getNextSequence('experiment', session);
-  return `AINP-NF-EXPT-${String(seq).padStart(3, '0')}`;
-};
+/**
+ * The next experiment code of a programme, numbered per programme: AINP-NF-P2-EXPT-001,
+ * AINP-NF-P2-EXPT-002 … A number whose code is already taken (`isTaken`) is skipped.
+ */
+export const generateExperimentCode = async (
+  programmeCode: string,
+  isTaken: (code: string) => Promise<boolean>,
+  session?: ClientSession,
+): Promise<string> =>
+  nextCode(
+    {
+      key: `experiment:${programmeCode}`,
+      format: (n) => `AINP-NF-${programmeCode}-EXPT-${String(n).padStart(3, '0')}`,
+      pattern: new RegExp(`^AINP-NF-${programmeCode}-EXPT-(\\d+)$`),
+    },
+    isTaken,
+    session,
+  );

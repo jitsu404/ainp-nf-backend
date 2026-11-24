@@ -59,7 +59,15 @@ const setup = async () => {
     .patch(`/api/v1/trials/${trialOf(centreA.id)}`)
     .send({
       croppingSystems: [
-        { code: 'CS1', name: 'Rice', seasons: [{ seasonCode: 'KHARIF', mainCropCode: 'RICE' }] },
+        {
+          croppingSystemId: (
+            await pcu
+              .post('/api/v1/cropping-systems')
+              .send({ seasonCode: 'KHARIF', mainCropCode: 'RICE' })
+              .expect(201)
+          ).body.data.id,
+          crops: [{ cropCode: 'RICE', role: 'main', variety: 'IR 64' }],
+        },
       ],
     })
     .expect(200);

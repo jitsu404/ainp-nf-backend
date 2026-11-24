@@ -23,25 +23,34 @@ export type TrialStatus = (typeof TRIAL_STATUSES)[number];
 export const ASSIGNMENT_STATUSES = ['Active', 'Withdrawn'] as const;
 export type AssignmentStatus = (typeof ASSIGNMENT_STATUSES)[number];
 
-export interface SeasonCrop {
-  seasonCode: string;
-  mainCropCode: string;
-  mainVariety?: string | null;
-  intercropCode?: string | null;
-  intercropVariety?: string | null;
-  /** e.g. "2:1" (main : intercrop rows). */
-  rowRatio?: string | null;
-  /** Seed rate in kg/ha (datasheet 2a: "Seed rate (kg/ha)"). */
+export const SYSTEM_CROP_ROLES = ['main', 'intercrop'] as const;
+export type SystemCropRole = (typeof SYSTEM_CROP_ROLES)[number];
+
+/** How the centre grows one crop of a cropping system in a season (datasheet 2a). */
+export interface SystemCrop {
+  cropCode: string;
+  role: SystemCropRole;
+  variety?: string | null;
+  /** Plant to plant spacing, cm. */
+  plantSpacing?: number | null;
+  /** Row to row spacing, cm. */
+  rowSpacing?: number | null;
+  /** This crop's rows in the row ratio: main 2, intercrop 1 → "2:1". */
+  rowRatio?: number | null;
+  /** Seed rate, kg/ha. */
   seedRate?: number | null;
-  sowingDate?: Date | null;
-  harvestDate?: Date | null;
 }
 
-export interface CroppingSystem {
-  /** CS1, CS2 … unique within the trial. */
-  code: string;
-  name: string;
-  seasons: SeasonCrop[];
+/**
+ * A cropping system from the masters as grown at this centre: the master fixes the season and
+ * crops, the centre records each crop's variety, spacings, row ratio and seed rate, and the dates.
+ * Entries saved before the master existed have no croppingSystemId and are ignored.
+ */
+export interface TrialCroppingSystem {
+  croppingSystemId: Types.ObjectId;
+  crops: SystemCrop[];
+  sowingDate?: Date | null;
+  harvestDate?: Date | null;
 }
 
 /** What a treatment means at this centre (datasheet 2a "Treatment details"). */
@@ -62,7 +71,7 @@ export interface Trial {
    * trialSeasonCrops(); the audit trail records every change.
    */
   seasonCrops: Map<string, Types.ObjectId[]>;
-  croppingSystems: CroppingSystem[];
+  croppingSystems: TrialCroppingSystem[];
   practices: TreatmentPractice[];
   treatments: Treatment[];
   mainPlotData: Treatment[];
@@ -88,26 +97,26 @@ export interface Trial {
   updatedAt: Date;
 }
 
-const seasonCropSchema = new Schema<SeasonCrop>(
+const systemCropSchema = new Schema<SystemCrop>(
   {
-    seasonCode: { type: String, required: true, uppercase: true },
-    mainCropCode: { type: String, required: true, uppercase: true },
-    mainVariety: { type: String, trim: true, maxlength: 100, default: null },
-    intercropCode: { type: String, uppercase: true, default: null },
-    intercropVariety: { type: String, trim: true, maxlength: 100, default: null },
-    rowRatio: { type: String, trim: true, maxlength: 20, default: null },
+    cropCode: { type: String, required: true, uppercase: true },
+    role: { type: String, enum: SYSTEM_CROP_ROLES, required: true },
+    variety: { type: String, trim: true, maxlength: 100, default: null },
+    plantSpacing: { type: Number, min: 0, default: null },
+    rowSpacing: { type: Number, min: 0, default: null },
+    rowRatio: { type: Number, min: 1, default: null },
     seedRate: { type: Number, min: 0, default: null },
-    sowingDate: { type: Date, default: null },
-    harvestDate: { type: Date, default: null },
   },
   { _id: false },
 );
 
-const croppingSystemSchema = new Schema<CroppingSystem>(
+const trialCroppingSystemSchema = new Schema<TrialCroppingSystem>(
   {
-    code: { type: String, required: true, uppercase: true, trim: true, maxlength: 20 },
-    name: { type: String, required: true, trim: true, maxlength: 200 },
-    seasons: { type: [seasonCropSchema], default: [] },
+    // Not required in the schema, so trials still holding pre-master entries can be saved.
+    croppingSystemId: { type: Schema.Types.ObjectId, ref: 'CroppingSystem', default: null },
+    crops: { type: [systemCropSchema], default: [] },
+    sowingDate: { type: Date, default: null },
+    harvestDate: { type: Date, default: null },
   },
   { _id: false },
 );
@@ -132,7 +141,7 @@ const trialSchema = new Schema<Trial>(
       of: [{ type: Schema.Types.ObjectId, ref: 'MasterItem' }],
       default: () => new Map(),
     },
-    croppingSystems: { type: [croppingSystemSchema], default: [] },
+    croppingSystems: { type: [trialCroppingSystemSchema], default: [] },
     practices: { type: [practiceSchema], default: [] },
     treatments: { type: [treatmentSchema], default: [] },
     mainPlotData: { type: [treatmentSchema], default: [] },

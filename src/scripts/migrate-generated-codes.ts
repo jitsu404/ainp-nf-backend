@@ -95,11 +95,10 @@ const run = async () => {
       let changed = false;
       const croppingSystems = t.croppingSystems.map((cs) => ({
         ...cs,
-        seasons: cs.seasons.map((s) => {
-          const main = newCrop(s.mainCropCode)!;
-          const inter = newCrop(s.intercropCode) ?? null;
-          if (main !== s.mainCropCode || inter !== (s.intercropCode ?? null)) changed = true;
-          return { ...s, mainCropCode: main, intercropCode: inter };
+        crops: cs.crops.map((c) => {
+          const code = newCrop(c.cropCode)!;
+          if (code !== c.cropCode) changed = true;
+          return { ...c, cropCode: code };
         }),
       }));
       return changed ? { id: t._id, croppingSystems } : null;

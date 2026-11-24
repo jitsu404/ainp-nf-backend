@@ -54,7 +54,23 @@ export const subPlotItem = z
       .toUpperCase()
       .regex(/^[A-Z0-9][A-Z0-9_-]{0,19}$/, 'Code: letters, digits, _ or -')
       .meta({ example: 'S1' }),
-    croppingSystem: objectId.nullable().optional(),
+    croppingSystems: z
+      .array(
+        z
+          .object({
+            seasonCode: masterCode.meta({ example: 'KHARIF' }),
+            croppingSystem: objectId.meta({ description: 'A cropping system of that season (masters)' }),
+          })
+          .strict(),
+      )
+      .max(6)
+      .optional()
+      .refine((xs) => !xs || new Set(xs.map((x) => x.seasonCode)).size === xs.length, {
+        message: 'One cropping system per season',
+      })
+      .meta({
+        description: "Split / split-split plots: the sub plot's cropping system in each season",
+      }),
     description: z.string().trim().max(1000).optional(),
     mainPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
     subPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
@@ -209,7 +225,7 @@ const createBody = checks(
       ...shape,
       code: masterCode.optional().meta({
         example: 'NF-LTE',
-        description: 'Leave out to generate the next code (AINP-NF-EXPT-001 …)',
+        description: "Leave out to generate the programme's next code (AINP-NF-P2-EXPT-001 …)",
       }),
       mainPlotCount: shape.mainPlotCount.default(0),
       subPlotCount: shape.subPlotCount.default(0),

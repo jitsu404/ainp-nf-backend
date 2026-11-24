@@ -19,13 +19,14 @@ import { MASTER_TYPES, type MasterType } from './masters.types.js';
 const MODULE = 'masters';
 
 /**
- * Lists whose codes the system generates (CRP-001, UNT-001 …). Their codes are never typed and
- * never change, so the records that refer to them (cropping systems, sheets, parameters' units)
- * stay valid. Other lists (seasons, programmes …) keep the codes people give them.
+ * Lists whose codes the system generates (CRP-001, UNT-001, P1 …). Their codes are never typed and
+ * never change, so the records that refer to them (cropping systems, sheets, parameters' units,
+ * experiment codes) stay valid. Other lists (seasons, zones …) keep the codes people give them.
  */
 const GENERATED_CODES: Partial<Record<MasterType, CodeSeries>> = {
   crop: CODE_SERIES.crop,
   unit: CODE_SERIES.unit,
+  programme: CODE_SERIES.programme,
 };
 export const generatesCodes = (type: MasterType) => Boolean(GENERATED_CODES[type]);
 

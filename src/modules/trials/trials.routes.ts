@@ -40,9 +40,10 @@ trialsRouter.patch(
   '/:id/lock',
   apiDoc({
     name: 'Toggle trial lock',
-    description: 'Lock or unlock protocol sections (mainPlot, subPlot, treatments, parameters) for a trial.',
+    description:
+      "Lock or unlock protocol sections (mainPlot, subPlot, subSubPlot, factor1-3, treatments, parameters) for a trial. Only the PCU (research.assign / research.config) toggles them; while a section is locked, the centre's PATCH /trials/:id is refused for it (409 SECTION_LOCKED).",
   }),
-  authorize('research.assign', 'research.config', 'research.enter'),
+  authorize('research.assign', 'research.config'),
   validate(toggleTrialLockSchemas),
   controller.toggleLock,
 );

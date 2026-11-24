@@ -17,7 +17,6 @@ const createBody = z
     trialId: objectId,
     year,
     seasonCode: masterCode.meta({ example: 'KHARIF' }),
-    croppingSystemCode: masterCode.nullable().optional().meta({ example: 'CS1' }),
     cropCode: masterCode.nullable().optional().meta({ example: 'RICE' }),
   })
   .strict();

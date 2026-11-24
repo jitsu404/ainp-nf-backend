@@ -946,6 +946,146 @@
       ]
     },
     {
+      "name": "Cropping systems",
+      "description": "Cropping systems master: one season, its main crop and its intercrops. Experiments pick one as a sub plot level (split / split-split plot); each centre records its varieties, spacings, row ratios and seed rates on its trial. Everyone signed in reads them; `masters.edit` changes them.",
+      "item": [
+        {
+          "name": "List cropping systems",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cropping-systems",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cropping-systems"
+              ],
+              "query": [
+                {
+                  "key": "isActive",
+                  "value": "",
+                  "description": "string · one of `true`, `false`",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "`isActive=true` for the ones that can be chosen.\n\n**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/cropping-systems`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `isActive` | string | no | one of `true`, `false` |  |"
+          }
+        },
+        {
+          "name": "Get cropping system",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/cropping-systems/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cropping-systems",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{croppingSystemId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "**Access:** any signed-in user\n\n**Endpoint:** `GET /api/v1/cropping-systems/:id`"
+          }
+        },
+        {
+          "name": "Add cropping system",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the new croppingSystem so \"Get\", \"Update\" and other requests can use it.",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('croppingSystemId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sample name\",\n  \"description\": \"Sample description\",\n  \"seasonCode\": \"KHARIF\",\n  \"mainCropCode\": \"CRP-001\",\n  \"intercropCodes\": [\n    \"CRP-015\"\n  ],\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cropping-systems",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cropping-systems"
+              ]
+            },
+            "description": "One season, its main crop and up to 5 intercrops (crop master codes). Several systems may share a season and main crop. The code is generated (CSY-001 …); the name is made from the crops when left out, and then follows them on later edits.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `POST /api/v1/cropping-systems`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `name` | string | no | 0–200 chars | Left out or empty: made from the crops, e.g. \"Rice + Soybean\" |\n| `description` | string | no | 0–1000 chars; nullable |  |\n| `seasonCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `mainCropCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `intercropCodes` | string[] | no | — | 0 to 5 intercrops (crop codes) |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Update cropping system",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sample name\",\n  \"description\": \"Sample description\",\n  \"seasonCode\": \"KHARIF\",\n  \"mainCropCode\": \"CRP-001\",\n  \"intercropCodes\": [\n    \"CRP-015\"\n  ],\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/cropping-systems/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "cropping-systems",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{croppingSystemId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "`isActive: false` hides it from new choices; experiments and trials using it keep it.\n\n**Access:** signed in, and the role needs `masters.edit`\n\n**Endpoint:** `PATCH /api/v1/cropping-systems/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `name` | string | no | 0–200 chars | Left out or empty: made from the crops, e.g. \"Rice + Soybean\" |\n| `description` | string | no | 0–1000 chars; nullable |  |\n| `seasonCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `mainCropCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `intercropCodes` | string[] | no | — | 0 to 5 intercrops (crop codes) |\n| `isActive` | boolean | no | — |  |\n\nUnknown fields are rejected."
+          }
+        }
+      ]
+    },
+    {
       "name": "Financial years",
       "description": "Indian financial years (1 April – 31 March). Closed years block data entry; one year is current.",
       "item": [
@@ -1339,7 +1479,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"mainPlotCount\": 0,\n  \"subPlotCount\": 0,\n  \"subSubPlotCount\": 0,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"mainPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"subPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"subSubPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"disabledParameters\": [\n    {\n      \"treatment\": \"T1\",\n      \"season\": \"KHARIF\",\n      \"parameterId\": \"{{parameterId}}\"\n    }\n  ],\n  \"defaultParameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": {\n    \"KHARIF\": [],\n    \"RABI\": []\n  },\n  \"startYear\": 2026,\n  \"endYear\": 2029,\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"piUserId\": \"{{piUserId}}\",\n  \"referenceTreatmentCode\": null,\n  \"code\": \"NF-LTE\"\n}",
+              "raw": "{\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"mainPlotCount\": 0,\n  \"subPlotCount\": 0,\n  \"subSubPlotCount\": 0,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"mainPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"subPlotData\": [\n    {\n      \"code\": \"S1\",\n      \"croppingSystems\": [\n        {\n          \"seasonCode\": \"KHARIF\",\n          \"croppingSystem\": \"{{croppingSystemId}}\"\n        }\n      ],\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"subSubPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"factor1Data\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"factor2Data\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"factor3Data\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"disabledParameters\": [\n    {\n      \"treatment\": \"T1\",\n      \"season\": \"KHARIF\",\n      \"parameterId\": \"{{parameterId}}\"\n    }\n  ],\n  \"defaultParameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": {\n    \"KHARIF\": [],\n    \"RABI\": []\n  },\n  \"startYear\": 2026,\n  \"endYear\": 2029,\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"piUserId\": \"{{piUserId}}\",\n  \"referenceTreatmentCode\": null,\n  \"code\": \"NF-LTE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1355,7 +1495,7 @@
                 "experiments"
               ]
             },
-            "description": "The PCU protocol: design, replications, common treatments, the parameters to record (plot- or treatment-level) and seasons. Assigning centres creates their trials; `piUserId` links an Experiment PI seat (optional).\n\n**Access:** signed in, and the role needs `research.assign`\n\n**Endpoint:** `POST /api/v1/experiments`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | 5–300 chars |  |\n| `programmeCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | yes | one of `RBD`, `Split plot`, `Strip plot`, `Split-split plot`, `Factorial`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0; max 10; default `0` | Split / strip plot: main plots (≥ 1); other designs: 0. Each main × sub plot holds every treatment × replication |\n| `subPlotCount` | integer | no | min 0; max 10; default `0` | Split / strip plot: sub plots per main plot (≥ 1); other designs: 0 |\n| `subSubPlotCount` | integer | no | min 0; max 10; default `0` | Split-split plot: sub-sub plots per sub plot (≥ 1); other designs: 0 |\n| `treatments` | object[] | no | — |  |\n| `mainPlotData` | object[] | no | — |  |\n| `subPlotData` | object[] | no | — |  |\n| `subSubPlotData` | object[] | no | — |  |\n| `disabledParameters` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | yes | min 1900; max 2100 |  |\n| `endYear` | integer | yes | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` | Leave out to generate the next code (AINP-NF-EXPT-001 …) |\n\nUnknown fields are rejected."
+            "description": "The PCU protocol: design, replications, common treatments, the parameters to record (plot- or treatment-level) and seasons. Assigning centres creates their trials; `piUserId` links an Experiment PI seat (optional).\n\n**Access:** signed in, and the role needs `research.assign`\n\n**Endpoint:** `POST /api/v1/experiments`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | 5–300 chars |  |\n| `programmeCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | yes | one of `RBD`, `Split plot`, `Strip plot`, `Split-split plot`, `Factorial`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0; max 10; default `0` | Split / strip plot: main plots (≥ 1); other designs: 0. Each main × sub plot holds every treatment × replication |\n| `subPlotCount` | integer | no | min 0; max 10; default `0` | Split / strip plot: sub plots per main plot (≥ 1); other designs: 0 |\n| `subSubPlotCount` | integer | no | min 0; max 10; default `0` | Split-split plot: sub-sub plots per sub plot (≥ 1); other designs: 0 |\n| `treatments` | object[] | no | — |  |\n| `mainPlotData` | object[] | no | — |  |\n| `subPlotData` | object[] | no | — |  |\n| `subSubPlotData` | object[] | no | — |  |\n| `factor1Data` | object[] | no | — |  |\n| `factor2Data` | object[] | no | — |  |\n| `factor3Data` | object[] | no | — |  |\n| `disabledParameters` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | yes | min 1900; max 2100 |  |\n| `endYear` | integer | yes | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` | Leave out to generate the programme's next code (AINP-NF-P2-EXPT-001 …) |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -1370,7 +1510,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"mainPlotCount\": 0,\n  \"subPlotCount\": 0,\n  \"subSubPlotCount\": 0,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"mainPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"subPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"subSubPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"disabledParameters\": [\n    {\n      \"treatment\": \"T1\",\n      \"season\": \"KHARIF\",\n      \"parameterId\": \"{{parameterId}}\"\n    }\n  ],\n  \"defaultParameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": {\n    \"KHARIF\": [],\n    \"RABI\": []\n  },\n  \"startYear\": 2026,\n  \"endYear\": 2029,\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"piUserId\": \"{{piUserId}}\",\n  \"referenceTreatmentCode\": null,\n  \"status\": \"Draft\",\n  \"withdrawReason\": \"Sample withdrawReason\"\n}",
+              "raw": "{\n  \"title\": \"Long-term evaluation of natural farming practices\",\n  \"programmeCode\": \"P2\",\n  \"objectives\": [\n    \"Sample objectives\"\n  ],\n  \"design\": \"RBD\",\n  \"replications\": 3,\n  \"mainPlotCount\": 0,\n  \"subPlotCount\": 0,\n  \"subSubPlotCount\": 0,\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"mainPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"subPlotData\": [\n    {\n      \"code\": \"S1\",\n      \"croppingSystems\": [\n        {\n          \"seasonCode\": \"KHARIF\",\n          \"croppingSystem\": \"{{croppingSystemId}}\"\n        }\n      ],\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"subSubPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"factor1Data\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"factor2Data\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"factor3Data\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"disabledParameters\": [\n    {\n      \"treatment\": \"T1\",\n      \"season\": \"KHARIF\",\n      \"parameterId\": \"{{parameterId}}\"\n    }\n  ],\n  \"defaultParameters\": [\n    {\n      \"parameterId\": \"{{parameterId}}\",\n      \"section\": \"Growth & yield\",\n      \"level\": \"plot\",\n      \"required\": false\n    }\n  ],\n  \"seasons\": {\n    \"KHARIF\": [],\n    \"RABI\": []\n  },\n  \"startYear\": 2026,\n  \"endYear\": 2029,\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"piUserId\": \"{{piUserId}}\",\n  \"referenceTreatmentCode\": null,\n  \"status\": \"Draft\",\n  \"withdrawReason\": \"Sample withdrawReason\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1394,7 +1534,7 @@
                 }
               ]
             },
-            "description": "Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added. The Experiment PI edits only their own experiment; centres and the PI (`centreIds`, `piUserId`) need `research.assign`.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | no | 5–300 chars |  |\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | no | one of `RBD`, `Split plot`, `Strip plot`, `Split-split plot`, `Factorial`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0; max 10 | Split / strip plot: main plots (≥ 1); other designs: 0. Each main × sub plot holds every treatment × replication |\n| `subPlotCount` | integer | no | min 0; max 10 | Split / strip plot: sub plots per main plot (≥ 1); other designs: 0 |\n| `subSubPlotCount` | integer | no | min 0; max 10 | Split-split plot: sub-sub plots per sub plot (≥ 1); other designs: 0 |\n| `treatments` | object[] | no | — |  |\n| `mainPlotData` | object[] | no | — |  |\n| `subPlotData` | object[] | no | — |  |\n| `subSubPlotData` | object[] | no | — |  |\n| `disabledParameters` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | no | min 1900; max 2100 |  |\n| `endYear` | integer | no | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n| `withdrawReason` | string | no | 3–500 chars | Why centres left out of `centreIds` are withdrawn (kept on their trial; their data stays read-only) |\n\nUnknown fields are rejected."
+            "description": "Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added. The Experiment PI edits only their own experiment; centres and the PI (`centreIds`, `piUserId`) need `research.assign`.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | no | 5–300 chars |  |\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | no | one of `RBD`, `Split plot`, `Strip plot`, `Split-split plot`, `Factorial`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0; max 10 | Split / strip plot: main plots (≥ 1); other designs: 0. Each main × sub plot holds every treatment × replication |\n| `subPlotCount` | integer | no | min 0; max 10 | Split / strip plot: sub plots per main plot (≥ 1); other designs: 0 |\n| `subSubPlotCount` | integer | no | min 0; max 10 | Split-split plot: sub-sub plots per sub plot (≥ 1); other designs: 0 |\n| `treatments` | object[] | no | — |  |\n| `mainPlotData` | object[] | no | — |  |\n| `subPlotData` | object[] | no | — |  |\n| `subSubPlotData` | object[] | no | — |  |\n| `factor1Data` | object[] | no | — |  |\n| `factor2Data` | object[] | no | — |  |\n| `factor3Data` | object[] | no | — |  |\n| `disabledParameters` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | no | min 1900; max 2100 |  |\n| `endYear` | integer | no | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n| `withdrawReason` | string | no | 3–500 chars | Why centres left out of `centreIds` are withdrawn (kept on their trial; their data stays read-only) |\n\nUnknown fields are rejected."
           }
         }
       ]
@@ -1655,7 +1795,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"seasonCrops\": {\n    \"KHARIF\": []\n  },\n  \"croppingSystems\": [\n    {\n      \"code\": \"CS1\",\n      \"name\": \"Rice – Wheat\",\n      \"seasons\": []\n    }\n  ],\n  \"practices\": [\n    {\n      \"treatmentCode\": \"T2\",\n      \"seedDetails\": \"Sample seedDetails\",\n      \"nutrientDetails\": \"Sample nutrientDetails\",\n      \"protectionDetails\": \"Sample protectionDetails\",\n      \"otherDetails\": \"Sample otherDetails\"\n    }\n  ],\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"mainPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"subPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"subSubPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"disabledParameters\": [\n    {\n      \"treatment\": \"T1\",\n      \"season\": \"KHARIF\",\n      \"parameterId\": \"{{parameterId}}\"\n    }\n  ],\n  \"locked\": [\n    \"Sample locked\"\n  ],\n  \"inChargeUserId\": \"{{inChargeUserId}}\",\n  \"layoutNotes\": \"Sample layoutNotes\",\n  \"status\": \"Setup\"\n}",
+              "raw": "{\n  \"seasonCrops\": {\n    \"KHARIF\": []\n  },\n  \"croppingSystems\": [\n    {\n      \"croppingSystemId\": \"{{croppingSystemId}}\",\n      \"crops\": [],\n      \"sowingDate\": null,\n      \"harvestDate\": null\n    }\n  ],\n  \"practices\": [\n    {\n      \"treatmentCode\": \"T2\",\n      \"seedDetails\": \"Sample seedDetails\",\n      \"nutrientDetails\": \"Sample nutrientDetails\",\n      \"protectionDetails\": \"Sample protectionDetails\",\n      \"otherDetails\": \"Sample otherDetails\"\n    }\n  ],\n  \"treatments\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"mainPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"subPlotData\": [\n    {\n      \"code\": \"S1\",\n      \"croppingSystems\": [\n        {\n          \"seasonCode\": \"KHARIF\",\n          \"croppingSystem\": \"{{croppingSystemId}}\"\n        }\n      ],\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\"\n    }\n  ],\n  \"subSubPlotData\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"factor1Data\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"factor2Data\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"factor3Data\": [\n    {\n      \"code\": \"T2\",\n      \"name\": \"Complete NF\",\n      \"description\": \"Sample description\",\n      \"mainPlotCode\": \"Sample mainPlotCode\",\n      \"subPlotCode\": \"Sample subPlotCode\",\n      \"subSubPlotCode\": \"Sample subSubPlotCod\",\n      \"factor1Code\": \"Sample factor1Code\",\n      \"factor2Code\": \"Sample factor2Code\",\n      \"factor3Code\": \"Sample factor3Code\"\n    }\n  ],\n  \"disabledParameters\": [\n    {\n      \"treatment\": \"T1\",\n      \"season\": \"KHARIF\",\n      \"parameterId\": \"{{parameterId}}\"\n    }\n  ],\n  \"locked\": [\n    \"Sample locked\"\n  ],\n  \"inChargeUserId\": \"{{inChargeUserId}}\",\n  \"layoutNotes\": \"Sample layoutNotes\",\n  \"status\": \"Setup\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1679,7 +1819,7 @@
                 }
               ]
             },
-            "description": "The centre sets its cropping systems (crops and varieties per season), the practice details of each treatment, the in-charge, layout notes and status. Seasons, crops and treatments are checked against the masters and the protocol.\n\n**Access:** signed in, and the role needs one of `research.enter`, `research.assign`\n\n**Endpoint:** `PATCH /api/v1/trials/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `seasonCrops` | object | no | — | The centre's crops per season where they differ from the experiment's (crop master item ids). Only the seasons sent change; null puts a season back to the experiment's crops. |\n| `croppingSystems` | object[] | no | — |  |\n| `practices` | object[] | no | — |  |\n| `treatments` | object[] | no | — |  |\n| `mainPlotData` | object[] | no | — |  |\n| `subPlotData` | object[] | no | — |  |\n| `subSubPlotData` | object[] | no | — |  |\n| `disabledParameters` | object[] | no | — |  |\n| `locked` | string[] | no | — |  |\n| `inChargeUserId` | string | no | ObjectId; nullable |  |\n| `layoutNotes` | string | no | 0–4000 chars; nullable |  |\n| `status` | string | no | one of `Setup`, `Running`, `Completed` |  |\n\nUnknown fields are rejected."
+            "description": "The centre sets its cropping systems (crops and varieties per season), the practice details of each treatment, the in-charge, layout notes and status. Seasons, crops and treatments are checked against the masters and the protocol.\n\n**Access:** signed in, and the role needs one of `research.enter`, `research.assign`\n\n**Endpoint:** `PATCH /api/v1/trials/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `seasonCrops` | object | no | — | The centre's crops per season where they differ from the experiment's (crop master item ids). Only the seasons sent change; null puts a season back to the experiment's crops. |\n| `croppingSystems` | object[] | no | — |  |\n| `practices` | object[] | no | — |  |\n| `treatments` | object[] | no | — |  |\n| `mainPlotData` | object[] | no | — |  |\n| `subPlotData` | object[] | no | — |  |\n| `subSubPlotData` | object[] | no | — |  |\n| `factor1Data` | object[] | no | — |  |\n| `factor2Data` | object[] | no | — |  |\n| `factor3Data` | object[] | no | — |  |\n| `disabledParameters` | object[] | no | — |  |\n| `locked` | string[] | no | — |  |\n| `inChargeUserId` | string | no | ObjectId; nullable |  |\n| `layoutNotes` | string | no | 0–4000 chars; nullable |  |\n| `status` | string | no | one of `Setup`, `Running`, `Completed` |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -1719,7 +1859,7 @@
                 }
               ]
             },
-            "description": "Lock or unlock protocol sections (mainPlot, subPlot, treatments, parameters) for a trial.\n\n**Access:** signed in, and the role needs one of `research.assign`, `research.config`, `research.enter`\n\n**Endpoint:** `PATCH /api/v1/trials/:id/lock`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `lockedKey` | string | yes | 1–50 chars |  |\n| `isLocked` | boolean | yes | — |  |\n\nUnknown fields are rejected."
+            "description": "Lock or unlock protocol sections (mainPlot, subPlot, subSubPlot, factor1-3, treatments, parameters) for a trial. Only the PCU (research.assign / research.config) toggles them; while a section is locked, the centre's PATCH /trials/:id is refused for it (409 SECTION_LOCKED).\n\n**Access:** signed in, and the role needs one of `research.assign`, `research.config`\n\n**Endpoint:** `PATCH /api/v1/trials/:id/lock`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `lockedKey` | string | yes | 1–50 chars |  |\n| `isLocked` | boolean | yes | — |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -2053,7 +2193,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"trialId\": \"{{trialId}}\",\n  \"year\": 2026,\n  \"seasonCode\": \"KHARIF\",\n  \"croppingSystemCode\": \"CS1\",\n  \"cropCode\": \"RICE\"\n}",
+              "raw": "{\n  \"trialId\": \"{{trialId}}\",\n  \"year\": 2026,\n  \"seasonCode\": \"KHARIF\",\n  \"cropCode\": \"RICE\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2069,7 +2209,7 @@
                 "sheets"
               ]
             },
-            "description": "One sheet per trial × year × season (× cropping system or crop). `year` is the year the season starts in (Rabi 2026 runs into 2027), any year from the experiment's start year to its end year.\n\n**Access:** signed in, and the role needs `research.enter`\n\n**Endpoint:** `POST /api/v1/sheets`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `trialId` | string | yes | ObjectId |  |\n| `year` | integer | yes | min 1900; max 2100 | Year the season starts in (Rabi 2026 runs into 2027); any year from the experiment's startYear to its endYear |\n| `seasonCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `croppingSystemCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable |  |\n| `cropCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable |  |\n\nUnknown fields are rejected."
+            "description": "One sheet per trial × year × season (× cropping system or crop). `year` is the year the season starts in (Rabi 2026 runs into 2027), any year from the experiment's start year to its end year.\n\n**Access:** signed in, and the role needs `research.enter`\n\n**Endpoint:** `POST /api/v1/sheets`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `trialId` | string | yes | ObjectId |  |\n| `year` | integer | yes | min 1900; max 2100 | Year the season starts in (Rabi 2026 runs into 2027); any year from the experiment's startYear to its endYear |\n| `seasonCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `cropCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$`; nullable |  |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -3059,6 +3199,12 @@
       "value": "",
       "type": "string",
       "description": "Set automatically by \"Create master\""
+    },
+    {
+      "key": "croppingSystemId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by \"Create croppingSystem\""
     },
     {
       "key": "financialYearId",

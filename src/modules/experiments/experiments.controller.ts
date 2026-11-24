@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { getValidated } from '../../middlewares/validate.js';
 import { contextOf } from '../../utils/context.js';
 import { created, ok } from '../../utils/response.js';
-import { syncTrials } from '../trials/trials.service.js';
+import { pushSubPlotSystems, syncTrials } from '../trials/trials.service.js';
 import { seatSummary, usersByIds } from '../users/users.service.js';
 import type {
   createExperimentSchemas,
@@ -63,6 +63,12 @@ export const create = async (req: Request, res: Response) => {
 export const update = async (req: Request, res: Response) => {
   const { params, body } = getValidated<typeof updateExperimentSchemas>(req);
   const ctx = contextOf(req);
-  const experiment = await experimentsService.updateExperiment(ctx, params.id, body, syncCentresFor(ctx));
+  const experiment = await experimentsService.updateExperiment(
+    ctx,
+    params.id,
+    body,
+    syncCentresFor(ctx),
+    (e, session) => pushSubPlotSystems(ctx, e, session),
+  );
   ok(res, await detail(ctx, experiment.id as string));
 };

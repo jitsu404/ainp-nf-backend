@@ -3,6 +3,7 @@ import { auditRouter } from './modules/audit/audit.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { budgetAllocationRouter } from './modules/budget-allocation/budget-allocation.routes.js';
 import { centresRouter } from './modules/centres/centres.routes.js';
+import { croppingSystemsRouter } from './modules/croppingSystems/croppingSystems.routes.js';
 import { financialYearsRouter } from './modules/financialYears/financialYears.routes.js';
 import { metadataRouter } from './modules/metadata/metadata.routes.js';
 import { mastersRouter } from './modules/masters/masters.routes.js';
@@ -70,6 +71,14 @@ export const API_MODULES: readonly ApiModule[] = [
     singular: 'master',
     description:
       'Lookup lists (seasons, units, crops, NF inputs, programmes, budget heads, fund categories, staff posts). Everyone signed in reads them; `masters.edit` (PCU, Super Admin) changes them. Each list supports Excel import.',
+  },
+  {
+    name: 'Cropping systems',
+    prefix: '/cropping-systems',
+    router: croppingSystemsRouter,
+    singular: 'croppingSystem',
+    description:
+      'Cropping systems master: one season, its main crop and its intercrops. Experiments pick one as a sub plot level (split / split-split plot); each centre records its varieties, spacings, row ratios and seed rates on its trial. Everyone signed in reads them; `masters.edit` changes them.',
   },
   {
     name: 'Financial years',

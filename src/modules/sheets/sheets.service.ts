@@ -173,12 +173,6 @@ export const createSheet = async (ctx: RequestContext, dto: CreateSheetDto) => {
       `${dto.seasonCode} is not a season of this experiment`,
     );
   }
-  if (dto.croppingSystemCode && !trial.croppingSystems.some((cs) => cs.code === dto.croppingSystemCode)) {
-    throw AppError.badRequest(
-      'UNKNOWN_CROPPING_SYSTEM',
-      `Cropping system ${dto.croppingSystemCode} is not set up for this trial`,
-    );
-  }
   if (dto.cropCode && !(await activeMasterCodes('crop')).has(dto.cropCode)) {
     throw AppError.badRequest('UNKNOWN_CROP', `Crop ${dto.cropCode} is not in the crops master`);
   }
@@ -191,7 +185,6 @@ export const createSheet = async (ctx: RequestContext, dto: CreateSheetDto) => {
           centreId: trial.centreId,
           year: dto.year,
           seasonCode: dto.seasonCode,
-          croppingSystemCode: dto.croppingSystemCode ?? null,
           cropCode: dto.cropCode ?? null,
           history: [{ status: 'Draft', at: new Date(), byUserId: ctx.user.id, byName: ctx.user.name }],
           createdBy: ctx.user.id,
@@ -798,10 +791,6 @@ export const experimentSummary = async (ctx: RequestContext, query: SummaryQuery
   }
 
   const numeric = experiment.parameters.filter((p) => p.dataType === 'number');
-  const trials = await trialsByIds([...new Set(sheets.map((s) => String(s.trialId)))]);
-  const systemName = (s: (typeof sheets)[number]) =>
-    trials.get(String(s.trialId))?.croppingSystems.find((cs) => cs.code === s.croppingSystemCode)?.name ??
-    null;
   const rows = sheets.map((s) => {
     const mine = perSheet.get(s.id) ?? [];
     const means: Record<string, Record<string, number | null>> = {};
@@ -821,7 +810,8 @@ export const experimentSummary = async (ctx: RequestContext, query: SummaryQuery
       centre: { id: String(s.centreId._id), code: s.centreId.code, name: s.centreId.name },
       seasonCode: s.seasonCode,
       croppingSystemCode: s.croppingSystemCode,
-      croppingSystemName: systemName(s),
+      // Sheets are no longer opened per cropping system; older ones keep their code.
+      croppingSystemName: s.croppingSystemCode ?? null,
       cropCode: s.cropCode,
       status: s.status,
       means,
