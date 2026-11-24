@@ -77,7 +77,10 @@ const commonValues = (experiment: ExperimentDoc): Record<string, Value> => {
     ...COMMON_DEFAULTS,
     projectTitle: experiment.title,
     projectCode: `AINP-NF/${experiment.code}`,
-    dataCategory: experiment.design === 'Survey' ? 'Survey' : 'Experimental',
+    dataCategory:
+      experiment.design === 'Survey' || experiment.design === '2 Stage Stratified Sampling (No replication)'
+        ? 'Survey'
+        : 'Experimental',
     design: [
       experiment.design,
       experiment.replications ? `${experiment.replications} replications` : null,

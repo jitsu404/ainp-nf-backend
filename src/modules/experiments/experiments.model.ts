@@ -17,6 +17,10 @@ export const EXPERIMENT_DESIGNS = [
   'Non-replicated',
   'Farmer participatory',
   'Survey',
+  'IBD',
+  'RSD',
+  '2 Stage Stratified Sampling (No replication)',
+  'CRD',
 ] as const;
 export type ExperimentDesign = (typeof EXPERIMENT_DESIGNS)[number];
 
@@ -26,12 +30,16 @@ export const DESIGNS_NEEDING_REPLICATIONS: readonly ExperimentDesign[] = [
   'Split plot',
   'Split-split plot',
   'Factorial',
+  'IBD',
+  'RSD',
+  'CRD',
 ];
 /** Never replicated: data is one value per treatment. Strip plot may be either (both occur). */
 export const DESIGNS_WITHOUT_REPLICATIONS: readonly ExperimentDesign[] = [
   'Non-replicated',
   'Farmer participatory',
   'Survey',
+  '2 Stage Stratified Sampling (No replication)',
 ];
 /**
  * Designs laid out in plots: each main plot × sub plot is one plot, and every plot is a complete

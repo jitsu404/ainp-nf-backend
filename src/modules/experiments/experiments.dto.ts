@@ -36,7 +36,7 @@ export const treatment = z
       .regex(/^[A-Z0-9][A-Z0-9_-]{0,19}$/, 'Treatment code: letters, digits, _ or -')
       .meta({ example: 'T2' }),
     name: z.string().trim().min(1).max(200).meta({ example: 'Complete NF' }),
-    description: z.string().trim().max(1000).optional(),
+    description: z.string().trim().max(1000).nullable().optional(),
     mainPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
     subPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
     subSubPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
@@ -71,7 +71,7 @@ export const subPlotItem = z
       .meta({
         description: "Split / split-split plots: the sub plot's cropping system in each season",
       }),
-    description: z.string().trim().max(1000).optional(),
+    description: z.string().trim().max(1000).nullable().optional(),
     mainPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
     subPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
     subSubPlotCode: z.string().trim().toUpperCase().max(20).nullable().optional(),
