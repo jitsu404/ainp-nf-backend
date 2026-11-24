@@ -306,3 +306,12 @@ When adding routes:
   - `auto`: derived when read from the protocol, the trial's crops, the centre, its current PI and its sheets. Never stored.
   - `centre`: the centre's own record.
   Every centre assigned to the experiment can read the others' metadata (not their data), but only the owning centre can write it (scoped `getTrial` gives others 404). Workflow: Draft → Submitted (`research.submit`, `INCOMPLETE_METADATA` lists the required fields still missing) → Returned (remark required; Approved can be reopened) / Approved. `GET /metadata/experiments/:id/export` gives one row per centre in the ICAR column order.
+
+## Communication (`modules/communications`, `/communications`)
+
+- **Base mailbox only** (SOW: circulars, letters, guidelines, reminders, meeting notices; centre-wise dissemination; read / acknowledgement status; replies; searchable archive). Not yet linked to other modules; attachments and email alerts come later.
+- **Mail belongs to a side, not a person:** the PCU (`fromCentreId` / receipt `centreId` null, key `PCU`) or a centre. Every national user (PCU, Super Admin) works the PCU's inbox; a centre's users work that centre's. Roles without a mailbox (Experiment PI) get 403 (`authorize('comm.issue', 'comm.ack')`) or `NO_MAILBOX`.
+- **Who sends to whom:** the PCU (`comm.issue`) sends any type to all active centres (`toAllCentres`, resolved to the centres active at that moment) or chosen ones (`centreIds`); a centre (`comm.ack`) sends only a `Letter` or `Issue`, only to the PCU (400 `TYPE_NOT_ALLOWED` / `CENTRE_TO_PCU_ONLY`). `refNo` is generated per calendar year: `AINP-NF/COMM/2026/001` (counter `communication:<year>`).
+- **Receipts** are embedded, one per recipient (`readAt/By`, `acknowledgedAt/By/ByName`); `recipientKeys` (centre ids or `PCU`) indexes the inboxes. `POST /:id/read` and `/:id/acknowledge` set the caller's own receipt and are idempotent; acknowledging is audited. The sender sees every recipient's status and reply count; a recipient sees only its own; anyone else gets 404.
+- **Replies** (`communicationreplies`): one thread per recipient (`threadCentreId`). A recipient always writes in its own thread; the sender names the centre (`?centreId=`), optional when there is a single recipient (400 `THREAD_REQUIRED` otherwise). Replying marks the item read for a recipient.
+- `GET /communications?box=inbox|sent&type&status=unread|unacknowledged&search` lists a side's mail (search: subject, reference, text); `GET /communications/unread-count` feeds the navigation badge.

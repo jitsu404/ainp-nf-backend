@@ -3,6 +3,7 @@ import { auditRouter } from './modules/audit/audit.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { budgetAllocationRouter } from './modules/budget-allocation/budget-allocation.routes.js';
 import { centresRouter } from './modules/centres/centres.routes.js';
+import { communicationsRouter } from './modules/communications/communications.routes.js';
 import { croppingSystemsRouter } from './modules/croppingSystems/croppingSystems.routes.js';
 import { financialYearsRouter } from './modules/financialYears/financialYears.routes.js';
 import { metadataRouter } from './modules/metadata/metadata.routes.js';
@@ -71,6 +72,14 @@ export const API_MODULES: readonly ApiModule[] = [
     singular: 'master',
     description:
       'Lookup lists (seasons, units, crops, NF inputs, programmes, budget heads, fund categories, staff posts). Everyone signed in reads them; `masters.edit` (PCU, Super Admin) changes them. Each list supports Excel import.',
+  },
+  {
+    name: 'Communications',
+    prefix: '/communications',
+    router: communicationsRouter,
+    singular: 'communication',
+    description:
+      'Communication & correspondence: the PCU issues circulars, letters, guidelines, reminders, meeting notices and notifications to all or chosen centres; a centre writes letters and issues to the PCU. Mail belongs to a side (the PCU or a centre). Recipients have read / acknowledged status and a reply thread each.',
   },
   {
     name: 'Cropping systems',

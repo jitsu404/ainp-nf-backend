@@ -946,6 +946,289 @@
       ]
     },
     {
+      "name": "Communications",
+      "description": "Communication & correspondence: the PCU issues circulars, letters, guidelines, reminders, meeting notices and notifications to all or chosen centres; a centre writes letters and issues to the PCU. Mail belongs to a side (the PCU or a centre). Recipients have read / acknowledged status and a reply thread each.",
+      "item": [
+        {
+          "name": "Unread count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/communications/unread-count",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "communications",
+                "unread-count"
+              ]
+            },
+            "description": "Inbox items the caller's side hasn't opened yet.\n\n**Access:** signed in, and the role needs one of `comm.issue`, `comm.ack`\n\n**Endpoint:** `GET /api/v1/communications/unread-count`"
+          }
+        },
+        {
+          "name": "List communications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/communications?box=inbox&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "communications"
+              ],
+              "query": [
+                {
+                  "key": "box",
+                  "value": "inbox",
+                  "description": "string · one of `inbox`, `sent`; default `\"inbox\"`",
+                  "disabled": false
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "description": "string · one of `Circular`, `Letter`, `Guideline`, `Reminder`, `Meeting notice`, `Notification`, `Issue`",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "string · one of `unread`, `unacknowledged` · Inbox only: unread, or not yet acknowledged",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "string · 0–100 chars",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "integer · min 1; default `1`",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "integer · min 1; max 100; default `20`",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "`box=inbox` (received by the caller's side: the PCU, or the user's centre) or `box=sent`. Filters: type, status (unread / unacknowledged), search (subject, reference, text).\n\n**Access:** signed in, and the role needs one of `comm.issue`, `comm.ack`\n\n**Endpoint:** `GET /api/v1/communications`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `box` | string | no | one of `inbox`, `sent`; default `\"inbox\"` |  |\n| `type` | string | no | one of `Circular`, `Letter`, `Guideline`, `Reminder`, `Meeting notice`, `Notification`, `Issue` |  |\n| `status` | string | no | one of `unread`, `unacknowledged` | Inbox only: unread, or not yet acknowledged |\n| `search` | string | no | 0–100 chars |  |\n| `page` | integer | no | min 1; default `1` |  |\n| `limit` | integer | no | min 1; max 100; default `20` |  |"
+          }
+        },
+        {
+          "name": "Send communication",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Remember the new communication so \"Get\", \"Update\" and other requests can use it.",
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('communicationId', pm.response.json().data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"Circular\",\n  \"subject\": \"Submission of Kharif 2026 data\",\n  \"body\": \"All centres are requested to submit the Kharif 2026 observation sheets.\",\n  \"toAllCentres\": true,\n  \"centreIds\": [\n    \"{{centreId}}\"\n  ],\n  \"replyRequired\": true,\n  \"dueDate\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/communications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "communications"
+              ]
+            },
+            "description": "The PCU sends to all active centres (`toAllCentres`) or chosen ones (`centreIds`); a centre sends a Letter or Issue to the PCU. The reference number is generated (AINP-NF/COMM/2026/001).\n\n**Access:** signed in, and the role needs one of `comm.issue`, `comm.ack`\n\n**Endpoint:** `POST /api/v1/communications`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `type` | string | yes | one of `Circular`, `Letter`, `Guideline`, `Reminder`, `Meeting notice`, `Notification`, `Issue` |  |\n| `subject` | string | yes | 3–300 chars |  |\n| `body` | string | yes | 1–20000 chars |  |\n| `toAllCentres` | boolean | no | — | PCU only: send to every active centre |\n| `centreIds` | string[] | no | — | PCU only: the centres to send to (when not toAllCentres) |\n| `replyRequired` | boolean | no | — |  |\n| `dueDate` | any | no | nullable |  |\n\nUnknown fields are rejected."
+          }
+        },
+        {
+          "name": "Get communication",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/communications/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "communications",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{communicationId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "The sender sees every recipient’s read / acknowledged status and reply count; a recipient sees its own.\n\n**Access:** signed in, and the role needs one of `comm.issue`, `comm.ack`\n\n**Endpoint:** `GET /api/v1/communications/:id`"
+          }
+        },
+        {
+          "name": "Mark communication read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/communications/:id/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "communications",
+                ":id",
+                "read"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{communicationId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs one of `comm.issue`, `comm.ack`\n\n**Endpoint:** `POST /api/v1/communications/:id/read`"
+          }
+        },
+        {
+          "name": "Acknowledge communication",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/communications/:id/acknowledge",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "communications",
+                ":id",
+                "acknowledge"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{communicationId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs one of `comm.issue`, `comm.ack`\n\n**Endpoint:** `POST /api/v1/communications/:id/acknowledge`"
+          }
+        },
+        {
+          "name": "List replies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/communications/:id/replies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "communications",
+                ":id",
+                "replies"
+              ],
+              "query": [
+                {
+                  "key": "centreId",
+                  "value": "",
+                  "description": "string · ObjectId · Sender only: which recipient centre's thread. A recipient always uses its own.",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{communicationId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "One thread per recipient. The sender passes `centreId` when there are several recipients.\n\n**Access:** signed in, and the role needs one of `comm.issue`, `comm.ack`\n\n**Endpoint:** `GET /api/v1/communications/:id/replies`\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `centreId` | string | no | ObjectId | Sender only: which recipient centre's thread. A recipient always uses its own. |"
+          }
+        },
+        {
+          "name": "Reply to communication",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"body\": \"Sample body\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/communications/:id/replies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "communications",
+                ":id",
+                "replies"
+              ],
+              "query": [
+                {
+                  "key": "centreId",
+                  "value": "",
+                  "description": "string · ObjectId · Sender only: which recipient centre's thread. A recipient always uses its own.",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "{{communicationId}}",
+                  "description": "ObjectId"
+                }
+              ]
+            },
+            "description": "**Access:** signed in, and the role needs one of `comm.issue`, `comm.ack`\n\n**Endpoint:** `POST /api/v1/communications/:id/replies`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `body` | string | yes | 1–10000 chars |  |\n\nUnknown fields are rejected.\n\n**Query parameters**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `centreId` | string | no | ObjectId | Sender only: which recipient centre's thread. A recipient always uses its own. |"
+          }
+        }
+      ]
+    },
+    {
       "name": "Cropping systems",
       "description": "Cropping systems master: one season, its main crop and its intercrops. Experiments pick one as a sub plot level (split / split-split plot); each centre records its varieties, spacings, row ratios and seed rates on its trial. Everyone signed in reads them; `masters.edit` changes them.",
       "item": [
@@ -1495,7 +1778,7 @@
                 "experiments"
               ]
             },
-            "description": "The PCU protocol: design, replications, common treatments, the parameters to record (plot- or treatment-level) and seasons. Assigning centres creates their trials; `piUserId` links an Experiment PI seat (optional).\n\n**Access:** signed in, and the role needs `research.assign`\n\n**Endpoint:** `POST /api/v1/experiments`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | 5–300 chars |  |\n| `programmeCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | yes | one of `RBD`, `Split plot`, `Strip plot`, `Split-split plot`, `Factorial`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0; max 10; default `0` | Split / strip plot: main plots (≥ 1); other designs: 0. Each main × sub plot holds every treatment × replication |\n| `subPlotCount` | integer | no | min 0; max 10; default `0` | Split / strip plot: sub plots per main plot (≥ 1); other designs: 0 |\n| `subSubPlotCount` | integer | no | min 0; max 10; default `0` | Split-split plot: sub-sub plots per sub plot (≥ 1); other designs: 0 |\n| `treatments` | object[] | no | — |  |\n| `mainPlotData` | object[] | no | — |  |\n| `subPlotData` | object[] | no | — |  |\n| `subSubPlotData` | object[] | no | — |  |\n| `factor1Data` | object[] | no | — |  |\n| `factor2Data` | object[] | no | — |  |\n| `factor3Data` | object[] | no | — |  |\n| `disabledParameters` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | yes | min 1900; max 2100 |  |\n| `endYear` | integer | yes | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` | Leave out to generate the programme's next code (AINP-NF-P2-EXPT-001 …) |\n\nUnknown fields are rejected."
+            "description": "The PCU protocol: design, replications, common treatments, the parameters to record (plot- or treatment-level) and seasons. Assigning centres creates their trials; `piUserId` links an Experiment PI seat (optional).\n\n**Access:** signed in, and the role needs `research.assign`\n\n**Endpoint:** `POST /api/v1/experiments`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | yes | 5–300 chars |  |\n| `programmeCode` | string | yes | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | yes | one of `RBD`, `Split plot`, `Strip plot`, `Split-split plot`, `Factorial`, `Non-replicated`, `Farmer participatory`, `Survey`, `IBD`, `RSD`, `2 Stage Stratified Sampling (No replication)`, `CRD` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0; max 10; default `0` | Split / strip plot: main plots (≥ 1); other designs: 0. Each main × sub plot holds every treatment × replication |\n| `subPlotCount` | integer | no | min 0; max 10; default `0` | Split / strip plot: sub plots per main plot (≥ 1); other designs: 0 |\n| `subSubPlotCount` | integer | no | min 0; max 10; default `0` | Split-split plot: sub-sub plots per sub plot (≥ 1); other designs: 0 |\n| `treatments` | object[] | no | — |  |\n| `mainPlotData` | object[] | no | — |  |\n| `subPlotData` | object[] | no | — |  |\n| `subSubPlotData` | object[] | no | — |  |\n| `factor1Data` | object[] | no | — |  |\n| `factor2Data` | object[] | no | — |  |\n| `factor3Data` | object[] | no | — |  |\n| `disabledParameters` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | yes | min 1900; max 2100 |  |\n| `endYear` | integer | yes | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `code` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` | Leave out to generate the programme's next code (AINP-NF-P2-EXPT-001 …) |\n\nUnknown fields are rejected."
           }
         },
         {
@@ -1534,7 +1817,7 @@
                 }
               ]
             },
-            "description": "Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added. The Experiment PI edits only their own experiment; centres and the PI (`centreIds`, `piUserId`) need `research.assign`.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | no | 5–300 chars |  |\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | no | one of `RBD`, `Split plot`, `Strip plot`, `Split-split plot`, `Factorial`, `Non-replicated`, `Farmer participatory`, `Survey` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0; max 10 | Split / strip plot: main plots (≥ 1); other designs: 0. Each main × sub plot holds every treatment × replication |\n| `subPlotCount` | integer | no | min 0; max 10 | Split / strip plot: sub plots per main plot (≥ 1); other designs: 0 |\n| `subSubPlotCount` | integer | no | min 0; max 10 | Split-split plot: sub-sub plots per sub plot (≥ 1); other designs: 0 |\n| `treatments` | object[] | no | — |  |\n| `mainPlotData` | object[] | no | — |  |\n| `subPlotData` | object[] | no | — |  |\n| `subSubPlotData` | object[] | no | — |  |\n| `factor1Data` | object[] | no | — |  |\n| `factor2Data` | object[] | no | — |  |\n| `factor3Data` | object[] | no | — |  |\n| `disabledParameters` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | no | min 1900; max 2100 |  |\n| `endYear` | integer | no | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n| `withdrawReason` | string | no | 3–500 chars | Why centres left out of `centreIds` are withdrawn (kept on their trial; their data stays read-only) |\n\nUnknown fields are rejected."
+            "description": "Once any centre has recorded data, the design, replications and existing treatments/parameters are frozen (409 EXPERIMENT_HAS_DATA); new ones can still be added. The Experiment PI edits only their own experiment; centres and the PI (`centreIds`, `piUserId`) need `research.assign`.\n\n**Access:** signed in, and the role needs `research.config`\n\n**Endpoint:** `PATCH /api/v1/experiments/:id`\n\n**Body**\n\n| Field | Type | Required | Rules | Notes |\n|---|---|---|---|---|\n| `title` | string | no | 5–300 chars |  |\n| `programmeCode` | string | no | pattern `^[A-Z0-9][A-Z0-9_-]{0,29}$` |  |\n| `objectives` | string[] | no | — |  |\n| `design` | string | no | one of `RBD`, `Split plot`, `Strip plot`, `Split-split plot`, `Factorial`, `Non-replicated`, `Farmer participatory`, `Survey`, `IBD`, `RSD`, `2 Stage Stratified Sampling (No replication)`, `CRD` |  |\n| `replications` | integer | no | min 1; max 20; nullable |  |\n| `mainPlotCount` | integer | no | min 0; max 10 | Split / strip plot: main plots (≥ 1); other designs: 0. Each main × sub plot holds every treatment × replication |\n| `subPlotCount` | integer | no | min 0; max 10 | Split / strip plot: sub plots per main plot (≥ 1); other designs: 0 |\n| `subSubPlotCount` | integer | no | min 0; max 10 | Split-split plot: sub-sub plots per sub plot (≥ 1); other designs: 0 |\n| `treatments` | object[] | no | — |  |\n| `mainPlotData` | object[] | no | — |  |\n| `subPlotData` | object[] | no | — |  |\n| `subSubPlotData` | object[] | no | — |  |\n| `factor1Data` | object[] | no | — |  |\n| `factor2Data` | object[] | no | — |  |\n| `factor3Data` | object[] | no | — |  |\n| `disabledParameters` | object[] | no | — |  |\n| `defaultParameters` | object[] | no | — |  |\n| `seasons` | object | no | — |  |\n| `startYear` | integer | no | min 1900; max 2100 |  |\n| `endYear` | integer | no | min 1900; max 2100 |  |\n| `centreIds` | string[] | no | — |  |\n| `piUserId` | string | no | ObjectId; nullable | Experiment PI seat to link (PCU only, `research.assign`); null unlinks |\n| `referenceTreatmentCode` | string | no | 0–20 chars; nullable | Treatment the others are compared with (\"% vs reference\"); one of the treatment codes |\n| `status` | string | no | one of `Draft`, `Active`, `Closed` |  |\n| `withdrawReason` | string | no | 3–500 chars | Why centres left out of `centreIds` are withdrawn (kept on their trial; their data stays read-only) |\n\nUnknown fields are rejected."
           }
         }
       ]
@@ -3199,6 +3482,12 @@
       "value": "",
       "type": "string",
       "description": "Set automatically by \"Create master\""
+    },
+    {
+      "key": "communicationId",
+      "value": "",
+      "type": "string",
+      "description": "Set automatically by \"Create communication\""
     },
     {
       "key": "croppingSystemId",

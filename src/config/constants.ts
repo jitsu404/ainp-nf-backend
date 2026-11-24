@@ -54,7 +54,7 @@ export const CAPABILITY_LABELS: Readonly<Record<Capability, string>> = {
   'aucsoe.review': 'Scrutinise AUC / SoE',
   'aucsoe.approve': 'Approve AUC / SoE',
   'comm.issue': 'Issue circulars and reminders',
-  'comm.ack': 'Acknowledge and reply to communications',
+  'comm.ack': 'Acknowledge and reply to communications, and write letters or issues to the PCU',
   'staff.manage': 'Manage project staff',
   'staff.propose': 'Report staff joining or relieving',
   'meetings.manage': 'Schedule meetings and action points',
